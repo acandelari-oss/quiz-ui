@@ -27,8 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try { data = JSON.parse(raw); } catch { data = { raw }; }
 
     return res.status(response.status).json(data);
-  } catch (e: any) {
-    console.error("generate-quiz error:", e);
-    return res.status(500).json({ error: e?.message || String(e) });
+  } catch (err: any) {
+    return res.status(500).json({ error: String(err?.message || err) });
   }
 }

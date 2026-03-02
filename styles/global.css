@@ -1,0 +1,54 @@
+body {
+
+  background: #F4F7FA;
+
+  font-family:
+
+    -apple-system,
+    BlinkMacSystemFont,
+    Segoe UI,
+    Roboto;
+
+  color: #0B3C5D;
+
+  margin: 0;
+
+}
+
+button {
+
+  background: #1ABC9C;
+
+  border: none;
+
+  color: white;
+
+  padding: 10px 18px;
+
+  border-radius: 6px;
+
+  cursor: pointer;
+
+  font-weight: 600;
+
+}
+
+button:hover {
+
+  background: #16a085;
+
+}
+
+.card {
+
+  background: white;
+
+  padding: 20px;
+
+  border-radius: 10px;
+
+  box-shadow:
+
+    0 4px 10px rgba(0,0,0,0.05);
+
+}
