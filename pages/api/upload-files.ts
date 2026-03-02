@@ -68,7 +68,9 @@ error:"Form parse error"
 }
 
 
-const projectId=fields.project_id as string;
+const projectId = Array.isArray(fields.project_id)
+  ? fields.project_id[0]
+  : fields.project_id;
 
 
 if(!projectId){
