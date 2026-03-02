@@ -1,248 +1,178 @@
-import { useState, useEffect } from "react"
-import Image from "next/image"
+import { useState, useEffect } from "react";
+import Image from "next/image";
 
-export default function Home(){
+export default function Home() {
 
-// CORE
+const [projectId,setProjectId]=useState("");
+const [projectName,setProjectName]=useState("");
 
-const [projectId,setProjectId]=useState("")
-const [projectName,setProjectName]=useState("")
-const [projects,setProjects]=useState<any[]>([])
+const [projects,setProjects]=useState<any[]>([]);
 
-const [files,setFiles]=useState<FileList|null>(null)
-const [documents,setDocuments]=useState<any[]>([])
+const [files,setFiles]=useState<FileList|null>(null);
 
-const [quiz,setQuiz]=useState<any[]>([])
+const [documents,setDocuments]=useState<any[]>([]);
 
+const [quiz,setQuiz]=useState<any[]>([]);
 
-// STATUS
+const [answers,setAnswers]=useState<any>({});
 
-const [statusProject,setStatusProject]=useState("")
-const [statusUpload,setStatusUpload]=useState("")
-const [statusQuiz,setStatusQuiz]=useState("")
+const [status,setStatus]=useState("");
 
 
-// OPTIONS
+// SETTINGS
 
-const [numQuestions,setNumQuestions]=useState(10)
-const [difficulty,setDifficulty]=useState("medium")
-const [language,setLanguage]=useState("English")
-const [timerMinutes,setTimerMinutes]=useState(0)
+const [numQuestions,setNumQuestions]=useState(10);
+const [difficulty,setDifficulty]=useState("medium");
+const [language,setLanguage]=useState("English");
+const [timerMinutes,setTimerMinutes]=useState(0);
 
 
 // TIMER
 
-const [timeLeft,setTimeLeft]=useState(0)
-const [started,setStarted]=useState(false)
-const [finished,setFinished]=useState(false)
+const [timeLeft,setTimeLeft]=useState(0);
+const [started,setStarted]=useState(false);
+const [finished,setFinished]=useState(false);
 
-
-// ANSWERS
-
-const [answers,setAnswers]=useState<{[key:number]:string}>({})
-const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
-
-
-
-// LOAD PROJECTS ON START
-
-useEffect(()=>{
-
-loadProjects()
-
-},[])
-
-
-
-// TIMER
 
 
 useEffect(()=>{
 
-if(!started)return
+loadProjects();
+
+},[]);
+
+
+
+useEffect(()=>{
+
+if(!started) return;
 
 if(timeLeft<=0){
 
-submitQuiz()
-
-return
+submitQuiz();
+return;
 
 }
 
-const i=setInterval(()=>{
+const interval=setInterval(()=>{
 
-setTimeLeft(t=>t-1)
+setTimeLeft(t=>t-1);
 
-},1000)
+},1000);
 
-return()=>clearInterval(i)
+return ()=>clearInterval(interval);
 
-},[started,timeLeft])
-
-
+},[started,timeLeft]);
 
 
-// LOAD PROJECTS
+
+function formatTime(){
+
+const m=Math.floor(timeLeft/60);
+const s=timeLeft%60;
+
+return `${m}:${s.toString().padStart(2,"0")}`;
+
+}
+
+
+
+// PROJECTS
 
 
 async function loadProjects(){
 
-try{
+const res=await fetch("/api/list-projects");
 
-const res=await fetch("/api/list-projects")
+const data=await res.json();
 
-const data=await res.json()
-
-setProjects(data.projects || [])
-
-}catch{
-
-setProjects([])
+setProjects(data.projects||[]);
 
 }
 
-}
-
-
-
-// CREATE PROJECT
 
 
 async function createProject(){
 
-setStatusProject("Creating...")
+setStatus("Creating...");
 
 const res=await fetch("/api/create-project",{
 
 method:"POST",
 
-headers:{ "Content-Type":"application/json" },
+headers:{"Content-Type":"application/json"},
 
 body:JSON.stringify({
 
-name:projectName || "My Project"
+name:projectName
 
 })
 
-})
+});
 
-const data=await res.json()
+const data=await res.json();
 
-if(!data.project_id){
+setProjectId(data.project_id);
 
-setStatusProject("Error")
+setStatus(`Saved: ${data.name}`);
 
-return
-
-}
-
-setProjectId(data.project_id)
-
-setProjectName(data.project_name)
-
-setStatusProject("Saved: "+data.project_name)
-
-loadProjects()
+loadProjects();
 
 }
 
 
 
-// SELECT PROJECT
+function selectProject(id:string){
 
+setProjectId(id);
 
-function selectProject(e:any){
-
-const id=e.target.value
-
-setProjectId(id)
-
-loadDocuments(id)
+setStatus("Project loaded");
 
 }
 
 
 
-// LOAD DOCUMENTS
-
-
-async function loadDocuments(pid:string){
-
-const res=await fetch(`/api/list-documents?project_id=${pid}`)
-
-const data=await res.json()
-
-setDocuments(data.documents || [])
-
-}
-
-
-
-// UPLOAD FILES
+// FILES
 
 
 async function uploadFiles(){
 
-if(!files || !projectId){
+if(!files) return;
 
-setStatusUpload("Select project first")
+setStatus("Uploading...");
 
-return
+const form=new FormData();
 
-}
+form.append("project_id",projectId);
 
-setStatusUpload("Uploading...")
+Array.from(files).forEach(f=>form.append("file",f));
 
-const formData=new FormData()
-
-formData.append("project_id",projectId)
-
-Array.from(files).forEach(f=>formData.append("file",f))
-
-const res=await fetch("/api/upload-files",{
+await fetch("/api/upload-files",{
 
 method:"POST",
 
-body:formData
+body:form
 
-})
+});
 
-if(res.ok){
-
-setStatusUpload("Uploaded")
-
-loadDocuments(projectId)
-
-}else{
-
-setStatusUpload("Failed")
-
-}
+setStatus("Uploaded");
 
 }
 
 
 
-// GENERATE QUIZ
+// QUIZ
 
 
 async function generateQuiz(){
 
-if(!projectId){
-
-setStatusQuiz("Select project first")
-
-return
-
-}
-
-setStatusQuiz("Generating...")
+setStatus("Generating...");
 
 const res=await fetch("/api/generate-quiz",{
 
 method:"POST",
 
-headers:{ "Content-Type":"application/json" },
+headers:{"Content-Type":"application/json"},
 
 body:JSON.stringify({
 
@@ -256,57 +186,33 @@ language
 
 })
 
-})
+});
 
-const data=await res.json()
+const data=await res.json();
 
-let parsed:any[]=[]
+const parsed=typeof data.quiz==="string"
 
+? JSON.parse(data.quiz)
 
-if(Array.isArray(data.quiz)) parsed=data.quiz
+: data.quiz;
 
-else if(typeof data.quiz==="string"){
+setQuiz(parsed);
 
-try{
+setStarted(true);
 
-parsed=JSON.parse(data.quiz)
+setFinished(false);
 
-}catch{}
+setTimeLeft(timerMinutes*60);
 
-}
-
-else if(Array.isArray(data)) parsed=data
-
-
-if(!parsed.length){
-
-setStatusQuiz("Backend returned no quiz")
-
-return
+setStatus("Quiz started");
 
 }
 
-
-setQuiz(parsed)
-
-setStarted(true)
-
-setFinished(false)
-
-setTimeLeft(timerMinutes*60)
-
-setStatusQuiz("Started")
-
-}
-
-
-
-// SELECT ANSWER
 
 
 function selectAnswer(i:number,opt:string){
 
-if(finished)return
+if(finished) return;
 
 setAnswers({
 
@@ -314,62 +220,47 @@ setAnswers({
 
 [i]:opt
 
-})
+});
 
 }
 
-
-
-// SUBMIT
 
 
 function submitQuiz(){
 
-setFinished(true)
+setStarted(false);
 
-setStarted(false)
+setFinished(true);
 
-setStatusQuiz("Finished")
+setStatus("Finished");
 
 }
 
-
-
-// SCORE
 
 
 function score(){
 
-let c=0
+let s=0;
 
 quiz.forEach((q,i)=>{
 
-if(answers[i]===q.correct) c++
+if(answers[i]===q.correct){
 
-})
+s++;
 
-return c
+}
+
+});
+
+return s;
 
 }
 
 
 
-// TIME FORMAT
-
-
-function formatTime(){
-
-const m=Math.floor(timeLeft/60)
-
-const s=timeLeft%60
-
-return `${m}:${s.toString().padStart(2,"0")}`
-
-}
-
-
-
-// ================= UI =================
+// ======================
+// RENDER
+// ======================
 
 
 return(
@@ -377,24 +268,28 @@ return(
 <div style={page}>
 
 
-<header style={header}>
+
+<header style={header as React.CSSProperties}>
 
 <Image src="/logo.png" width={260} height={160} alt="logo"/>
 
 </header>
 
 
-<div style={row}>
+
+{/* TOP ROW */}
 
 
-{/* CREATE PROJECT */}
+
+<div style={topRow}>
+
+
+{/* CREATE */}
 
 
 <div style={box}>
 
-
-<h3 style={title}>Create Project</h3>
-
+<h2 style={title}>Create Project</h2>
 
 <input
 
@@ -402,26 +297,34 @@ placeholder="Project name"
 
 value={projectName}
 
-onChange={(e)=>setProjectName(e.target.value)}
+onChange={e=>setProjectName(e.target.value)}
+
+style={input}
 
 />
 
+<button onClick={createProject} style={button}>Create</button>
 
-<button onClick={createProject} style={button}>
-
-Save
-
-</button>
+</div>
 
 
-<p>{statusProject}</p>
+
+{/* LOAD */}
 
 
-<select onChange={selectProject} value={projectId}>
+<div style={box}>
 
+<h2 style={title}>Load Existing</h2>
 
-<option value="">Load existing</option>
+<select
 
+onChange={e=>selectProject(e.target.value)}
+
+style={input}
+
+>
+
+<option>Select</option>
 
 {projects.map(p=>(
 
@@ -433,9 +336,7 @@ Save
 
 ))}
 
-
 </select>
-
 
 </div>
 
@@ -446,37 +347,17 @@ Save
 
 <div style={box}>
 
-
-<h3 style={title}>Upload</h3>
-
+<h2 style={title}>Upload Files</h2>
 
 <input type="file" multiple
 
-onChange={(e)=>setFiles(e.target.files)}
+onChange={e=>setFiles(e.target.files)}
+
+style={input}
 
 />
 
-
-<button onClick={uploadFiles} style={button}>
-
-Upload
-
-</button>
-
-
-<p>{statusUpload}</p>
-
-
-<ul>
-
-{documents.map(d=>(
-
-<li key={d.id}>{d.title}</li>
-
-))}
-
-</ul>
-
+<button onClick={uploadFiles} style={button}>Upload</button>
 
 </div>
 
@@ -487,8 +368,7 @@ Upload
 
 <div style={box}>
 
-
-<h3 style={title}>Generate Quiz</h3>
+<h2 style={title}>Generate Quiz</h2>
 
 
 Questions
@@ -497,16 +377,24 @@ Questions
 
 value={numQuestions}
 
-onChange={(e)=>setNumQuestions(Number(e.target.value))}
+onChange={e=>setNumQuestions(Number(e.target.value))}
+
+style={input}
 
 />
 
 
 Difficulty
 
-<select value={difficulty}
+<select
 
-onChange={(e)=>setDifficulty(e.target.value)}>
+value={difficulty}
+
+onChange={e=>setDifficulty(e.target.value)}
+
+style={input}
+
+>
 
 <option>easy</option>
 
@@ -517,11 +405,18 @@ onChange={(e)=>setDifficulty(e.target.value)}>
 </select>
 
 
+
 Language
 
-<select value={language}
+<select
 
-onChange={(e)=>setLanguage(e.target.value)}>
+value={language}
+
+onChange={e=>setLanguage(e.target.value)}
+
+style={input}
+
+>
 
 <option>English</option>
 
@@ -530,50 +425,56 @@ onChange={(e)=>setLanguage(e.target.value)}>
 </select>
 
 
+
 Timer
 
-<input type="number"
+<input
+
+type="number"
 
 value={timerMinutes}
 
-onChange={(e)=>setTimerMinutes(Number(e.target.value))}
+onChange={e=>setTimerMinutes(Number(e.target.value))}
+
+style={input}
 
 />
 
 
+
 <button onClick={generateQuiz} style={button}>
 
-Start
+Start Quiz
 
 </button>
 
 
-<p>{statusQuiz}</p>
-
-
-</div>
-
-
 </div>
 
 
 
-{/* TIMER */}
-
-
-{started &&
-
-<div style={timer}>
-
-Time: {formatTime()}
-
 </div>
-
-}
 
 
 
 {/* QUIZ */}
+
+
+
+<div style={quizBox}>
+
+
+
+{started &&(
+
+<div style={timer}>
+
+Time Left: {formatTime()}
+
+</div>
+
+)}
+
 
 
 {quiz.map((q,i)=>(
@@ -581,34 +482,31 @@ Time: {formatTime()}
 <div key={i} style={question}>
 
 
-<b>
+<h3>
 
 {i+1}. {q.question}
 
-</b>
+</h3>
 
 
-{q.options?.map((opt:string,j:number)=>{
 
+{q.options.map((opt:string,j:number)=>{
 
-const letter=String.fromCharCode(65+j)
+const correct=q.correct===opt;
 
-const correct=q.correct===opt
+const selected=answers[i]===opt;
 
-const selected=answers[i]===opt
+let color="#eee";
 
+if(finished){
 
-let bg="#eee"
+if(correct) color="#2FA4A9";
 
+else if(selected) color="#ff6b6b";
 
-if(finished && selected && correct)
+}
 
-bg="#2FA4A9"
-
-
-if(finished && selected && !correct)
-
-bg="#ffb3b3"
+else if(selected) color="#2FA4A9";
 
 
 return(
@@ -617,46 +515,27 @@ return(
 
 onClick={()=>selectAnswer(i,opt)}
 
-style={{background:bg,padding:10,marginTop:5,cursor:"pointer"}}>
+style={{
 
-{letter}. {opt}
+background:color,
+
+padding:10,
+
+marginTop:6,
+
+cursor:"pointer"
+
+}}
+
+>
+
+{String.fromCharCode(65+j)}. {opt}
 
 </div>
 
-)
+);
 
 })}
-
-
-
-{finished &&
-
-<button
-
-onClick={()=>setExpanded({
-
-...expanded,
-
-[i]:!expanded[i]
-
-})}>
-
-Extended explanation
-
-</button>
-
-}
-
-
-{expanded[i] &&
-
-<div style={explanation}>
-
-{q.explanation}
-
-</div>
-
-}
 
 
 </div>
@@ -665,57 +544,82 @@ Extended explanation
 
 
 
-{finished &&
+{finished &&(
 
 <div>
 
+<h2>
+
 Score: {score()} / {quiz.length}
 
+</h2>
+
 </div>
+
+)}
+
+
+
+</div>
+
+
+
+<div style={statusBox}>
+
+{status}
+
+</div>
+
+
+
+</div>
+
+);
 
 }
 
 
-</div>
 
-)
-
-}
-
-
-
-// ================= STYLES =================
+// ======================
+// STYLES
+// ======================
 
 
 const page={
 
-padding:"5%",
-
-background:"linear-gradient(#9acfce,#073055)",
+padding:"0 10%",
 
 minHeight:"100vh",
 
-fontFamily:"Nunito"
+background:"linear-gradient(to bottom,#9acfce,#073055)"
 
-}
+};
+
+
 
 const header={
 
-textAlign:"center",
+textAlign:"center" as const,
 
-marginBottom:30
+marginBottom:20
 
-}
+};
 
-const row={
+
+
+const topRow={
 
 display:"grid",
 
-gridTemplateColumns:"1fr 1fr 1fr",
+gridTemplateColumns:"repeat(4,1fr)",
 
-gap:20
+gap:20,
 
-}
+marginBottom:30
+
+};
+
+
 
 const box={
 
@@ -723,15 +627,43 @@ background:"white",
 
 padding:20,
 
-borderRadius:12
+borderRadius:10
 
-}
+};
+
+
 
 const title={
 
-color:"#073055"
+color:"white",
 
-}
+fontWeight:"bold",
+
+marginBottom:6
+
+};
+
+
+
+const quizBox={
+
+background:"white",
+
+padding:30,
+
+borderRadius:10
+
+};
+
+
+
+const question={
+
+marginBottom:20
+
+};
+
+
 
 const button={
 
@@ -741,42 +673,46 @@ background:"#2FA4A9",
 
 color:"white",
 
+padding:10,
+
 border:"none",
 
-padding:10,
+borderRadius:6,
 
-borderRadius:6
+cursor:"pointer"
 
-}
+};
 
-const question={
 
-marginTop:30,
 
-background:"white",
+const input={
 
-padding:20,
+width:"100%",
 
-borderRadius:12
+padding:8,
 
-}
+marginTop:6,
 
-const explanation={
+marginBottom:10
 
-background:"#dff0d8",
+};
 
-padding:10,
 
-marginTop:10
-
-}
 
 const timer={
 
-color:"white",
-
 fontSize:22,
 
-marginTop:20
+marginBottom:20
 
-}
+};
+
+
+
+const statusBox={
+
+marginTop:20,
+
+color:"white"
+
+};
