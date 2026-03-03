@@ -15,9 +15,9 @@ export default async function handler(
 ) {
   try {
     const backend = process.env.BACKEND_BASE_URL;
-    const apiKey = process.env.BACKEND_API_KEY;
+    
 
-    if (!backend || !apiKey) {
+    if (!backend) {
       return res.status(500).json({
         error: "Missing env",
       });
@@ -69,24 +69,19 @@ export default async function handler(
 
         let text = "";
 
-        if (file.mimetype === "application/pdf") {
-          const parsed = await pdfParse(buffer);
-          text = parsed.text;
-        } else {
-          text = buffer.toString();
-        }
+        const base64 = buffer.toString("base64");
 
         await fetch(`${backend}/projects/${projectId}/ingest`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: req.headers.authorization as string,
+  },
           body: JSON.stringify({
             documents: [
               {
                 title: file.originalFilename,
-                text,
+                file_bytes: base64,
               },
             ],
           }),

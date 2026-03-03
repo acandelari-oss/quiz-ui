@@ -1,718 +1,772 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
-
+import { supabase } from "../lib/supabase";
+import { useRouter } from "next/router";
 export default function Home() {
+
+  const router = useRouter();
+
+  useEffect(() => {
+    async function checkSession() {
+      const { data } = await supabase.auth.getSession();
+
+      if (!data.session) {
+        router.push("/login");
+      }
+    }
+
+    checkSession();
+  }, []);
+    
 
 const [projectId,setProjectId]=useState("");
 const [projectName,setProjectName]=useState("");
-
 const [projects,setProjects]=useState<any[]>([]);
-
 const [files,setFiles]=useState<FileList|null>(null);
-
 const [documents,setDocuments]=useState<any[]>([]);
-
 const [quiz,setQuiz]=useState<any[]>([]);
-
 const [answers,setAnswers]=useState<any>({});
-
 const [status,setStatus]=useState("");
+const [uploadStatus, setUploadStatus] = useState("");
+const [uploading, setUploading] = useState(false);
 
-
-// SETTINGS
+const [processing, setProcessing] = useState(false);
 
 const [numQuestions,setNumQuestions]=useState(10);
 const [difficulty,setDifficulty]=useState("medium");
 const [language,setLanguage]=useState("English");
 const [timerMinutes,setTimerMinutes]=useState(0);
 
-
-// TIMER
-
 const [timeLeft,setTimeLeft]=useState(0);
 const [started,setStarted]=useState(false);
 const [finished,setFinished]=useState(false);
+const [expanded, setExpanded] = useState<{[key:number]: boolean}>({});
 
 
-
-useEffect(()=>{
-
-loadProjects();
-
-},[]);
-
-
+useEffect(() => {
+  loadProjects();
+}, []);
 
 useEffect(()=>{
-
-if(!started) return;
-
-if(timeLeft<=0){
-
-submitQuiz();
-return;
-
-}
-
-const interval=setInterval(()=>{
-
-setTimeLeft(t=>t-1);
-
-},1000);
-
-return ()=>clearInterval(interval);
-
+  if(!started) return;
+  if(timeLeft<=0){
+    submitQuiz();
+    return;
+  }
+  const interval=setInterval(()=>{
+    setTimeLeft(t=>t-1);
+  },1000);
+  return ()=>clearInterval(interval);
 },[started,timeLeft]);
 
-
-
 function formatTime(){
-
-const m=Math.floor(timeLeft/60);
-const s=timeLeft%60;
-
-return `${m}:${s.toString().padStart(2,"0")}`;
-
+  const m=Math.floor(timeLeft/60);
+  const s=timeLeft%60;
+  return `${m}:${s.toString().padStart(2,"0")}`;
 }
 
+async function loadProjects() {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return;
 
+  const res = await fetch("/api/list-projects", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
 
-// PROJECTS
+  if (!res.ok) return;
 
-
-async function loadProjects(){
-
-const res=await fetch("/api/list-projects");
-
-const data=await res.json();
-
-setProjects(data.projects||[]);
-
+  const data = await res.json();
+  setProjects(data.projects || []);
 }
 
+async function createProject() {
+  setStatus("Creating...");
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) {
+    setStatus("Not authenticated");
+    return;
+  }
 
+  const res = await fetch("/api/create-project", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ name: projectName })
+  });
 
-async function createProject(){
+  const data = await res.json();
+  if (!res.ok) {
+    setStatus(data.error || "Error creating project");
+    return;
+  }
 
-setStatus("Creating...");
-
-const res=await fetch("/api/create-project",{
-
-method:"POST",
-
-headers:{"Content-Type":"application/json"},
-
-body:JSON.stringify({
-
-name:projectName
-
-})
-
-});
-
-const data=await res.json();
-
-setProjectId(data.project_id);
-
-setStatus(`Saved: ${data.name}`);
-
-loadProjects();
-
+  setProjectId(data.project_id);
+  setStatus(`Saved: ${projectName}`);
+  loadProjects();
 }
+async function loadDocuments(projectId:string){
 
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return;
 
+  const res = await fetch(`/api/list-documents?project_id=${projectId}`,{
+    headers:{ Authorization:`Bearer ${token}` }
+  });
 
+  if(!res.ok) return;
+
+  const data = await res.json();
+  setDocuments(data.documents || []);
+}
 function selectProject(id:string){
-
-setProjectId(id);
-
-setStatus("Project loaded");
-
+  setProjectId(id);
+  setStatus("Project loaded");
+  loadDocuments(id);
 }
-
-
-
-// FILES
-
 
 async function uploadFiles(){
+  if (!files || !projectId) {
+    setUploadStatus("Select a project and files first.");
+    return;
+  }
 
-if(!files) return;
+  setUploading(true);
+  setUploadStatus("Uploading...");
 
-setStatus("Uploading...");
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
 
-const form=new FormData();
+  if (!token) {
+    setUploading(false);
+    setUploadStatus("Not authenticated");
+    return;
+  }
 
-form.append("project_id",projectId);
+  const form = new FormData();
+  form.append("project_id", projectId);
+  Array.from(files).forEach((f) => form.append("file", f));
 
-Array.from(files).forEach(f=>form.append("file",f));
+  try {
+    const res = await fetch("/api/upload-files", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form
+    });
 
-await fetch("/api/upload-files",{
+    if (!res.ok) {
+      setUploading(false);
+      setUploadStatus("Upload failed ❌");
+      return;
+    }
 
-method:"POST",
+    // Upload done → now processing
+    setUploadStatus("Processing document...");
+    await loadDocuments(projectId);
 
-body:form
+    setUploadStatus("Upload successful ✅");
+    setUploading(false);
 
-});
-
-setStatus("Uploaded");
-
+  } catch {
+    setUploading(false);
+    setUploadStatus("Upload error ❌");
+  }
 }
-
-
-
-// QUIZ
-
-
 async function generateQuiz(){
+  if(!projectId) return;
 
-setStatus("Generating...");
+  setStatus("Generating...");
 
-const res=await fetch("/api/generate-quiz",{
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) {
+    setStatus("Not authenticated");
+    return;
+  }
 
-method:"POST",
+  const res=await fetch("/api/generate-quiz",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body:JSON.stringify({
+      project_id:projectId,
+      num_questions:numQuestions,
+      difficulty,
+      language
+    })
+  });
 
-headers:{"Content-Type":"application/json"},
+  if(!res.ok){
+    setStatus("Quiz generation failed");
+    return;
+  }
 
-body:JSON.stringify({
+  const data = await res.json();
 
-project_id:projectId,
+let rawQuiz = data.quiz;
 
-num_questions:numQuestions,
+if (typeof rawQuiz === "string") {
 
-difficulty,
+  rawQuiz = rawQuiz
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim();
 
-language
-
-})
-
-});
-
-const data=await res.json();
-
-const parsed=typeof data.quiz==="string"
-
-? JSON.parse(data.quiz)
-
-: data.quiz;
-
-setQuiz(parsed);
-
-setStarted(true);
-
-setFinished(false);
-
-setTimeLeft(timerMinutes*60);
-
-setStatus("Quiz started");
-
+  try {
+    rawQuiz = JSON.parse(rawQuiz);
+  } catch (err) {
+    console.error("JSON parse error:", rawQuiz);
+    setStatus("Quiz format error");
+    return;
+  }
 }
 
-
+setQuiz(rawQuiz);
+console.log("QUIZ DATA:", rawQuiz);
+  setStarted(true);
+  setFinished(false);
+  setTimeLeft(timerMinutes*60);
+  setStatus("Quiz started");
+}
 
 function selectAnswer(i:number,opt:string){
-
-if(finished) return;
-
-setAnswers({
-
-...answers,
-
-[i]:opt
-
-});
-
+  if(finished) return;
+  setAnswers({...answers,[i]:opt});
 }
-
-
 
 function submitQuiz(){
-
-setStarted(false);
-
-setFinished(true);
-
-setStatus("Finished");
-
+  setStarted(false);
+  setFinished(true);
+  setStatus("Finished");
 }
-
-
 
 function score(){
+  let s=0;
 
-let s=0;
+  quiz.forEach((q,i)=>{
 
-quiz.forEach((q,i)=>{
+    const userAnswer = answers[i];
+    const correctRaw = (q.correct ?? "").toString().trim();
 
-if(answers[i]===q.correct){
+    q.options.forEach((opt:string,j:number)=>{
+      const optTextNorm = opt?.toString().trim().toLowerCase();
+      const correctTextNorm = correctRaw.toLowerCase();
+      const optLetter = String.fromCharCode(65 + j);
 
-s++;
+      const correct =
+        correctTextNorm === optTextNorm ||
+        correctRaw === optLetter ||
+        String(Number(correctRaw)) === String(j);
 
+      if(correct && userAnswer === opt){
+        s++;
+      }
+    });
+
+  });
+
+  return s;
 }
+const answeredCount = quiz.reduce((acc, _q, i) => {
+  return acc + (answers[i] ? 1 : 0);
+}, 0);
 
-});
-
-return s;
-
+const allAnswered = quiz.length > 0 && answeredCount === quiz.length;
+async function logout() {
+  await supabase.auth.signOut();
+  window.location.href = "/login";
+} 
+function support() {
+  window.location.href = "mailto:studio@mokadv.com";
 }
-
-
-
-// ======================
-// RENDER
-// ======================
-
-
 return(
-
 <div style={page}>
+    {/* ====================== */}
+{/* TOP BAR */}
+{/* ====================== */}
 
+<div style={topBar}>
+  <div style={{ fontWeight: 600 }}>
+    StudyQuiz
+  </div>
 
+  <div style={{ display: "flex", gap: 15 }}>
+    <button onClick={support} style={topButton}>
+      Support
+    </button>
 
+    <button onClick={logout} style={topButtonPrimary}>
+      Logout
+    </button>
+  </div>
+</div>
+ 
+  {/* WRAPPER CONTENUTO */}
+  <div style={contentWrapper}>
 <header style={header as React.CSSProperties}>
-
+    <style>{spinKeyframes}</style>
 <Image src="/logo.png" width={260} height={160} alt="logo"/>
-
 </header>
-
-
-
-{/* TOP ROW */}
-
-
 
 <div style={topRow}>
 
-
-{/* CREATE */}
-
-
 <div style={box}>
-
-<h2 style={title}>Create Project</h2>
-
+<h2>Create Project</h2>
 <input
-
 placeholder="Project name"
-
 value={projectName}
-
 onChange={e=>setProjectName(e.target.value)}
-
 style={input}
-
 />
-
 <button onClick={createProject} style={button}>Create</button>
-
 </div>
 
-
-
-{/* LOAD */}
-
-
 <div style={box}>
-
-<h2 style={title}>Load Existing</h2>
-
-<select
-
-onChange={e=>selectProject(e.target.value)}
-
-style={input}
-
->
-
+<h2>Load Existing</h2>
+<select onChange={e=>selectProject(e.target.value)} style={input}>
 <option>Select</option>
-
 {projects.map(p=>(
-
-<option key={p.id} value={p.id}>
-
-{p.name}
-
-</option>
-
+<option key={p.id} value={p.id}>{p.name}</option>
 ))}
-
 </select>
-
 </div>
 
-
-
-{/* UPLOAD */}
-
-
 <div style={box}>
-
-<h2 style={title}>Upload Files</h2>
+<h2>Upload Files</h2>
 
 <input type="file" multiple
-
 onChange={e=>setFiles(e.target.files)}
-
 style={input}
-
 />
 
-<button onClick={uploadFiles} style={button}>Upload</button>
-
-</div>
-
-
-
-{/* SETTINGS */}
-
-
-<div style={box}>
-
-<h2 style={title}>Generate Quiz</h2>
-
-
-Questions
-
-<input type="number"
-
-value={numQuestions}
-
-onChange={e=>setNumQuestions(Number(e.target.value))}
-
-style={input}
-
-/>
-
-
-Difficulty
-
-<select
-
-value={difficulty}
-
-onChange={e=>setDifficulty(e.target.value)}
-
-style={input}
-
+<button
+  onClick={uploadFiles}
+  disabled={uploading}
+  style={{
+    ...button,
+    opacity: uploading ? 0.6 : 1,
+    cursor: uploading ? "not-allowed" : "pointer"
+  }}
 >
-
-<option>easy</option>
-
-<option>medium</option>
-
-<option>hard</option>
-
-</select>
-
-
-
-Language
-
-<select
-
-value={language}
-
-onChange={e=>setLanguage(e.target.value)}
-
-style={input}
-
->
-
-<option>English</option>
-
-<option>Italian</option>
-
-</select>
-
-
-
-Timer
-
-<input
-
-type="number"
-
-value={timerMinutes}
-
-onChange={e=>setTimerMinutes(Number(e.target.value))}
-
-style={input}
-
-/>
-
-
-
-<button onClick={generateQuiz} style={button}>
-
-Start Quiz
-
+  {uploading ? "Uploading..." : "Upload"}
 </button>
 
+<div style={{ marginTop: 10, fontSize: 14, color: "black" }}>
+  {uploadStatus}
+</div>
+
+{uploading && (
+  <div style={{ marginTop: 10 }}>
+    <div style={{
+      width: 18,
+      height: 18,
+      border: "3px solid #ddd",
+      borderTop: "3px solid #2FA4A9",
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+      display: "inline-block",
+      marginRight: 10
+    }} />
+    <span>{uploadStatus}</span>
+  </div>
+)}
+
+{processing && (
+  <div style={{ marginTop: 10 }}>
+    <div style={{
+      width: 18,
+      height: 18,
+      border: "3px solid #ddd",
+      borderTop: "3px solid orange",
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+      display: "inline-block",
+      marginRight: 10
+    }} />
+    <span>Processing document...</span>
+  </div>
+)}
+
+{documents.length > 0 && (
+  <div style={{marginTop:10}}>
+    <strong>Uploaded files:</strong>
+    {documents.map((doc,i)=>(
+      <div key={i} style={{fontSize:14, marginTop:4}}>
+        • {doc.title}
+      </div>
+    ))}
+  </div>
+)}
 
 </div>
 
+<div style={box}>
+<h2>Generate Quiz</h2>
 
+Questions
+<input type="number"
+value={numQuestions}
+onChange={e=>setNumQuestions(Number(e.target.value))}
+style={input}
+/>
+
+Difficulty
+<select
+value={difficulty}
+onChange={e=>setDifficulty(e.target.value)}
+style={input}
+>
+<option>easy</option>
+<option>medium</option>
+<option>hard</option>
+</select>
+
+Language
+<select
+value={language}
+onChange={e=>setLanguage(e.target.value)}
+style={input}
+>
+<option>English</option>
+<option>Italian</option>
+</select>
+
+Timer
+<input
+type="number"
+value={timerMinutes}
+onChange={e=>setTimerMinutes(Number(e.target.value))}
+style={input}
+/>
+
+<button
+  onClick={generateQuiz}
+  disabled={uploading}
+  style={{
+    ...button,
+    opacity: uploading ? 0.6 : 1,
+    cursor: uploading ? "not-allowed" : "pointer"
+  }}
+>
+  {uploading ? "Please wait..." : "Start Quiz"}
+</button>
 
 </div>
-
-
-
-{/* QUIZ */}
-
-
+</div>
 
 <div style={quizBox}>
-
-
+    {quiz.length > 0 && (
+  <div style={{ marginBottom: 15 }}>
+    <div style={{ fontSize: 14, marginBottom: 6 }}>
+      Answered: <strong>{answeredCount}</strong> / <strong>{quiz.length}</strong>
+    </div>
+    <div style={{ height: 10, background: "#eee", borderRadius: 6, overflow: "hidden" }}>
+      <div style={{
+        height: "100%",
+        width: `${Math.round((answeredCount / quiz.length) * 100)}%`,
+        background: "#2FA4A9",
+        transition: "width 0.2s"
+      }} />
+    </div>
+  </div>
+)}
 
 {started &&(
-
-<div style={timer}>
-
-Time Left: {formatTime()}
-
-</div>
-
+  <div style={timer}>
+    Time Left: {formatTime()}
+  </div>
 )}
 
+{quiz.map((q,i)=>{
 
+  return (
+    <div key={i} style={question}>
 
-{quiz.map((q,i)=>(
+      <h3>{i+1}. {q.question}</h3>
 
-<div key={i} style={question}>
+      {q.options.map((opt:string,j:number)=>{
 
+        const selected = answers[i] === opt;
 
-<h3>
+        const correctRaw = (q.correct ?? "").toString().trim();
+        const optTextNorm = opt?.toString().trim().toLowerCase();
+        const correctTextNorm = correctRaw.toLowerCase();
+        const optLetter = String.fromCharCode(65 + j);
 
-{i+1}. {q.question}
+        const correct =
+          correctTextNorm === optTextNorm ||
+          correctRaw === optLetter ||
+          String(Number(correctRaw)) === String(j);
 
-</h3>
+        let color = "#eee";
 
+        if (finished) {
+          if (correct) color = "#2FA4A9";
+          if (selected && !correct) color = "#ff6b6b";
+        } else {
+          if (selected) color = "#2FA4A9";
+        }
 
+        return(
+          <div
+            key={j}
+            onClick={()=>selectAnswer(i,opt)}
+            style={{
+              background:color,
+              padding:10,
+              marginTop:6,
+              cursor:"pointer",
+              borderRadius:6
+            }}
+          >
+            {String.fromCharCode(65+j)}. {opt}
+          </div>
+        );
+      })}
 
-{q.options.map((opt:string,j:number)=>{
+      {/* ====================== */}
+      {/* SPIEGAZIONE DOPO SUBMIT */}
+      {/* ====================== */}
 
-const correct=q.correct===opt;
+      {finished && (
+        <div style={{
+          marginTop: 15,
+          padding: 15,
+          background: "#f4f6f8",
+          borderRadius: 8
+        }}>
 
-const selected=answers[i]===opt;
+          {/* Messaggio corretto / errato */}
+          {(() => {
 
-let color="#eee";
+  const userAnswer = answers[i];
+  const correctRaw = (q.correct ?? "").toString().trim();
 
-if(finished){
+  let isCorrect = false;
 
-if(correct) color="#2FA4A9";
+  q.options.forEach((opt:string,j:number)=>{
+    const optTextNorm = opt?.toString().trim().toLowerCase();
+    const correctTextNorm = correctRaw.toLowerCase();
+    const optLetter = String.fromCharCode(65 + j);
 
-else if(selected) color="#ff6b6b";
+    const correct =
+      correctTextNorm === optTextNorm ||
+      correctRaw === optLetter ||
+      String(Number(correctRaw)) === String(j);
 
-}
+    if (correct && userAnswer === opt) {
+      isCorrect = true;
+    }
+  });
 
-else if(selected) color="#2FA4A9";
+  return isCorrect ? (
+    <div style={{color:"#2FA4A9",fontWeight:600}}>
+      ✅ Correct answer
+    </div>
+  ) : (
+    <div style={{color:"#ff6b6b",fontWeight:600}}>
+      ❌ Wrong answer
+    </div>
+  );
 
+})()}
 
-return(
+          {/* Spiegazione breve */}
+          <div style={{marginTop:10}}>
+            {q.explanation ? q.explanation : "No explanation provided."}
+          </div>
 
-<div key={j}
+          {/* Bottone Extend */}
+          {q.explanation_long && (
+            <div style={{marginTop:10}}>
+              <button
+                onClick={() =>
+                  setExpanded(prev => ({
+                    ...prev,
+                    [i]: !prev[i]
+                  }))
+                }
+                style={{
+                  background:"none",
+                  border:"none",
+                  color:"#2FA4A9",
+                  cursor:"pointer",
+                  padding:0
+                }}
+              >
+                {expanded[i] ? "Hide details ▲" : "Extend ▼"}
+              </button>
+            </div>
+          )}
 
-onClick={()=>selectAnswer(i,opt)}
+          {/* Spiegazione lunga */}
+          {expanded[i] && q.explanation_long && (
+            <div style={{marginTop:10,lineHeight:1.5}}>
+              {q.explanation_long}
+            </div>
+          )}
 
-style={{
+          {/* Fonte */}
+          {q.source_document && (
+            <div style={{
+              marginTop:12,
+              fontSize:14,
+              color:"#555"
+            }}>
+              📄 📄 Source: <strong>{q.source_document}</strong>
+{q.source_page ? <> — Page <strong>{q.source_page}</strong></> : null}
+            </div>
+          )}
 
-background:color,
+        </div>
+      )}
 
-padding:10,
-
-marginTop:6,
-
-cursor:"pointer"
-
-}}
-
->
-
-{String.fromCharCode(65+j)}. {opt}
-
-</div>
-
-);
-
+    </div>
+  );
 })}
 
-
-</div>
-
-))}
-
-
-
-{finished &&(
-
-<div>
-
-<h2>
-
-Score: {score()} / {quiz.length}
-
-</h2>
-
-</div>
-
+{started && !finished && (
+  <button
+    onClick={submitQuiz}
+    style={{ ...button, marginTop: 20 }}
+  >
+    Submit Quiz
+  </button>
 )}
 
+{finished && (
+  <div style={{ marginTop: 20 }}>
+    <h2>Score: {score()} / {quiz.length}</h2>
+  </div>
+)}
 
+</div>  {/* chiusura quizBox */}
 
-</div>
+<div style={statusBox}>{status}</div>
 
+</div>  {/* chiusura contentWrapper */}
 
-
-<div style={statusBox}>
-
-{status}
-
-</div>
-
-
-
-</div>
-
+</div>  
 );
-
 }
-
-
-
 // ======================
 // STYLES
 // ======================
 
+const page = {
+  
+  minHeight: "100vh",
+  background: "linear-gradient(#ffffff,#88bcbf,#203a43,#2c5364)"
+};
+const contentWrapper = {
+  padding: "40px 10%"
+};
 
-const page={
+const globalText = {
+  color: "#1a1a1a"
+};
 
-padding:"0 10%",
+const header = {
+  textAlign: "center" as const,
+  marginBottom: 20
+};
 
-minHeight:"100vh",
+const topRow = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+  gap: 20,
+  marginBottom: 30
+};
 
-background:"linear-gradient(to bottom,#9acfce,#073055)"
+const box = {
+  background: "white",
+  padding: "25px",
+  borderRadius: 14,
+  boxShadow: "0 8px 25px rgba(0,0,0,0.12)"
+};
+const quizBox = {
+  background: "white",
+  padding: 35,
+  borderRadius: 14,
+  boxShadow: "0 10px 30px rgba(0,0,0,0.15)"
+};
 
+const question = {
+  marginBottom: 20
+};
+
+const button = {
+  marginTop: 10,
+  background: "#2FA4A9",
+  color: "white",
+  padding: "10px 14px",
+  border: "none",
+  borderRadius: 6,
+  cursor: "pointer",
+  width: "100%",
+  boxSizing: "border-box" as const
+};
+
+const input = {
+  width: "100%",
+  padding: "12px",
+  marginTop: 6,
+  marginBottom: 14,
+  borderRadius: 8,
+  border: "1px solid #d0d7de",
+  boxSizing: "border-box" as const
+};
+
+const timer = {
+  fontSize: 22,
+  marginBottom: 20
+};
+
+const statusBox = {
+  marginTop: 20,
+  color: "white"
+};
+const spinKeyframes = `
+@keyframes spin { 
+  0% { transform: rotate(0deg); } 
+  100% { transform: rotate(360deg); } 
+}
+`;
+
+const topBar = {
+  width: "100%",
+  background: "#111827",   // grigio/blu scuro moderno
+  color: "white",
+  padding: "15px 10%",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  boxSizing: "border-box" as const
 };
 
 
-
-const header={
-
-textAlign:"center" as const,
-
-marginBottom:20
-
+const topButton = {
+  background: "transparent",
+  border: "1px solid rgba(255,255,255,0.4)",
+  color: "white",
+  padding: "8px 14px",
+  borderRadius: 8,
+  cursor: "pointer",
+  fontWeight: 500
 };
 
-
-
-const topRow={
-
-display:"grid",
-
-gridTemplateColumns:"repeat(4,1fr)",
-
-gap:20,
-
-marginBottom:30
-
-};
-
-
-
-const box={
-
-background:"white",
-
-padding:20,
-
-borderRadius:10
-
-};
-
-
-
-const title={
-
-color:"white",
-
-fontWeight:"bold",
-
-marginBottom:6
-
-};
-
-
-
-const quizBox={
-
-background:"white",
-
-padding:30,
-
-borderRadius:10
-
-};
-
-
-
-const question={
-
-marginBottom:20
-
-};
-
-
-
-const button={
-
-marginTop:10,
-
-background:"#2FA4A9",
-
-color:"white",
-
-padding:10,
-
-border:"none",
-
-borderRadius:6,
-
-cursor:"pointer"
-
-};
-
-
-
-const input={
-
-width:"100%",
-
-padding:8,
-
-marginTop:6,
-
-marginBottom:10
-
-};
-
-
-
-const timer={
-
-fontSize:22,
-
-marginBottom:20
-
-};
-
-
-
-const statusBox={
-
-marginTop:20,
-
-color:"white"
-
+const topButtonPrimary = {
+  background: "#88bcbf",
+  color: "white",
+  border: "none",
+  padding: "8px 16px",
+  borderRadius: 8,
+  cursor: "pointer",
+  fontWeight: 600
 };
