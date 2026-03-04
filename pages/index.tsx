@@ -91,7 +91,7 @@ async function createProject() {
   }
 
   const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/create-project`,
+  `${process.env.NEXT_PUBLIC_API_URL}/projects`,
   {
     method: "POST",
     headers: {
