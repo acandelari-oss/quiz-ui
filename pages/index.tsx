@@ -132,7 +132,7 @@ function selectProject(id:string){
 
 
 
-async function uploadFiles() {
+async function uploadFiles(){
 
   if (!files || !projectId) {
     setUploadStatus("Select a project and files first.");
@@ -140,7 +140,7 @@ async function uploadFiles() {
   }
 
   setUploading(true);
-  setUploadStatus("Reading PDFs...");
+  setUploadStatus("Uploading...");
 
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -153,57 +153,32 @@ async function uploadFiles() {
 
   try {
 
-    const documents = [];
-
     for (const file of Array.from(files)) {
 
-      const buffer = await file.arrayBuffer();
+      const form = new FormData();
+      form.append("file", file);
 
-      const parsed = await pdf(Buffer.from(buffer));
-
-      documents.push({
-        title: file.name,
-        text: parsed.text
-      });
+      await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/upload`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          body: form
+        }
+      );
 
     }
-
-    setUploadStatus("Sending to server...");
-
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          documents
-        })
-      }
-    );
-
-    if (!res.ok) {
-      setUploadStatus("Upload failed ❌");
-      setUploading(false);
-      return;
-    }
-
-    await loadDocuments(projectId);
 
     setUploadStatus("Upload successful ✅");
-    setUploading(false);
+    await loadDocuments(projectId);
 
-  } catch (err) {
-
-    console.error(err);
-
-    setUploading(false);
+  } catch {
     setUploadStatus("Upload error ❌");
-
   }
 
+  setUploading(false);
 }
 async function generateQuiz(){
   if(!projectId) return;
