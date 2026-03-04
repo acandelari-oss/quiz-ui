@@ -129,14 +129,17 @@ function selectProject(id:string){
   loadDocuments(id);
 }
 
-async function uploadFiles(){
+import pdf from "pdf-parse";
+
+async function uploadFiles() {
+
   if (!files || !projectId) {
     setUploadStatus("Select a project and files first.");
     return;
   }
 
   setUploading(true);
-  setUploadStatus("Uploading...");
+  setUploadStatus("Reading PDFs...");
 
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
@@ -147,36 +150,59 @@ async function uploadFiles(){
     return;
   }
 
-  const form = new FormData();
-  form.append("project_id", projectId);
-  Array.from(files).forEach((f) => form.append("file", f));
+  try {
 
-  const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
-  {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form
-  }
-);
+    const documents = [];
+
+    for (const file of Array.from(files)) {
+
+      const buffer = await file.arrayBuffer();
+
+      const parsed = await pdf(Buffer.from(buffer));
+
+      documents.push({
+        title: file.name,
+        text: parsed.text
+      });
+
+    }
+
+    setUploadStatus("Sending to server...");
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          documents
+        })
+      }
+    );
 
     if (!res.ok) {
-      setUploading(false);
       setUploadStatus("Upload failed ❌");
+      setUploading(false);
       return;
     }
 
-    // Upload done → now processing
-    setUploadStatus("Processing document...");
     await loadDocuments(projectId);
 
     setUploadStatus("Upload successful ✅");
     setUploading(false);
 
-  } catch {
+  } catch (err) {
+
+    console.error(err);
+
     setUploading(false);
     setUploadStatus("Upload error ❌");
+
   }
+
 }
 async function generateQuiz(){
   if(!projectId) return;
