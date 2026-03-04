@@ -71,7 +71,7 @@ async function loadProjects() {
   const token = sessionData.session?.access_token;
   if (!token) return;
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/list-projects`, {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects`, {
     headers: { Authorization: `Bearer ${token}` }
   });
 
@@ -118,7 +118,7 @@ async function loadDocuments(projectId:string){
   const token = sessionData.session?.access_token;
   if (!token) return;
 
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/list-documents?project_id=${projectId}`,{
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/documents`,{
     headers:{ Authorization:`Bearer ${token}` }
   });
 
@@ -195,7 +195,7 @@ async function generateQuiz(){
     return;
   }
 
-  const res=await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate-quiz`,{
+  const res=await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate-quiz`,{
     method:"POST",
     headers:{
       "Content-Type":"application/json",
