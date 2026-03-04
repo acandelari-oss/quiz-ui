@@ -174,9 +174,12 @@ async function uploadFiles(){
 
   const buffer = await file.arrayBuffer();
 
-  const base64 = btoa(
-    String.fromCharCode(...new Uint8Array(buffer))
-  );
+  const bytes = new Uint8Array(buffer);
+let binary = "";
+for (let i = 0; i < bytes.length; i++) {
+  binary += String.fromCharCode(bytes[i]);
+}
+const base64 = btoa(binary);
 
   const res = await fetch(
   `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
@@ -196,6 +199,14 @@ async function uploadFiles(){
     })
   }
 );
+
+console.log("UPLOAD RESPONSE STATUS:", res.status);
+
+if (!res.ok) {
+  const text = await res.text();
+  console.error("UPLOAD ERROR:", text);
+  throw new Error("Upload failed");
+}
 
 if (!res.ok) {
   const text = await res.text();
