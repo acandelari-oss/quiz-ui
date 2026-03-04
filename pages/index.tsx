@@ -158,21 +158,32 @@ async function uploadFiles(){
 
     for (const file of Array.from(files)) {
 
-      const form = new FormData();
-      form.append("file", file);
+  const buffer = await file.arrayBuffer();
 
-      await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`
-          },
-          body: form
-        }
-      );
+  const base64 = btoa(
+    String.fromCharCode(...new Uint8Array(buffer))
+  );
 
+  await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        documents: [
+          {
+            title: file.name,
+            file_bytes: base64
+          }
+        ]
+      })
     }
+  );
+
+}
 
     setUploadStatus("Upload successful ✅");
     await loadDocuments(projectId);
