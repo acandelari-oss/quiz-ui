@@ -262,20 +262,29 @@ async function generateQuiz(){
 
 let rawQuiz = data.quiz;
 
-if (typeof rawQuiz === "string") {
+try {
 
-  rawQuiz = rawQuiz
-    .replace(/```json/g, "")
-    .replace(/```/g, "")
-    .trim();
+  rawQuiz = rawQuiz.map((q:any) => {
 
-  try {
-    rawQuiz = JSON.parse(rawQuiz);
-  } catch (err) {
-    console.error("JSON parse error:", rawQuiz);
-    setStatus("Quiz format error");
-    return;
-  }
+    if (typeof q === "string") {
+
+      q = q
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+      return JSON.parse(q);
+
+    }
+
+    return q;
+
+  });
+
+} catch (err) {
+  console.error("Quiz parse error:", rawQuiz);
+  setStatus("Quiz format error");
+  return;
 }
 
 setQuiz(rawQuiz);
