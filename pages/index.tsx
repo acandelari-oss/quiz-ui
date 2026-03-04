@@ -78,7 +78,7 @@ async function loadProjects() {
   if (!res.ok) return;
 
   const data = await res.json();
-  setProjects(data.projects || []);
+  setProjects(data);
 }
 
 async function createProject() {
@@ -109,6 +109,7 @@ async function createProject() {
   }
 
   setProjectId(data.id);
+  selectProject(data.id);
   setStatus(`Saved: ${projectName}`);
   loadProjects();
 }
