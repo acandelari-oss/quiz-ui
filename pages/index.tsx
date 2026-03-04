@@ -48,17 +48,30 @@ useEffect(() => {
   loadProjects();
 }, []);
 
-useEffect(()=>{
-  if(!started) return;
-  if(timeLeft<=0){
-    submitQuiz();
-    return;
-  }
-  const interval=setInterval(()=>{
-    setTimeLeft(t=>t-1);
-  },1000);
-  return ()=>clearInterval(interval);
-},[started,timeLeft]);
+useEffect(() => {
+
+  if (!started) return;
+  if (timerMinutes === 0) return;
+
+  const interval = setInterval(() => {
+
+    setTimeLeft(prev => {
+
+      if (prev <= 1) {
+        clearInterval(interval);
+        submitQuiz();
+        return 0;
+      }
+
+      return prev - 1;
+
+    });
+
+  }, 1000);
+
+  return () => clearInterval(interval);
+
+}, [started]);
 
 function formatTime(){
   const m=Math.floor(timeLeft/60);
