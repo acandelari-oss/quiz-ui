@@ -152,11 +152,11 @@ async function uploadFiles(){
   Array.from(files).forEach((f) => form.append("file", f));
 
   try {
-    const res = await fetch("/api/upload-files", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: form
-    });
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload-files`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form
+  });
 
     if (!res.ok) {
       setUploading(false);
