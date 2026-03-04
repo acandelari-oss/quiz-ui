@@ -385,7 +385,10 @@ style={input}
 />
 
 <button
-  onClick={uploadFiles}
+    onClick={() => {
+    console.log("UPLOAD CLICKED");
+    uploadFiles();
+  }}
   disabled={uploading}
   style={{
     ...button,
