@@ -108,7 +108,7 @@ async function createProject() {
     return;
   }
 
-  setProjectId(data.project_id);
+  setProjectId(data.id);
   setStatus(`Saved: ${projectName}`);
   loadProjects();
 }
