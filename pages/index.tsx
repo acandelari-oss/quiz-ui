@@ -162,7 +162,7 @@ async function uploadFiles(){
       form.append("file", file);
 
       await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/upload`,
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
         {
           method: "POST",
           headers: {
@@ -195,19 +195,21 @@ async function generateQuiz(){
     return;
   }
 
-  const res=await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate-quiz`,{
+  const res = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
+  {
     method:"POST",
     headers:{
       "Content-Type":"application/json",
       Authorization: `Bearer ${token}`
     },
     body:JSON.stringify({
-      project_id:projectId,
       num_questions:numQuestions,
       difficulty,
       language
     })
-  });
+  }
+);
 
   if(!res.ok){
     setStatus("Quiz generation failed");
