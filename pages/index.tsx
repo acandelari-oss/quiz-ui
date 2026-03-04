@@ -579,7 +579,7 @@ style={input}
               borderRadius:6
             }}
           >
-            {opt}
+            {String.fromCharCode(65+j)}. {opt}
           </div>
         );
       })}
