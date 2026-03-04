@@ -302,6 +302,7 @@ try {
 
 setQuiz(rawQuiz);
 console.log("QUIZ DATA:", rawQuiz);
+  setAnswers({});
   setStarted(true);
   setFinished(false);
   setTimeLeft(timerMinutes*60);
