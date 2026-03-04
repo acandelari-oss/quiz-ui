@@ -149,7 +149,7 @@ function selectProject(id:string){
 
 
 async function uploadFiles(){
-
+  console.log("UPLOAD PROJECT ID:", projectId);
   if (!files || !projectId) {
     setUploadStatus("Select a project and files first.");
     return;
