@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/router";
+import pdf from "pdf-parse";
 export default function Home() {
 
   const router = useRouter();
@@ -129,7 +130,7 @@ function selectProject(id:string){
   loadDocuments(id);
 }
 
-import pdf from "pdf-parse";
+
 
 async function uploadFiles() {
 
