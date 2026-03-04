@@ -78,39 +78,51 @@ async function loadProjects() {
   if (!res.ok) return;
 
   const data = await res.json();
+  console.log("CREATE PROJECT RESPONSE:", data);
  setProjects(Array.isArray(data) ? data : data.projects || []);
 }
 
 async function createProject() {
   setStatus("Creating...");
+
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
+
   if (!token) {
     setStatus("Not authenticated");
     return;
   }
 
   const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({ name: projectName })
-  }
-);
+    `${process.env.NEXT_PUBLIC_API_URL}/projects`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: projectName })
+    }
+  );
 
   const data = await res.json();
+  console.log("CREATE PROJECT RESPONSE:", data);
+
   if (!res.ok) {
     setStatus(data.error || "Error creating project");
     return;
   }
 
-  setProjectId(data.id);
-  selectProject(data.id);
+  // 👇 FIX IMPORTANTE
+  const newId = data.id || data.project_id;
+
+  setProjectId(newId);
   setStatus(`Saved: ${projectName}`);
+
+  // carica subito i documenti del nuovo progetto
+  await loadDocuments(newId);
+
+  // aggiorna la lista progetti
   loadProjects();
 }
 async function loadDocuments(projectId:string){
@@ -165,24 +177,30 @@ async function uploadFiles(){
     String.fromCharCode(...new Uint8Array(buffer))
   );
 
-  await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        documents: [
-          {
-            title: file.name,
-            file_bytes: base64
-          }
-        ]
-      })
-    }
-  );
+  const res = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      documents: [
+        {
+          title: file.name,
+          file_bytes: base64
+        }
+      ]
+    })
+  }
+);
+
+if (!res.ok) {
+  const text = await res.text();
+  console.error("UPLOAD ERROR:", text);
+  throw new Error("Upload failed");
+}
 
 }
 
