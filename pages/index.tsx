@@ -78,7 +78,7 @@ async function loadProjects() {
   if (!res.ok) return;
 
   const data = await res.json();
-  setProjects(data);
+ setProjects(Array.isArray(data) ? data : data.projects || []);
 }
 
 async function createProject() {
