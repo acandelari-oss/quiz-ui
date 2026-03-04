@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import formidable, { File } from "formidable";
 import fs from "fs";
-import pdfParse from "pdf-parse";
+
 
 export const config = {
   api: {
