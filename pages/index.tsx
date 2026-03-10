@@ -1423,7 +1423,7 @@ const sidebarItem = {
   alignItems: "center",
   gap: 8,
   width: "100%",
-  textAlign: "left",
+  textAlign: "left" as const,
   padding: "10px 12px",
   border: "none",
   background: "transparent",
