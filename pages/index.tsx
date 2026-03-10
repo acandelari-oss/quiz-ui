@@ -2,6 +2,16 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/router";
+import { 
+BookOpen,
+Brain,
+HelpCircle,
+Layers,
+FileText,
+ClipboardList,
+History,
+BarChart3
+} from "lucide-react";
 
 export default function Home() {
 
@@ -25,7 +35,19 @@ const [projectName,setProjectName]=useState("");
 const [projects,setProjects]=useState<any[]>([]);
 const [files,setFiles]=useState<FileList|null>(null);
 const [documents,setDocuments]=useState<any[]>([]);
+const [topics,setTopics] = useState<any[]>([]);
+const [loadingTopics,setLoadingTopics] = useState(false);
 const [quiz,setQuiz]=useState<any[]>([]);
+const [previousQuizzes,setPreviousQuizzes]=useState<any[]>([]);
+const [quizId,setQuizId]=useState("");
+const [generatingQuiz,setGeneratingQuiz]=useState(false);
+const [flashcards,setFlashcards] = useState<any[]>([]);
+const [previousFlashcards,setPreviousFlashcards] = useState<any[]>([]);
+const [generatingFlashcards,setGeneratingFlashcards] = useState(false);
+const [openCard,setOpenCard] = useState<number | null>(null);
+const [askQuestion,setAskQuestion]=useState("");
+const [askAnswer,setAskAnswer]=useState("");
+const [asking,setAsking]=useState(false);
 const [answers,setAnswers]=useState<any>({});
 const [status,setStatus]=useState("");
 const [uploadStatus, setUploadStatus] = useState("");
@@ -42,6 +64,8 @@ const [timeLeft,setTimeLeft]=useState(0);
 const [started,setStarted]=useState(false);
 const [finished,setFinished]=useState(false);
 const [expanded, setExpanded] = useState<{[key:number]: boolean}>({});
+const [activeView,setActiveView] = useState("");
+const [topicsOpen,setTopicsOpen] = useState(true);
 
 
 useEffect(() => {
@@ -141,12 +165,112 @@ async function loadDocuments(projectId:string){
   setDocuments(data.documents || []);
 }
 function selectProject(id:string){
+
+  console.log("PROJECT SELECTED:", id);
+
   setProjectId(id);
+
+  setQuiz([]);
+  setAnswers({});
+  setDocuments([]);
+  setTopics([]);
+
   setStatus("Project loaded");
+
   loadDocuments(id);
+  loadTopics(id);
+  loadPreviousQuizzes(id);
+  loadPreviousFlashcards(id);
+
+}
+async function loadTopics(projectId:string){
+
+  setLoadingTopics(true);
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  if (!token) {
+    setLoadingTopics(false);
+    return;
+  }
+
+  console.log("LOAD TOPICS PROJECT:", projectId);
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics`,
+    {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+
+  if(!res.ok){
+    setLoadingTopics(false);
+    return;
+  }
+
+  const data = await res.json();
+  console.log("TOPICS DATA:", data);
+
+  setTopics(data.topics || []);
+  setLoadingTopics(false);
+}
+async function loadPreviousQuizzes(projectId:string){
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/quizzes`,
+    {
+      headers:{ Authorization:`Bearer ${token}` }
+    }
+  );
+
+  if(!res.ok) return;
+
+  const data = await res.json();
+
+  setPreviousQuizzes(data.quizzes || []);
+}
+async function loadQuiz(quizId:string){
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/quizzes/${quizId}`
+  );
+
+  if(!res.ok) return;
+
+  const data = await res.json();
+
+  setQuiz(data.questions || []);
+  setActiveView("quiz");
 }
 
+async function loadPreviousFlashcards(projectId:string){
 
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+  if (!token) return;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/flashcards`,
+    {
+      headers:{ Authorization:`Bearer ${token}` }
+    }
+  );
+
+  if(!res.ok) return;
+
+  const data = await res.json();
+
+  setPreviousFlashcards(data.flashcards || []);
+}
 
 async function uploadFiles(){
   console.log("UPLOAD PROJECT ID:", projectId);
@@ -226,6 +350,10 @@ if (!res.ok) {
   setUploading(false);
 }
 async function generateQuiz(){
+  console.log("QUIZ USING PROJECT:", projectId);
+
+  setGeneratingQuiz(true);
+
   if(!projectId) return;
 
   setStatus("Generating...");
@@ -238,7 +366,7 @@ async function generateQuiz(){
   }
 
   const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz_stream`,
   {
     method:"POST",
     headers:{
@@ -253,46 +381,80 @@ async function generateQuiz(){
   }
 );
 
-  if(!res.ok){
-    setStatus("Quiz generation failed");
-    return;
-  }
-
-  const data = await res.json();
-
-let rawQuiz = data.quiz;
-
-try {
-
-  rawQuiz = rawQuiz.map((q:any) => {
-
-    if (typeof q === "string") {
-
-      q = q
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
-
-      return JSON.parse(q);
-
-    }
-
-    return q;
-
-  });
-
-} catch (err) {
-  console.error("Quiz parse error:", rawQuiz);
-  setStatus("Quiz format error");
+if(!res.ok){
+  setGeneratingQuiz(false);
+  const text = await res.text();
+  console.error("QUIZ ERROR:", text);
+  setStatus("Quiz generation failed");
   return;
 }
 
-setQuiz(rawQuiz);
-console.log("QUIZ DATA:", rawQuiz);
-  setStarted(true);
-  setFinished(false);
-  setTimeLeft(timerMinutes*60);
-  setStatus("Quiz started");
+const data = await res.json();
+
+setQuizId(data.quiz_id);
+
+const questions = Array.isArray(data.questions) ? data.questions : [];
+
+setQuiz(questions);
+loadPreviousQuizzes(projectId);
+
+setStarted(true);
+setFinished(false);
+setTimeLeft(timerMinutes*60);
+
+setGeneratingQuiz(false);
+
+setStatus("Quiz started");
+}
+async function generateFlashcards(){
+
+if(!projectId) return;
+
+
+setGeneratingFlashcards(true);
+setFlashcards([]);
+setStatus("Generating flashcards...");
+
+const { data: sessionData } = await supabase.auth.getSession();
+const token = sessionData.session?.access_token;
+
+console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);
+console.log("PROJECT ID:", projectId);
+console.log("TOKEN:", token);
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body:JSON.stringify({
+num_cards:numQuestions
+})
+}
+);
+if(!res.ok){
+  const text = await res.text();
+  console.error("FLASHCARDS ERROR:", text);
+  setStatus("Flashcards generation failed");
+  return;
+}
+
+if(!res.ok){
+setStatus("Flashcards generation failed");
+return;
+}
+
+const data = await res.json();
+
+setFlashcards(data.flashcards || []);
+setGeneratingFlashcards(false);
+console.log("FLASHCARDS:", data.flashcards);
+
+setStatus("Flashcards ready");
+
 }
 
 function selectAnswer(i:number,opt:string){
@@ -300,9 +462,34 @@ function selectAnswer(i:number,opt:string){
   setAnswers({...answers,[i]:opt});
 }
 
-function submitQuiz(){
+async function submitQuiz(){
   setStarted(false);
   setFinished(true);
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token;
+
+  try{
+
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`,
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          Authorization:`Bearer ${token}`
+        },
+        body:JSON.stringify({
+          quiz_id: quizId,
+          score: score(),
+          total_questions: quiz.length,
+          answers: answers
+        })
+      }
+    );
+
+  }catch(e){
+    console.error("SAVE ATTEMPT ERROR:", e);
+  }
   setStatus("Finished");
 }
 
@@ -333,6 +520,39 @@ function score(){
 
   return s;
 }
+async function askDocuments(){
+
+  if(!projectId || !askQuestion) return;
+
+  setAsking(true);
+  setAskAnswer("");
+
+  try{
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/ask`,
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          project_id: projectId,
+          question: askQuestion
+        })
+      }
+    );
+
+    const data = await res.json();
+
+    setAskAnswer(data.answer || "No answer");
+
+  }catch{
+    setAskAnswer("Error contacting AI");
+  }
+
+  setAsking(false);
+}
 const answeredCount = quiz.reduce((acc, _q, i) => {
   return acc + (answers[i] ? 1 : 0);
 }, 0);
@@ -346,8 +566,11 @@ function support() {
   window.location.href = "mailto:studio@mokadv.com";
 }
 return(
+<>
+<style>{spinKeyframes}</style>
+
 <div style={page}>
-    {/* ====================== */}
+{/* ====================== */}
 {/* TOP BAR */}
 {/* ====================== */}
 
@@ -366,114 +589,303 @@ return(
     </button>
   </div>
 </div>
+<div style={logoRow}>
+  <Image src="/logo.png" width={260} height={160} alt="logo"/>
+</div>
  
   {/* WRAPPER CONTENUTO */}
-  <div style={contentWrapper}>
-<header style={header as React.CSSProperties}>
-    <style>{spinKeyframes}</style>
-<Image src="/logo.png" width={260} height={160} alt="logo"/>
-</header>
+  <div style={layout}>
+    {/* SIDEBAR */}
 
+    <div style={sidebar}>
+
+    <div style={sidebarTitle}>Project</div>
+
+    <select
+    onChange={e=>selectProject(e.target.value)}
+    style={sidebarSelect}
+    >
+    <option>Select project</option>
+    {projects.map(p=>(
+    <option key={p.id} value={p.id}>{p.name}</option>
+    ))}
+    </select>
+
+    <input
+    placeholder="New project name"
+    value={projectName}
+    onChange={e=>setProjectName(e.target.value)}
+    style={sidebarInput}
+    />
+
+    <button onClick={createProject} style={sidebarButton}>
+    Create project
+    </button>
+
+    <div style={sidebarDivider}/>
+    <div style={box}>
+    <h2>Upload Files</h2>
+
+    <input
+    type="file"
+    multiple
+    onChange={e=>setFiles(e.target.files)}
+    style={input}
+    />
+
+    <button
+    onClick={uploadFiles}
+    disabled={uploading}
+    style={button}
+    >
+    {uploading ? "Uploading..." : "Upload"}
+    </button>
+    {documents.length > 0 && (
+      <div style={{marginTop:10}}>
+        <strong>files already uploaded:</strong>
+        {documents.map((doc,i)=>(
+          <div key={i} style={{fontSize:14, marginTop:4}}>
+            • {doc.title}
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div style={{marginTop:10,fontSize:14}}>
+    {uploadStatus}
+    </div>
+
+    </div>
+    <div style={sidebarDivider}/>
+
+    <div style={sidebarSectionTitle}>
+    <Brain size={18}/>
+    Study
+    </div>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="flashcards" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("flashcards")}
+>
+<HelpCircle size={16}/> Ask a question
+</button>
+
+    <button
+style={sidebarItem}
+onClick={()=>setActiveView("flashcards")}
+>
+<Layers size={16}/> Generate flashcards
+</button>
+<button
+style={{
+...sidebarItem,
+background: activeView==="flashcards_history" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("flashcards_history")}
+>
+<History size={16}/> Flashcards history
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="summary" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("summary")}
+>
+<FileText size={16}/> Create summary
+</button>
+
+    <div style={sidebarDivider}/>
+
+    <div style={sidebarSectionTitle}>
+    <ClipboardList size={18}/>
+    Quiz
+    </div>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="quiz" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("quiz")}
+>
+<ClipboardList size={16}/> Generate new quiz
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="previous" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("previous")}
+>
+<History size={16}/> Previous quizzes
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="results" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("results")}
+>
+<BarChart3 size={16}/> Results history
+</button>
+
+    </div>
+
+    <div style={contentWrapper}>
+    
+     
+{/* ROW 1 */}
+
+
+<div style={{...box, marginBottom:30}}>
+
+  <h2
+    style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
+    onClick={()=>setTopicsOpen(!topicsOpen)}
+  >
+    Main topics detected
+    <span style={{color:"#9ca3af",fontSize:14,marginLeft:6}}>
+    {topicsOpen ? "▲" : "▼"}
+    </span>
+  </h2>
+
+  {topicsOpen && (
+    <>
+      {loadingTopics ? (
+        <p>Loading topics...</p>
+      ) : topics.length === 0 ? (
+        <p>No topics detected yet</p>
+      ) : null}
+
+      <div
+        style={{
+          marginTop:10,
+          display:"grid",
+          gridTemplateColumns:"repeat(4, 1fr)",
+          gap:"10px"
+        }}
+      >
+        {topics.map((t,i)=>{
+
+          let color = "#555";
+
+          if(t.difficulty==="easy") color = "#22c55e";
+          if(t.difficulty==="medium") color = "#eab308";
+          if(t.difficulty==="hard") color = "#ef4444";
+
+          return(
+            <div
+              key={i}
+              style={{
+                padding:8,
+                background:"#f4f6f8",
+                borderRadius:6,
+                fontSize:14
+              }}
+            >
+              <div style={{fontWeight:600,color}}>
+                {t.topic}
+              </div>
+
+              <div style={{fontSize:13,marginTop:4,color:"#555"}}>
+                Study page: {t.suggested_page}
+              </div>
+            </div>
+          );
+
+        })}
+      </div>
+
+      <div style={{
+        marginTop:12,
+        fontSize:13,
+        color:"#555"
+      }}>
+        Topic performance based on quiz results:
+        <span style={{color:"#22c55e",marginLeft:10}}>Strong</span>
+        <span style={{color:"#eab308",marginLeft:10}}>Needs review</span>
+        <span style={{color:"#ef4444",marginLeft:10}}>Difficult</span>
+      </div>
+    </>
+  )}
+
+</div>
+{/* ROW 2 */}
 <div style={topRow}>
 
+{activeView === "ask" && (
 <div style={box}>
-<h2>Create Project</h2>
+<h2>Ask your documents</h2>
+
 <input
-placeholder="Project name"
-value={projectName}
-onChange={e=>setProjectName(e.target.value)}
-style={input}
-/>
-<button onClick={createProject} style={button}>Create</button>
-</div>
-
-<div style={box}>
-<h2>Load Existing</h2>
-<select onChange={e=>selectProject(e.target.value)} style={input}>
-<option>Select</option>
-{projects.map(p=>(
-<option key={p.id} value={p.id}>{p.name}</option>
-))}
-</select>
-</div>
-
-<div style={box}>
-<h2>Upload Files</h2>
-
-<input type="file" multiple
-onChange={e=>setFiles(e.target.files)}
+placeholder="Ask something about your documents..."
+value={askQuestion}
+onChange={e=>setAskQuestion(e.target.value)}
 style={input}
 />
 
 <button
-    onClick={() => {
-    console.log("UPLOAD CLICKED");
-    uploadFiles();
-  }}
-  disabled={uploading}
-  style={{
-    ...button,
-    opacity: uploading ? 0.6 : 1,
-    cursor: uploading ? "not-allowed" : "pointer"
-  }}
+onClick={askDocuments}
+disabled={asking}
+style={button}
 >
-  {uploading ? "Uploading..." : "Upload"}
+{asking ? "Thinking..." : "Ask"}
 </button>
 
-<div style={{ marginTop: 10, fontSize: 14, color: "black" }}>
-  {uploadStatus}
+{askAnswer && (
+<div style={{marginTop:15,lineHeight:1.6}}>
+<strong>Answer:</strong>
+<div style={{marginTop:8}}>
+{askAnswer}
 </div>
-
-{uploading && (
-  <div style={{ marginTop: 10 }}>
-    <div style={{
-      width: 18,
-      height: 18,
-      border: "3px solid #ddd",
-      borderTop: "3px solid #2FA4A9",
-      borderRadius: "50%",
-      animation: "spin 0.8s linear infinite",
-      display: "inline-block",
-      marginRight: 10
-    }} />
-    <span>{uploadStatus}</span>
-  </div>
-)}
-
-{processing && (
-  <div style={{ marginTop: 10 }}>
-    <div style={{
-      width: 18,
-      height: 18,
-      border: "3px solid #ddd",
-      borderTop: "3px solid orange",
-      borderRadius: "50%",
-      animation: "spin 0.8s linear infinite",
-      display: "inline-block",
-      marginRight: 10
-    }} />
-    <span>Processing document...</span>
-  </div>
-)}
-
-{documents.length > 0 && (
-  <div style={{marginTop:10}}>
-    <strong>Uploaded files:</strong>
-    {documents.map((doc,i)=>(
-      <div key={i} style={{fontSize:14, marginTop:4}}>
-        • {doc.title}
-      </div>
-    ))}
-  </div>
+</div>
 )}
 
 </div>
+)}
 
+{activeView === "flashcards" && (
+<div style={box}>
+
+<h2>Generate Flashcards</h2>
+
+<div style={{marginBottom:10}}>
+Create study flashcards from your documents.
+</div>
+
+<label>Number of cards</label>
+
+<input
+type="number"
+value={numQuestions}
+onChange={e=>setNumQuestions(Number(e.target.value))}
+style={input}
+/>
+
+<button
+onClick={generateFlashcards}
+style={button}
+>
+Generate flashcards
+</button>
+
+</div>
+)}
+
+{activeView === "quiz" && (
 <div style={box}>
 <h2>Generate Quiz</h2>
 
 Questions
-<input type="number"
+<input
+type="number"
 value={numQuestions}
 onChange={e=>setNumQuestions(Number(e.target.value))}
 style={input}
@@ -509,34 +921,166 @@ style={input}
 />
 
 <button
-  onClick={generateQuiz}
-  disabled={uploading}
-  style={{
-    ...button,
-    opacity: uploading ? 0.6 : 1,
-    cursor: uploading ? "not-allowed" : "pointer"
-  }}
+onClick={generateQuiz}
+style={button}
 >
-  {uploading ? "Please wait..." : "Start Quiz"}
+Start Quiz
 </button>
 
 </div>
+)}
+
+{activeView === "previous" && (
+<div style={box}>
+<h2>Previous quizzes</h2>
+
+{previousQuizzes.length === 0 && (
+  <div style={{marginTop:10,color:"#555"}}>
+    No quizzes yet
+  </div>
+)}
+
+{previousQuizzes.map((q,i)=>(
+  <div
+    key={i}
+    style={{
+      marginTop:10,
+      padding:12,
+      background:"#f4f6f8",
+      borderRadius:8,
+      cursor:"pointer"
+    }}
+    onClick={()=>loadQuiz(q.id)}
+  >
+
+    <div style={{fontWeight:600}}>
+      Quiz {i+1}
+    </div>
+
+    <div style={{fontSize:13,color:"#555"}}>
+      {q.num_questions} questions — {q.difficulty}
+    </div>
+
+  </div>
+))}
+
 </div>
+)}
+
+{activeView === "flashcards_history" && (
 
 <div style={quizBox}>
-    {quiz.length > 0 && (
-  <div style={{ marginBottom: 15 }}>
-    <div style={{ fontSize: 14, marginBottom: 6 }}>
-      Answered: <strong>{answeredCount}</strong> / <strong>{quiz.length}</strong>
+
+{previousFlashcards.length === 0 && (
+<div style={{color:"#555"}}>
+No saved flashcards yet
+</div>
+)}
+
+{previousFlashcards.map((card,i)=>(
+<div
+key={i}
+onClick={()=>setOpenCard(openCard === i ? null : i)}
+style={{
+...question,
+cursor:"pointer",
+background:"#f4f6f8",
+padding:20,
+borderRadius:10
+}}
+>
+
+<h3>{card.question}</h3>
+
+{openCard === i && (
+<div style={{marginTop:10,color:"#555"}}>
+{card.answer}
+</div>
+)}
+
+</div>
+))}
+
+</div>
+
+)}
+
+{activeView === "results" && (
+<div style={box}>
+<h2>Results history</h2>
+
+<div style={{marginTop:10,color:"#555"}}>
+Your quiz performance history will appear here.
+</div>
+
+</div>
+)}
+
+</div>
+
+
+{/* FLASHCARDS OUTPUT */}
+{activeView === "flashcards" && generatingFlashcards && (
+  <div style={quizBox}>
+    <div style={{fontWeight:600}}>
+      🧠 Generating flashcards...
     </div>
-    <div style={{ height: 10, background: "#eee", borderRadius: 6, overflow: "hidden" }}>
-      <div style={{
-        height: "100%",
-        width: `${Math.round((answeredCount / quiz.length) * 100)}%`,
-        background: "#2FA4A9",
-        transition: "width 0.2s"
-      }} />
-    </div>
+  </div>
+)}
+{activeView === "flashcards" && flashcards.length > 0 && (
+
+<div style={quizBox}>
+
+{flashcards.map((card,i)=>(
+<div
+key={i}
+onClick={()=>setOpenCard(openCard === i ? null : i)}
+style={{
+...question,
+cursor:"pointer",
+background:"#f4f6f8",
+padding:20,
+borderRadius:10
+}}
+>
+
+<h3>{card.question}</h3>
+
+{openCard === i && (
+<div style={{marginTop:10,color:"#555"}}>
+{card.answer}
+</div>
+)}
+
+</div>
+))}
+
+</div>
+
+)}
+
+{activeView === "quiz" && (
+<div style={quizBox}>
+
+{generatingQuiz && (
+  <div style={{
+    display:"flex",
+    alignItems:"center",
+    gap:10,
+    marginBottom:20,
+    fontWeight:600
+  }}>
+    
+    <div style={{
+      width:18,
+      height:18,
+      border:"3px solid #e5e7eb",
+      borderTop:"3px solid #2FA4A9",
+      borderRadius:"50%",
+      animation:"spin 1s linear infinite"
+    }}/>
+
+    Generating quiz...
   </div>
 )}
 
@@ -546,6 +1090,21 @@ style={input}
   </div>
 )}
 
+<div style={{
+  height:8,
+  background:"#e5e7eb",
+  borderRadius:4,
+  marginBottom:20
+}}>
+  <div style={{
+    width:`${quiz.length ? (answeredCount/quiz.length)*100 : 0}%`,
+    height:"100%",
+    background:"#2FA4A9",
+    borderRadius:4,
+    transition:"width 0.3s"
+  }}/>
+</div>
+
 {quiz.map((q,i)=>{
 
   return (
@@ -553,7 +1112,7 @@ style={input}
 
       <h3>{i+1}. {q.question}</h3>
 
-      {q.options.map((opt:string,j:number)=>{
+      {(q.options || []).map((opt:string,j:number)=>{
 
         const selected = answers[i] === opt;
 
@@ -593,10 +1152,6 @@ style={input}
         );
       })}
 
-      {/* ====================== */}
-      {/* SPIEGAZIONE DOPO SUBMIT */}
-      {/* ====================== */}
-
       {finished && (
         <div style={{
           marginTop: 15,
@@ -605,7 +1160,6 @@ style={input}
           borderRadius: 8
         }}>
 
-          {/* Messaggio corretto / errato */}
           {(() => {
 
   const userAnswer = answers[i];
@@ -640,12 +1194,10 @@ style={input}
 
 })()}
 
-          {/* Spiegazione breve */}
           <div style={{marginTop:10}}>
             {q.explanation ? q.explanation : "No explanation provided."}
           </div>
 
-          {/* Bottone Extend */}
           {q.explanation_long && (
             <div style={{marginTop:10}}>
               <button
@@ -668,14 +1220,12 @@ style={input}
             </div>
           )}
 
-          {/* Spiegazione lunga */}
           {expanded[i] && q.explanation_long && (
             <div style={{marginTop:10,lineHeight:1.5}}>
               {q.explanation_long}
             </div>
           )}
 
-          {/* Fonte */}
           {q.source_document && (
             <div style={{
               marginTop:12,
@@ -683,7 +1233,7 @@ style={input}
               color:"#555"
             }}>
               📄 📄 Source: <strong>{q.source_document}</strong>
-{q.source_page ? <> — Page <strong>{q.source_page}</strong></> : null}
+              {q.source_page ? <> — Page <strong>{q.source_page}</strong></> : null}
             </div>
           )}
 
@@ -709,13 +1259,17 @@ style={input}
   </div>
 )}
 
-</div>  {/* chiusura quizBox */}
+</div>
+)}
+
 
 <div style={statusBox}>{status}</div>
 
-</div>  {/* chiusura contentWrapper */}
+</div>  
+</div>  
 
 </div>  
+</>
 );
 }
 // ======================
@@ -728,7 +1282,8 @@ const page = {
   background: "linear-gradient(#ffffff,#88bcbf,#203a43,#2c5364)"
 };
 const contentWrapper = {
-  padding: "40px 10%"
+  flex: 1,
+  
 };
 
 const globalText = {
@@ -832,4 +1387,93 @@ const topButtonPrimary = {
   borderRadius: 8,
   cursor: "pointer",
   fontWeight: 600
+};
+const layout = {
+  display: "flex",
+  gap: 30,
+  padding: "40px 10%",
+  alignItems: "flex-start"
+};
+
+const sidebar = {
+  width: 260,
+  background: "white",
+  borderRadius: 14,
+  padding: 20,
+  boxShadow: "0 8px 25px rgba(0,0,0,0.12)",
+  height: "fit-content",
+  position: "sticky",
+  top: 20
+};
+
+const sidebarTitle = {
+  fontWeight: 600,
+  marginBottom: 10,
+  marginTop: 10
+};
+
+const sidebarDivider = {
+  height: 1,
+  background: "#e5e7eb",
+  margin: "15px 0"
+};
+
+const sidebarItem = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  textAlign: "left",
+  padding: "10px 12px",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  borderRadius: 8,
+  marginBottom: 4,
+  fontSize: 14
+};
+
+const sidebarButton = {
+  marginTop: 8,
+  background: "#2FA4A9",
+  color: "white",
+  border: "none",
+  padding: "8px 10px",
+  borderRadius: 6,
+  cursor: "pointer",
+  width: "100%"
+};
+
+const sidebarSelect = {
+  width: "100%",
+  padding: 8,
+  marginBottom: 10,
+  borderRadius: 6,
+  border: "1px solid #d0d7de"
+};
+
+const sidebarInput = {
+  width: "100%",
+  padding: 8,
+  marginBottom: 8,
+  borderRadius: 6,
+  border: "1px solid #d0d7de"
+};
+
+const logoRow = {
+  display: "flex",
+  justifyContent: "center",
+  marginTop: 20,
+  marginBottom: 20
+};
+
+const sidebarSectionTitle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  fontWeight: 700,
+  marginTop: 20,
+  marginBottom: 10,
+  fontSize: 15,
+  color: "#1f2937"
 };

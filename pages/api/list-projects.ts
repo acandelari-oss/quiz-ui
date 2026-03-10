@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const backend = process.env.BACKEND_BASE_URL;
+    console.log("BACKEND_BASE_URL:", backend);
 
     if (!backend) {
       return res.status(500).json({ error: "Missing BACKEND_BASE_URL" });
