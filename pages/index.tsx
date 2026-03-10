@@ -1402,7 +1402,7 @@ const sidebar = {
   padding: 20,
   boxShadow: "0 8px 25px rgba(0,0,0,0.12)",
   height: "fit-content",
-  position: "sticky",
+  position: "sticky" as const,
   top: 20
 };
 
