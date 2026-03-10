@@ -679,9 +679,9 @@ return(
     <button
 style={{
 ...sidebarItem,
-background: activeView==="flashcards" ? "#eef6f7" : "transparent"
+background: activeView==="ask" ? "#eef6f7" : "transparent"
 }}
-onClick={()=>setActiveView("flashcards")}
+onClick={()=>setActiveView("ask")}
 >
 <HelpCircle size={16}/> Ask a question
 </button>
