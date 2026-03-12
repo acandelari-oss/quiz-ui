@@ -109,7 +109,7 @@ const sidebar = {
   color: "#e5e7eb",
   borderRight: "1px solid #1f2937",
   display: "flex",
-  flexDirection: "column",
+  flexDirection: "column" as const,
   padding: 20,
   fontSize: 14
 };
