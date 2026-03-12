@@ -89,7 +89,7 @@ return (
           cursor:"pointer",
           borderRadius:8,
           border:"1px solid #374151",
-          background:selected ? "#1f2937" : "#020617",
+          background: color,
           color:"white",
           transition:"all 0.15s"
           }}
@@ -112,7 +112,54 @@ return (
         );
       })}
 
-    </div>
+      {finished && (
+
+      <div style={{
+      marginTop:10,
+      background:"#020617",
+      padding:12,
+      borderRadius:8,
+      border:"1px solid #374151",
+      fontSize:14
+      }}>
+
+      <div style={{color:"#2FA4A9",marginBottom:6,fontWeight:600}}>
+      Explanation
+      </div>
+
+      <div style={{color:"#d1d5db"}}>
+      {q.explanation}
+      </div>
+
+      {q.explanation_long && (
+
+      <div style={{
+      marginTop:6,
+      color:"#9ca3af",
+      fontSize:13
+      }}>
+      {q.explanation_long}
+      </div>
+
+      )}
+
+      {q.source_document && (
+
+      <div style={{
+      marginTop:8,
+      fontSize:12,
+      color:"#6b7280"
+      }}>
+      Source: {q.source_document} – page {q.source_page}
+      </div>
+
+      )}
+
+      </div>
+
+      )}
+
+      </div>
   );
 })}
 

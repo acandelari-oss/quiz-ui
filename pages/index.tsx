@@ -70,7 +70,7 @@ const [timeLeft,setTimeLeft]=useState(0);
 const [started,setStarted]=useState(false);
 const [finished,setFinished]=useState(false);
 const [expanded, setExpanded] = useState<{[key:number]: boolean}>({});
-const [activeView,setActiveView] = useState("");
+const [activeView,setActiveView] = useState("project")
 const [topicsOpen,setTopicsOpen] = useState(true);
 const [selectedTopics,setSelectedTopics] = useState<string[]>([]);
 
