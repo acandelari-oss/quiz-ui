@@ -2,13 +2,10 @@ import AskView from "./views/AskView"
 import FlashcardsView from "./views/FlashcardsView"
 import QuizView from "./views/QuizView"
 import ResultsView from "./views/ResultsView"
-import ProjectManagerView from "./views/ProjectManagerView"
 import SummaryView from "./views/SummaryView"
-
 
 export default function Workspace({
 activeView,
-askAnswer,
 flashcards,
 openCard,
 setOpenCard,
@@ -24,37 +21,27 @@ expanded,
 setExpanded,
 formatTime,
 answeredCount,
-topics,
-loadingTopics,
-topicsOpen,
-setTopicsOpen,
-selectedTopics,
-setSelectedTopics,
 
-projects,
-projectName,
-setProjectName,
-createProject,
-selectProject,
-projectId,
-deleteProject,
-files,
-setFiles,
-uploadFiles,
-documents,
 askQuestion,
 setAskQuestion,
 askDocuments,
 chatMessages,
+asking,
+
 summaryStats,
 resultsData,
-asking
+
+projectId,
+quizId,
+previousQuizzes,
+loadQuiz
 }) {
 
 return (
 
 <div style={workspace}>
 
+{/* ASK */}
 {activeView === "ask" && (
 <AskView
 askQuestion={askQuestion}
@@ -65,8 +52,7 @@ chatMessages={chatMessages}
 />
 )}
 
-
-
+{/* FLASHCARDS */}
 {activeView === "flashcards" && (
 <FlashcardsView
 flashcards={flashcards}
@@ -75,7 +61,56 @@ setOpenCard={setOpenCard}
 />
 )}
 
+{/* QUIZ VIEW */}
 {activeView === "quiz" && (
+
+<div>
+
+{/* LISTA QUIZ SALVATI */}
+{quiz.length === 0 && (
+
+<div>
+
+<h2 style={{marginBottom:20}}>Previous quizzes</h2>
+
+{previousQuizzes?.length === 0 && (
+<div style={{color:"#9ca3af"}}>
+No quizzes created yet
+</div>
+)}
+
+{previousQuizzes?.map((q:any)=>(
+<div
+key={q.id}
+onClick={()=>loadQuiz(q.id)}
+style={{
+background:"#020617",
+border:"1px solid #374151",
+borderRadius:8,
+padding:14,
+marginBottom:10,
+cursor:"pointer"
+}}
+>
+
+<div style={{fontWeight:600}}>
+{q.num_questions} questions
+</div>
+
+<div style={{color:"#9ca3af",fontSize:13}}>
+Difficulty: {q.difficulty}
+</div>
+
+</div>
+))}
+
+</div>
+
+)}
+
+{/* QUIZ ATTIVO */}
+{quiz.length > 0 && (
+
 <QuizView
 quiz={quiz}
 answers={answers}
@@ -89,14 +124,22 @@ expanded={expanded}
 setExpanded={setExpanded}
 formatTime={formatTime}
 answeredCount={answeredCount}
+projectId={projectId}
+quizId={quizId}
 />
+
 )}
 
+</div>
 
+)}
 
+{/* RESULTS */}
 {activeView === "results" && (
 <ResultsView resultsData={resultsData}/>
 )}
+
+{/* SUMMARY */}
 {activeView === "summary" && (
 <SummaryView summaryStats={summaryStats}/>
 )}
@@ -113,4 +156,4 @@ background: "#0f172a",
 color: "#e5e7eb",
 padding: "30px",
 overflowY: "auto" as const
-};
+}

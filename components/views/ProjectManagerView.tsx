@@ -136,7 +136,7 @@ Upload
 
 {/* DOCUMENT LIST */}
 
-{documents.length > 0 && (
+{documents?.length > 0 && (
 
 <div style={section}>
 
