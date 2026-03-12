@@ -1,5 +1,6 @@
 import ProjectManagerView from "./views/ProjectManagerView"
 import TopicsView from "./views/TopicsView"
+import React from "react"
 export default function ToolPanel({
 
 activeView,
@@ -258,7 +259,7 @@ uploadStatus
   )
 }
 
-const panel = {
+const panel: React.CSSProperties = {
   width: 320,
   background: "#020617",
   borderRight: "1px solid #1f2937",
@@ -268,7 +269,7 @@ const panel = {
   color: "white"
 };
 
-const input = {
+const input: React.CSSProperties ={
   width: "100%",
   padding: 10,
   marginTop: 6,
@@ -280,7 +281,7 @@ const input = {
   boxSizing: "border-box"
 };
 
-const button = {
+const button: React.CSSProperties = {
   width: "100%",
   padding: 10,
   background: "#111528",
@@ -290,7 +291,7 @@ const button = {
   cursor: "pointer"
 };
 
-const statusBar = {
+const statusBar: React.CSSProperties ={
 background:"#111827",
 border:"1px solid #374151",
 padding:"8px 10px",
@@ -300,7 +301,7 @@ fontSize:12,
 color:"#9ca3af"
 };
 
-const statusBox = {
+const statusBox: React.CSSProperties ={
 marginTop:20,
 padding:"8px 10px",
 background:"#111827",
