@@ -52,7 +52,6 @@ const [generatingFlashcards,setGeneratingFlashcards] = useState(false);
 const [openCard,setOpenCard] = useState<number | null>(null);
 const [askQuestion,setAskQuestion]=useState("");
 const [askAnswer,setAskAnswer]=useState("");
-const [chatMessages,setChatMessages] = useState<any[]>([])
 const [asking,setAsking]=useState(false);
 const [answers,setAnswers]=useState<any>({});
 const [status,setStatus]=useState("");
@@ -73,11 +72,6 @@ const [expanded, setExpanded] = useState<{[key:number]: boolean}>({});
 const [activeView,setActiveView] = useState("");
 const [topicsOpen,setTopicsOpen] = useState(true);
 const [selectedTopics,setSelectedTopics] = useState<string[]>([]);
-
-const [availableFlashcards,setAvailableFlashcards] = useState(0)
-const [studyCount,setStudyCount] = useState(10)
-const [summaryStats,setSummaryStats] = useState<any>(null)
-const [resultsData,setResultsData] = useState<any>(null)
 
 
 
@@ -175,107 +169,41 @@ async function createProject() {
   // aggiorna la lista progetti
   loadProjects();
 }
-
-async function deleteProject(id:string){
-
-const { data: sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
-
-if (!token) return
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}`,
-{
-method:"DELETE",
-headers:{
-Authorization:`Bearer ${token}`
-}
-}
-)
-
-const text = await res.text()
-
-console.log("DELETE RESPONSE:", res.status, text)
-
-if(!res.ok){
-setStatus("Delete failed")
-return
-}
-
-loadProjects()
-setProjectId("")
-setDocuments([])
-setTopics([])
-
-setStatus("Project deleted")
-
-}
-
-/* POI CONTINUA COME PRIMA */
 async function loadDocuments(projectId:string){
 
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) return;
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/documents`,
-    {
-      headers:{ Authorization:`Bearer ${token}` }
-    }
-  );
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/documents`,{
+    headers:{ Authorization:`Bearer ${token}` }
+  });
 
-  if(!res.ok){
-    console.error("LOAD DOCUMENTS FAILED:", projectId);
-    return;
-  }
+  if(!res.ok) return;
 
   const data = await res.json();
-
-  console.log("DOCUMENTS:", data.documents);
-
   setDocuments(data.documents || []);
 }
-async function selectProject(id:string){
-
-  const project = projects.find(p => p.id === id);
-  setProjectName(project?.name || "");
+function selectProject(id:string){
 
   console.log("PROJECT SELECTED:", id);
 
-  setStatus("Loading project...");
-
   setProjectId(id);
 
-  // reset dati vecchio progetto
-  setDocuments([]);
-  setTopics([]);
   setQuiz([]);
   setAnswers({});
-  setPreviousQuizzes([]);
-  setPreviousFlashcards([]);
+  setDocuments([]);
+  setTopics([]);
 
-  try {
+  setStatus("Project loaded");
 
-    await loadDocuments(id);
-    await loadTopics(id);
-    await loadPreviousQuizzes(id);
-    await loadPreviousFlashcards(id);
-    await loadFlashcardsCount(id);
-    await loadSummaryStats(id)
-    await loadResults(id)
+  loadDocuments(id);
+  loadTopics(id);
+  loadPreviousQuizzes(id);
+  loadPreviousFlashcards(id);
 
-    setStatus("Project loaded");
-
-  } catch (e) {
-
-    console.error("PROJECT LOAD ERROR:", e);
-    setStatus("Error loading project");
-
-  }
 }
-
-  async function loadTopics(projectId:string){
+async function loadTopics(projectId:string){
 
   setLoadingTopics(true);
 
@@ -294,7 +222,7 @@ async function selectProject(id:string){
     {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
+        "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json"
       }
     }
@@ -306,103 +234,10 @@ async function selectProject(id:string){
   }
 
   const data = await res.json();
+  console.log("TOPICS DATA:", data);
 
   setTopics(data.topics || []);
   setLoadingTopics(false);
-}
-async function loadFlashcardsCount(projectId:string){
-
-const { data: sessionData } = await supabase.auth.getSession();
-const token = sessionData.session?.access_token;
-
-if (!token) return;
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/flashcards_count`,
-{
-headers:{ Authorization:`Bearer ${token}` }
-}
-)
-
-if(!res.ok) return
-
-const data = await res.json()
-
-setAvailableFlashcards(data.count)
-
-}
-async function loadStudyFlashcards(){
-
-if(!projectId) return
-
-const { data: sessionData } = await supabase.auth.getSession();
-const token = sessionData.session?.access_token;
-
-if (!token) return;
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_flashcards?limit=${studyCount}`,
-{
-headers:{ Authorization:`Bearer ${token}` }
-}
-)
-
-if(!res.ok) return
-
-const data = await res.json()
-
-setFlashcards(data.flashcards || [])
-
-setOpenCard(false)
-
-}
-async function loadSummaryStats(projectId:string){
-
-const { data: sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
-
-if (!token) return
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/summary`,
-{
-headers:{ Authorization:`Bearer ${token}` }
-}
-)
-
-if(!res.ok){
-console.error("SUMMARY ERROR:", await res.text())
-return
-}
-
-const data = await res.json()
-
-setSummaryStats(data)
-
-}
-async function loadResults(projectId:string){
-
-const { data: sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
-
-if (!token) return
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/results`,
-{
-headers:{ Authorization:`Bearer ${token}` }
-}
-)
-
-if(!res.ok){
-console.error("RESULTS ERROR:", await res.text())
-return
-}
-
-const data = await res.json()
-
-setResultsData(data)
-
 }
 async function loadPreviousQuizzes(projectId:string){
 
@@ -451,7 +286,7 @@ async function loadPreviousFlashcards(projectId:string){
   );
 
   if(!res.ok) return;
-  console.log("Flashcards fetch failed");
+
   const data = await res.json();
 
   setPreviousFlashcards(data.flashcards || []);
@@ -705,35 +540,36 @@ function score(){
 }
 async function askDocuments(){
 
-  if(!askQuestion.trim()) return
+  if(!projectId || !askQuestion) return;
 
-  setAsking(true)
+  setAsking(true);
+  setAskAnswer("");
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/ask`,
-    {
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json"
-      },
-      body: JSON.stringify({
-        project_id: projectId,
-        question: askQuestion
-      })
-    }
-  )
+  try{
 
-  const data = await res.json()
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/ask`,
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          project_id: projectId,
+          question: askQuestion
+        })
+      }
+    );
 
-  setChatMessages([
-    ...chatMessages,
-    {role:"user",content:askQuestion},
-    {role:"assistant",content:data.answer}
-  ])
+    const data = await res.json();
 
-  setAskQuestion("")
-  setAsking(false)
+    setAskAnswer(data.answer || "No answer");
 
+  }catch{
+    setAskAnswer("Error contacting AI");
+  }
+
+  setAsking(false);
 }
 const answeredCount = quiz.reduce((acc, _q, i) => {
   return acc + (answers[i] ? 1 : 0);
@@ -766,98 +602,769 @@ return(
     activeView={activeView}
     setActiveView={setActiveView}
   />
-
   <ToolPanel
-    activeView={activeView}
-    projectName={projectName}
-
-    askQuestion={askQuestion}
-    setAskQuestion={setAskQuestion}
-    askDocuments={askDocuments}
-    asking={asking}
-
-    numQuestions={numQuestions}
-    setNumQuestions={setNumQuestions}
-
-    difficulty={difficulty}
-    setDifficulty={setDifficulty}
-
-    language={language}
-    setLanguage={setLanguage}
-
-    timerMinutes={timerMinutes}
-    setTimerMinutes={setTimerMinutes}
-
-    generateQuiz={generateQuiz}
-    generateFlashcards={generateFlashcards}
-
-    projects={projects}
-    projectName={projectName}
-    setProjectName={setProjectName}
-    createProject={createProject}
-    selectProject={selectProject}
-    projectId={projectId}
-    deleteProject={deleteProject}
-
-    files={files}
-    setFiles={setFiles}
-    uploadFiles={uploadFiles}
-    documents={documents}
-
-    topics={topics}
-    loadingTopics={loadingTopics}
-    topicsOpen={topicsOpen}
-    setTopicsOpen={setTopicsOpen}
-    selectedTopics={selectedTopics}
-    setSelectedTopics={setSelectedTopics}
-
-    status={status}
-    uploadStatus={uploadStatus}
-
-    availableFlashcards={availableFlashcards}
-    studyCount={studyCount}
-    setStudyCount={setStudyCount}
-    loadStudyFlashcards={loadStudyFlashcards}
-  />
-  <Workspace
   activeView={activeView}
-  askAnswer={askAnswer}
-  flashcards={flashcards}
-  openCard={openCard}
-  setOpenCard={setOpenCard}
-  quiz={quiz}
-  answers={answers}
-  selectAnswer={selectAnswer}
-  finished={finished}
-  started={started}
-  submitQuiz={submitQuiz}
-  score={score}
-  generatingQuiz={generatingQuiz}
-  expanded={expanded}
-  setExpanded={setExpanded}
-  formatTime={formatTime}
-  answeredCount={answeredCount}
+
   askQuestion={askQuestion}
   setAskQuestion={setAskQuestion}
   askDocuments={askDocuments}
   asking={asking}
-  chatMessages={chatMessages}
+
+  numQuestions={numQuestions}
+  setNumQuestions={setNumQuestions}
+
+  difficulty={difficulty}
+  setDifficulty={setDifficulty}
+
+  language={language}
+  setLanguage={setLanguage}
+
+  timerMinutes={timerMinutes}
+  setTimerMinutes={setTimerMinutes}
+
+  generateQuiz={generateQuiz}
+  generateFlashcards={generateFlashcards}
+  />
+  <Workspace
+  activeView={activeView}
+
   askAnswer={askAnswer}
-  summaryStats={summaryStats}
-  resultsData={resultsData}
+
+  flashcards={flashcards}
+  openCard={openCard}
+  setOpenCard={setOpenCard}
+
+  quiz={quiz}
+  />
+{false && (
+  return null
+)}
+  
+    <div style={topBar}>
+  
+
+  <div style={{ display: "flex", gap: 15 }}>
+    <button onClick={support} style={topButton}>
+      Support
+    </button>
+
+    <button onClick={logout} style={topButtonPrimary}>
+      Logout
+    </button>
+  </div>
+</div>
+
+  {false && (
+      <>
+
+    <div style={sidebarTitle}>Project</div>
+
+    <select
+    onChange={e=>selectProject(e.target.value)}
+    style={sidebarSelect}
+    >
+    <option>Select project</option>
+    {projects.map(p=>(
+    <option key={p.id} value={p.id}>{p.name}</option>
+    ))}
+    </select>
+
+    <input
+    placeholder="New project name"
+    value={projectName}
+    onChange={e=>setProjectName(e.target.value)}
+    style={sidebarInput}
+    />
+
+    <button onClick={createProject} style={sidebarButton}>
+    Create project
+    </button>
+
+    <div style={sidebarDivider}/>
+    <div style={box}>
+    <h2>Upload Files</h2>
+
+    <input
+    type="file"
+    multiple
+    onChange={e=>setFiles(e.target.files)}
+    style={input}
+    />
+
+    <button
+    onClick={uploadFiles}
+    disabled={uploading}
+    style={button}
+    >
+    {uploading ? "Uploading..." : "Upload"}
+    </button>
+    {documents.length > 0 && (
+      <div style={{marginTop:10}}>
+        <strong>files already uploaded:</strong>
+        {documents.map((doc,i)=>(
+          <div key={i} style={{fontSize:14, marginTop:4}}>
+            • {doc.title}
+          </div>
+        ))}
+      </div>
+    )}
+
+    <div style={{marginTop:10,fontSize:14}}>
+    {uploadStatus}
+    </div>
+
+    </div>
+    <div style={sidebarDivider}/>
+
+    <div style={sidebarSectionTitle}>
+    <Brain size={18}/>
+    Study
+    </div>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="ask" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("ask")}
+>
+<HelpCircle size={16}/> Ask a question
+</button>
+
+    <button
+style={sidebarItem}
+onClick={()=>setActiveView("flashcards")}
+>
+<Layers size={16}/> Generate flashcards
+</button>
+<button
+style={{
+...sidebarItem,
+background: activeView==="flashcards_history" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("flashcards_history")}
+>
+<History size={16}/> Flashcards history
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="summary" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("summary")}
+>
+<FileText size={16}/> Create summary
+</button>
+
+    <div style={sidebarDivider}/>
+
+    <div style={sidebarSectionTitle}>
+    <ClipboardList size={18}/>
+    Quiz
+    </div>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="quiz" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("quiz")}
+>
+<ClipboardList size={16}/> Generate new quiz
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="previous" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("previous")}
+>
+<History size={16}/> Previous quizzes
+</button>
+
+    <button
+style={{
+...sidebarItem,
+background: activeView==="results" ? "#eef6f7" : "transparent"
+}}
+onClick={()=>setActiveView("results")}
+>
+<BarChart3 size={16}/> Results history
+</button>
+</>
+)}
+
+    <div style={contentWrapper}>
+    
+     
+{/* ROW 1 */}
+
+
+<div style={{...box, marginBottom:30}}>
+
+  <h2
+    style={{cursor:"pointer",display:"flex",alignItems:"center",gap:8}}
+    onClick={()=>setTopicsOpen(!topicsOpen)}
+  >
+    Main topics detected
+    <span style={{color:"#9ca3af",fontSize:14,marginLeft:6}}>
+    {topicsOpen ? "▲" : "▼"}
+    </span>
+  </h2>
+
+  {topicsOpen && (
+    <>
+      {loadingTopics ? (
+        <p>Loading topics...</p>
+      ) : topics.length === 0 ? (
+        <p>No topics detected yet</p>
+      ) : null}
+
+      <div
+        style={{
+          marginTop:10,
+          display:"grid",
+          gridTemplateColumns:"repeat(4, 1fr)",
+          gap:"10px"
+        }}
+      >
+        {topics.map((t,i)=>{
+
+          let color = "#555";
+
+          if(t.difficulty==="easy") color = "#22c55e";
+          if(t.difficulty==="medium") color = "#eab308";
+          if(t.difficulty==="hard") color = "#ef4444";
+
+          const checked = selectedTopics.includes(t.topic);
+
+          return(
+            <div
+              key={i}
+              style={{
+                padding:8,
+                background:"#f4f6f8",
+                borderRadius:6,
+                fontSize:14,
+                display:"flex",
+                alignItems:"center",
+                gap:8
+              }}
+            >
+
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e)=>{
+
+                  if(e.target.checked){
+
+                    setSelectedTopics([...selectedTopics,t.topic]);
+
+                  } else {
+
+                    setSelectedTopics(
+                      selectedTopics.filter(x=>x!==t.topic)
+                    );
+
+                  }
+
+                }}
+              />
+
+              <div>
+
+                <div style={{fontWeight:600,color}}>
+                  {t.topic}
+                </div>
+
+                <div style={{fontSize:13,marginTop:4,color:"#555"}}>
+                  Study page: {t.suggested_page}
+                </div>
+
+              </div>
+
+            </div>
+          );
+
+        })}
+      </div>
+
+      <div style={{
+        marginTop:12,
+        fontSize:13,
+        color:"#555"
+      }}>
+        Topic performance based on quiz results:
+        <span style={{color:"#22c55e",marginLeft:10}}>Strong</span>
+        <span style={{color:"#eab308",marginLeft:10}}>Needs review</span>
+        <span style={{color:"#ef4444",marginLeft:10}}>Difficult</span>
+      </div>
+    </>
+  )}
+
+</div>
+{/* ROW 2 */}
+<div style={topRow}>
+
+{activeView === "ask" && (
+<div style={box}>
+<h2>Ask your documents</h2>
+
+<input
+placeholder="Ask something about your documents..."
+value={askQuestion}
+onChange={e=>setAskQuestion(e.target.value)}
+style={input}
 />
 
+<button
+onClick={askDocuments}
+disabled={asking}
+style={button}
+>
+{asking ? "Thinking..." : "Ask"}
+</button>
+
+{askAnswer && (
+<div style={{marginTop:15,lineHeight:1.6}}>
+<strong>Answer:</strong>
+<div style={{marginTop:8}}>
+{askAnswer}
 </div>
+</div>
+)}
+
+</div>
+)}
+
+{activeView === "flashcards" && (
+<div style={box}>
+
+<h2>Generate Flashcards</h2>
+
+<div style={{marginBottom:10}}>
+Create study flashcards from your documents.
+</div>
+
+<label>Number of cards</label>
+
+<input
+type="number"
+value={numQuestions}
+onChange={e=>setNumQuestions(Number(e.target.value))}
+style={input}
+/>
+
+<button
+onClick={generateFlashcards}
+style={button}
+>
+Generate flashcards
+</button>
+
+</div>
+)}
+
+{activeView === "quiz" && (
+<div style={box}>
+<h2>Generate Quiz</h2>
+
+Questions
+<input
+type="number"
+value={numQuestions}
+onChange={e=>setNumQuestions(Number(e.target.value))}
+style={input}
+/>
+
+Difficulty
+<select
+value={difficulty}
+onChange={e=>setDifficulty(e.target.value)}
+style={input}
+>
+<option>easy</option>
+<option>medium</option>
+<option>hard</option>
+</select>
+
+Language
+<select
+value={language}
+onChange={e=>setLanguage(e.target.value)}
+style={input}
+>
+<option>English</option>
+<option>Italian</option>
+</select>
+
+Timer
+<input
+type="number"
+value={timerMinutes}
+onChange={e=>setTimerMinutes(Number(e.target.value))}
+style={input}
+/>
+
+<button
+onClick={generateQuiz}
+style={button}
+>
+Start Quiz
+</button>
+
+</div>
+)}
+
+{activeView === "previous" && (
+<div style={box}>
+<h2>Previous quizzes</h2>
+
+{previousQuizzes.length === 0 && (
+  <div style={{marginTop:10,color:"#555"}}>
+    No quizzes yet
+  </div>
+)}
+
+{previousQuizzes.map((q,i)=>(
+  <div
+    key={i}
+    style={{
+      marginTop:10,
+      padding:12,
+      background:"#f4f6f8",
+      borderRadius:8,
+      cursor:"pointer"
+    }}
+    onClick={()=>loadQuiz(q.id)}
+  >
+
+    <div style={{fontWeight:600}}>
+      Quiz {i+1}
+    </div>
+
+    <div style={{fontSize:13,color:"#555"}}>
+      {q.num_questions} questions — {q.difficulty}
+    </div>
+
+  </div>
+))}
+
+</div>
+)}
+
+{activeView === "flashcards_history" && (
+
+<div style={quizBox}>
+
+{previousFlashcards.length === 0 && (
+<div style={{color:"#555"}}>
+No saved flashcards yet
+</div>
+)}
+
+{previousFlashcards.map((card,i)=>(
+<div
+key={i}
+onClick={()=>setOpenCard(openCard === i ? null : i)}
+style={{
+...question,
+cursor:"pointer",
+background:"#f4f6f8",
+padding:20,
+borderRadius:10
+}}
+>
+
+<h3>{card.question}</h3>
+
+{openCard === i && (
+<div style={{marginTop:10,color:"#555"}}>
+{card.answer}
+</div>
+)}
+
+</div>
+))}
 
 </div>
 
+)}
+
+{activeView === "results" && (
+<div style={box}>
+<h2>Results history</h2>
+
+<div style={{marginTop:10,color:"#555"}}>
+Your quiz performance history will appear here.
+</div>
+
+</div>
+)}
+
+</div>
+
+
+{/* FLASHCARDS OUTPUT */}
+{activeView === "flashcards" && generatingFlashcards && (
+  <div style={quizBox}>
+    <div style={{fontWeight:600}}>
+      🧠 Generating flashcards...
+    </div>
+  </div>
+)}
+{activeView === "flashcards" && flashcards.length > 0 && (
+
+<div style={quizBox}>
+
+{flashcards.map((card,i)=>(
+<div
+key={i}
+onClick={()=>setOpenCard(openCard === i ? null : i)}
+style={{
+...question,
+cursor:"pointer",
+background:"#f4f6f8",
+padding:20,
+borderRadius:10
+}}
+>
+
+<h3>{card.question}</h3>
+
+{openCard === i && (
+<div style={{marginTop:10,color:"#555"}}>
+{card.answer}
+</div>
+)}
+
+</div>
+))}
+
+</div>
+
+)}
+
+{activeView === "quiz" && (
+<div style={quizBox}>
+
+{generatingQuiz && (
+  <div style={{
+    display:"flex",
+    alignItems:"center",
+    gap:10,
+    marginBottom:20,
+    fontWeight:600
+  }}>
+    
+    <div style={{
+      width:18,
+      height:18,
+      border:"3px solid #e5e7eb",
+      borderTop:"3px solid #2FA4A9",
+      borderRadius:"50%",
+      animation:"spin 1s linear infinite"
+    }}/>
+
+    Generating quiz...
+  </div>
+)}
+
+{started &&(
+  <div style={timer}>
+    Time Left: {formatTime()}
+  </div>
+)}
+
+<div style={{
+  height:8,
+  background:"#e5e7eb",
+  borderRadius:4,
+  marginBottom:20
+}}>
+  <div style={{
+    width:`${quiz.length ? (answeredCount/quiz.length)*100 : 0}%`,
+    height:"100%",
+    background:"#2FA4A9",
+    borderRadius:4,
+    transition:"width 0.3s"
+  }}/>
+</div>
+
+{quiz.map((q,i)=>{
+
+  return (
+    <div key={i} style={question}>
+
+      <h3>{i+1}. {q.question}</h3>
+
+      {(q.options || []).map((opt:string,j:number)=>{
+
+        const selected = answers[i] === opt;
+
+        const correctRaw = (q.correct ?? "").toString().trim();
+        const optTextNorm = opt?.toString().trim().toLowerCase();
+        const correctTextNorm = correctRaw.toLowerCase();
+        const optLetter = String.fromCharCode(65 + j);
+
+        const correct =
+          correctTextNorm === optTextNorm ||
+          correctRaw === optLetter ||
+          String(Number(correctRaw)) === String(j);
+
+        let color = "#eee";
+
+        if (finished) {
+          if (correct) color = "#2FA4A9";
+          if (selected && !correct) color = "#ff6b6b";
+        } else {
+          if (selected) color = "#2FA4A9";
+        }
+
+        return(
+          <div
+            key={j}
+            onClick={()=>selectAnswer(i,opt)}
+            style={{
+              background:color,
+              padding:10,
+              marginTop:6,
+              cursor:"pointer",
+              borderRadius:6
+            }}
+          >
+            {String.fromCharCode(65+j)}. {opt}
+          </div>
+        );
+      })}
+
+      {finished && (
+        <div style={{
+          marginTop: 15,
+          padding: 15,
+          background: "#f4f6f8",
+          borderRadius: 8
+        }}>
+
+          {(() => {
+
+  const userAnswer = answers[i];
+  const correctRaw = (q.correct ?? "").toString().trim();
+
+  let isCorrect = false;
+
+  q.options.forEach((opt:string,j:number)=>{
+    const optTextNorm = opt?.toString().trim().toLowerCase();
+    const correctTextNorm = correctRaw.toLowerCase();
+    const optLetter = String.fromCharCode(65 + j);
+
+    const correct =
+      correctTextNorm === optTextNorm ||
+      correctRaw === optLetter ||
+      String(Number(correctRaw)) === String(j);
+
+    if (correct && userAnswer === opt) {
+      isCorrect = true;
+    }
+  });
+
+  return isCorrect ? (
+    <div style={{color:"#2FA4A9",fontWeight:600}}>
+      ✅ Correct answer
+    </div>
+  ) : (
+    <div style={{color:"#ff6b6b",fontWeight:600}}>
+      ❌ Wrong answer
+    </div>
+  );
+
+})()}
+
+          <div style={{marginTop:10}}>
+            {q.explanation ? q.explanation : "No explanation provided."}
+          </div>
+
+          {q.explanation_long && (
+            <div style={{marginTop:10}}>
+              <button
+                onClick={() =>
+                  setExpanded(prev => ({
+                    ...prev,
+                    [i]: !prev[i]
+                  }))
+                }
+                style={{
+                  background:"none",
+                  border:"none",
+                  color:"#2FA4A9",
+                  cursor:"pointer",
+                  padding:0
+                }}
+              >
+                {expanded[i] ? "Hide details ▲" : "Extend ▼"}
+              </button>
+            </div>
+          )}
+
+          {expanded[i] && q.explanation_long && (
+            <div style={{marginTop:10,lineHeight:1.5}}>
+              {q.explanation_long}
+            </div>
+          )}
+
+          {q.source_document && (
+            <div style={{
+              marginTop:12,
+              fontSize:14,
+              color:"#555"
+            }}>
+              📄 📄 Source: <strong>{q.source_document}</strong>
+              {q.source_page ? <> — Page <strong>{q.source_page}</strong></> : null}
+            </div>
+          )}
+
+        </div>
+      )}
+
+    </div>
+  );
+})}
+
+{started && !finished && (
+  <button
+    onClick={submitQuiz}
+    style={{ ...button, marginTop: 20 }}
+  >
+    Submit Quiz
+  </button>
+)}
+
+{finished && (
+  <div style={{ marginTop: 20 }}>
+    <h2>Score: {score()} / {quiz.length}</h2>
+  </div>
+)}
+
+</div>
+)}
+
+
+<div style={statusBox}>{status}</div>
+
+</div>  
+
+</>
+</div>  
+
+
+
+</div>  
 </>
 );
 }
-
-// ======================
-// STYLES
-// ======================
 // ======================
 // STYLES
 // ======================
