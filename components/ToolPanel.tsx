@@ -54,7 +54,7 @@ uploadStatus
 
 
 
-}) {
+}: any) {
 
   return (
     <div style={panel}>
