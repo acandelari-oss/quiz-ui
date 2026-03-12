@@ -102,7 +102,6 @@ export default function Sidebar({ activeView, setActiveView }: any) {
     </div>
   );
 }
-
 const sidebar = {
   width: 260,
   background: "#020617",
