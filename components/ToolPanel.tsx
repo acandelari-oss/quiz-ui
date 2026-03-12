@@ -264,7 +264,7 @@ const panel = {
   borderRight: "1px solid #1f2937",
   padding: 20,
   height: "100vh",
-  overflowY: "auto",
+  overflowY: "auto" as const,
   color: "white"
 };
 
