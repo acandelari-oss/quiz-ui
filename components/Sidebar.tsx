@@ -10,7 +10,7 @@ import {
   BarChart3
 } from "lucide-react";
 
-export default function Sidebar({ activeView, setActiveView }) {
+export default function Sidebar({ activeView, setActiveView }: any) {
   return (
     <div style={sidebar}>
 
