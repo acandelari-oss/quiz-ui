@@ -1,6 +1,7 @@
 import ProjectManagerView from "./views/ProjectManagerView"
 import TopicsView from "./views/TopicsView"
 import React from "react"
+
 export default function ToolPanel({
 
 activeView,
@@ -11,8 +12,8 @@ setAskQuestion,
 askDocuments,
 asking,
 
-numQuestions,
-setNumQuestions,
+numQuestions = 10,
+setNumQuestions = () => {},
 
 difficulty,
 setDifficulty,
@@ -45,7 +46,7 @@ setTopicsOpen,
 selectedTopics,
 setSelectedTopics,
 
-availableFlashcards,
+availableFlashcards = 0,
 studyCount,
 setStudyCount,
 loadStudyFlashcards,
@@ -53,82 +54,76 @@ loadStudyFlashcards,
 status,
 uploadStatus
 
-
-
 }: any) {
 
   return (
     <div style={panel}>
       
       {projectName && (
-    <div style={{
-      position: "sticky",
-      top: 0,
-      background: "#111827",
-      padding: "10px",
-      borderBottom: "1px solid #374151",
-      marginBottom: 12,
-      zIndex: 10
-    }}>
-      <div style={{
-        fontSize: 11,
-        color: "#9ca3af",
-        letterSpacing: 1
-      }}>
-        ACTIVE PROJECT
-      </div>
+        <div style={{
+          position: "sticky",
+          top: 0,
+          background: "#111827",
+          padding: "10px",
+          borderBottom: "1px solid #374151",
+          marginBottom: 12,
+          zIndex: 10
+        }}>
+          <div style={{
+            fontSize: 11,
+            color: "#9ca3af",
+            letterSpacing: 1
+          }}>
+            ACTIVE PROJECT
+          </div>
 
-      <div style={{
-        fontSize: 14,
-        fontWeight: 600,
-        color: "#e5e7eb"
-      }}>
-        📂 {projectName}
-      </div>
-      <div style={{
-      fontSize: 11,
-      color: "#9ca3af",
-      marginTop: 4
-    }}>
-      {documents?.length || 0} documents • {topics?.length || 0} topics
-    </div>
-    </div>
-)}
+          <div style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: "#e5e7eb"
+          }}>
+            📂 {projectName}
+          </div>
+
+          <div style={{
+            fontSize: 11,
+            color: "#9ca3af",
+            marginTop: 4
+          }}>
+            {documents?.length || 0} documents • {topics?.length || 0} topics
+          </div>
+        </div>
+      )}
+
       {activeView === "project" && (
-
         <ProjectManagerView
-
-        projects={projects}
-        projectName={projectName}
-        setProjectName={setProjectName}
-        createProject={createProject}
-        selectProject={selectProject}
-        projectId={projectId}
-        deleteProject={deleteProject}
-
-        files={files}
-        setFiles={setFiles}
-        uploadFiles={uploadFiles}
-        documents={documents}
-        uploadStatus={uploadStatus}
-
+          projects={projects}
+          projectName={projectName}
+          setProjectName={setProjectName}
+          createProject={createProject}
+          selectProject={selectProject}
+          projectId={projectId}
+          deleteProject={deleteProject}
+          files={files}
+          setFiles={setFiles}
+          uploadFiles={uploadFiles}
+          documents={documents}
+          uploadStatus={uploadStatus}
         />
+      )}
 
-)}
       {(activeView === "quiz" || activeView === "flashcards" || activeView === "ask") && (
-
-      <TopicsView
-      topics={topics}
-      loadingTopics={loadingTopics}
-      topicsOpen={topicsOpen}
-      setTopicsOpen={setTopicsOpen}
-      selectedTopics={selectedTopics}
-      setSelectedTopics={setSelectedTopics}
-      setAskQuestion={setAskQuestion}
-      activeView={activeView}
-      />
-
-)}
+        <TopicsView
+          topics={topics}
+          loadingTopics={loadingTopics}
+          topicsOpen={topicsOpen}
+          setTopicsOpen={setTopicsOpen}
+          selectedTopics={selectedTopics}
+          setSelectedTopics={setSelectedTopics}
+          setAskQuestion={setAskQuestion}
+          activeView={activeView}
+        />
+      )}
 
       {activeView === "ask" && (
         <>
@@ -136,7 +131,7 @@ uploadStatus
 
           <input
             placeholder="Ask something..."
-            value={askQuestion}
+            value={askQuestion || ""}
             onChange={(e)=>setAskQuestion(e.target.value)}
             style={input}
           />
@@ -148,59 +143,51 @@ uploadStatus
       )}
 
       {activeView === "flashcards" && (
+        <>
+          <h3>Flashcards</h3>
 
-      <>
+          <div style={{marginBottom:25}}>
 
-      <h3>Flashcards</h3>
+            <h4 style={{marginBottom:10}}>Generate new flashcards</h4>
 
-      {/* GENERATE */}
+            <label>Number of cards</label>
 
-      <div style={{marginBottom:25}}>
+            <input
+              type="number"
+              value={numQuestions}
+              onChange={(e)=>setNumQuestions(Number(e.target.value))}
+              style={input}
+            />
 
-      <h4 style={{marginBottom:10}}>Generate new flashcards</h4>
+            <button onClick={generateFlashcards} style={button}>
+              Generate
+            </button>
 
-      <label>Number of cards</label>
+          </div>
 
-      <input
-      type="number"
-      value={numQuestions}
-      onChange={(e)=>setNumQuestions(Number(e.target.value))}
-      style={input}
-      />
+          <div>
 
-      <button onClick={generateFlashcards} style={button}>
-      Generate
-      </button>
+            <h4 style={{marginBottom:10}}>Flashcard you have created:</h4>
 
-      </div>
+            <p style={{color:"#9ca3af"}}>
+              Available cards today: {availableFlashcards}
+            </p>
 
-      {/* STUDY */}
+            <label>How many cards do you want to study?</label>
 
-      <div>
+            <input
+              type="number"
+              value={studyCount}
+              onChange={(e)=>setStudyCount(Number(e.target.value))}
+              style={input}
+            />
 
-      <h4 style={{marginBottom:10}}>Flashcard you have created:</h4>
+            <button onClick={loadStudyFlashcards} style={button}>
+              Start Study
+            </button>
 
-      <p style={{color:"#9ca3af"}}>
-      Available cards today: {availableFlashcards}
-      </p>
-
-      <label>How many cards do you want to study?</label>
-
-      <input
-      type="number"
-      value={studyCount}
-      onChange={(e)=>setStudyCount(Number(e.target.value))}
-      style={input}
-      />
-
-      <button onClick={loadStudyFlashcards} style={button}>
-      Start Study
-      </button>
-
-      </div>
-
-      </>
-
+          </div>
+        </>
       )}
 
       {activeView === "quiz" && (
@@ -208,6 +195,7 @@ uploadStatus
           <h3>Generate Quiz</h3>
 
           Questions
+
           <input
             type="number"
             value={numQuestions}
@@ -216,6 +204,7 @@ uploadStatus
           />
 
           Difficulty
+
           <select
             value={difficulty}
             onChange={(e)=>setDifficulty(e.target.value)}
@@ -227,6 +216,7 @@ uploadStatus
           </select>
 
           Language
+
           <select
             value={language}
             onChange={(e)=>setLanguage(e.target.value)}
@@ -237,6 +227,7 @@ uploadStatus
           </select>
 
           Timer
+
           <input
             type="number"
             value={timerMinutes}
@@ -244,18 +235,25 @@ uploadStatus
             style={input}
           />
 
-          <button onClick={generateQuiz} style={button}>
-            Start Quiz
+          <button
+          onClick={()=>{
+          console.log("START QUIZ CLICKED")
+          generateQuiz()
+          }}
+          style={button}
+          >
+          Start Quiz
           </button>
         </>
       )}
-       {status && (
-      <div style={statusBox}>
-        {status}
-      </div>
-    )}
+
+      {status && (
+        <div style={statusBox}>
+          {status}
+        </div>
+      )}
+
     </div>
-         
   )
 }
 
@@ -267,9 +265,9 @@ const panel: React.CSSProperties = {
   height: "100vh",
   overflowY: "auto" as const,
   color: "white"
-};
+}
 
-const input: React.CSSProperties ={
+const input: React.CSSProperties = {
   width: "100%",
   padding: 10,
   marginTop: 6,
@@ -279,7 +277,7 @@ const input: React.CSSProperties ={
   background: "#111827",
   color: "white",
   boxSizing: "border-box"
-};
+}
 
 const button: React.CSSProperties = {
   width: "100%",
@@ -289,24 +287,14 @@ const button: React.CSSProperties = {
   border: "1px solid #374151",
   borderRadius: 6,
   cursor: "pointer"
-};
+}
 
-const statusBar: React.CSSProperties ={
-background:"#111827",
-border:"1px solid #374151",
-padding:"8px 10px",
-borderRadius:6,
-marginBottom:15,
-fontSize:12,
-color:"#9ca3af"
-};
-
-const statusBox: React.CSSProperties ={
-marginTop:20,
-padding:"8px 10px",
-background:"#111827",
-border:"1px solid #374151",
-borderRadius:6,
-fontSize:13,
-color:"#9ca3af"
+const statusBox: React.CSSProperties = {
+  marginTop: 20,
+  padding: "8px 10px",
+  background: "#111827",
+  border: "1px solid #374151",
+  borderRadius: 6,
+  fontSize: 13,
+  color: "#9ca3af"
 }

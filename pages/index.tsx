@@ -36,6 +36,7 @@ const [quizId,setQuizId]=useState("")
 const [generatingQuiz,setGeneratingQuiz]=useState(false)
 
 const [flashcards,setFlashcards]=useState<any[]>([])
+const [studyFlashcards,setStudyFlashcards] = useState<any[]>([])
 const [previousFlashcards,setPreviousFlashcards]=useState<any[]>([])
 const [generatingFlashcards,setGeneratingFlashcards]=useState(false)
 
@@ -200,6 +201,57 @@ setPreviousQuizzes(data.quizzes||[])
 
 }
 
+async function loadFlashcards(projectId:string){
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+if(!token) return
+
+try{
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/flashcards`,
+{
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok){
+console.error("Failed loading flashcards")
+return
+}
+
+const data = await res.json()
+
+setPreviousFlashcards(data.flashcards || [])
+
+setAvailableFlashcards((data.flashcards || []).length)
+
+}catch(e){
+
+console.error("FLASHCARDS LOAD ERROR:",e)
+
+}
+
+}
+
+async function loadStudyFlashcards(){
+
+if(previousFlashcards.length === 0) return
+
+const cards = previousFlashcards.slice(0,studyCount)
+
+setFlashcards(cards)
+setFlashcards([])
+setActiveView("flashcards")
+
+setOpenCard(false)
+
+}
+
+
 async function loadQuiz(id:string){
 
 const res=await fetch(
@@ -216,6 +268,88 @@ setFinished(false)
 setStarted(true)
 
 setActiveView("quiz")
+
+}
+
+async function loadFlashcards(projectId:string){
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+if(!token) return
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/flashcards`,
+{
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok) return
+
+const data = await res.json()
+
+setFlashcards(data.flashcards || [])
+
+}
+
+async function loadResults(projectId:string){
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+if(!token) return
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/results`,
+{
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok) return
+
+const data = await res.json()
+
+setResultsData(data)
+
+}
+
+async function loadSummary(projectId:string){
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+if(!token) return
+
+try{
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/summary`,
+{
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok){
+console.error("Summary fetch failed")
+return
+}
+
+const data = await res.json()
+console.log("SUMMARY DATA:", data)
+setSummaryStats(data)
+
+}catch(e){
+
+console.error("SUMMARY ERROR:",e)
+
+}
 
 }
 
@@ -240,8 +374,10 @@ try{
 await loadDocuments(id)
 await loadTopics(id)
 await loadPreviousQuizzes(id)
+//await loadFlashcards(id)
+await loadSummary(id)
 
-setActiveView("quiz")
+
 
 setStatus("Project loaded")
 
@@ -259,6 +395,7 @@ async function generateQuiz(){
 if(!projectId) return
 
 setGeneratingQuiz(true)
+setQuiz([])
 
 const { data:sessionData }=await supabase.auth.getSession()
 const token=sessionData.session?.access_token
@@ -286,6 +423,9 @@ return
 
 const data=await res.json()
 
+console.log("QUIZ API RESPONSE:", data)
+console.log("QUESTIONS LENGTH:", data.questions?.length)
+
 setQuizId(data.quiz_id)
 
 setQuiz(data.questions||[])
@@ -298,6 +438,62 @@ setFinished(false)
 setGeneratingQuiz(false)
 
 setActiveView("quiz")
+
+}
+
+async function generateFlashcards(){
+
+console.log("GENERATE FLASHCARDS FUNCTION RUNNING")
+
+if(!projectId) return
+
+setGeneratingFlashcards(true)
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+if(!token){
+setGeneratingFlashcards(false)
+return
+}
+
+try{
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body: JSON.stringify({
+num_cards: numQuestions,
+topics: selectedTopics
+})
+}
+)
+
+if(!res.ok){
+console.error("Flashcards generation failed")
+setGeneratingFlashcards(false)
+return
+}
+
+const data = await res.json()
+
+setFlashcards(data.flashcards || [])
+await loadFlashcards(projectId)
+
+setActiveView("flashcards")
+
+}catch(e){
+
+console.error("FLASHCARDS ERROR:",e)
+
+}
+
+setGeneratingFlashcards(false)
 
 }
 
@@ -376,15 +572,56 @@ return(
 <Sidebar
 activeView={activeView}
 setActiveView={setActiveView}
+loadResults={loadResults}
+projectId={projectId}
 />
 
 <ToolPanel
 activeView={activeView}
 projectName={projectName}
+
 projects={projects}
+
 createProject={()=>{}}
 selectProject={selectProject}
 projectId={projectId}
+
+numQuestions={numQuestions}
+setNumQuestions={setNumQuestions}
+
+difficulty={difficulty}
+setDifficulty={setDifficulty}
+
+language={language}
+setLanguage={setLanguage}
+
+timerMinutes={timerMinutes}
+setTimerMinutes={setTimerMinutes}
+
+generateQuiz={generateQuiz}
+generateFlashcards={generateFlashcards}
+flashcards={flashcards}
+openCard={openCard}
+setOpenCard={setOpenCard}
+
+files={files}
+setFiles={setFiles}
+documents={documents}
+
+topics={topics}
+loadingTopics={loadingTopics}
+topicsOpen={topicsOpen}
+setTopicsOpen={setTopicsOpen}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+
+availableFlashcards={availableFlashcards}
+studyCount={studyCount}
+setStudyCount={setStudyCount}
+
+status={status}
+uploadStatus={uploadStatus}
+
 />
 
 <Workspace
@@ -405,6 +642,11 @@ projectId={projectId}
 quizId={quizId}
 previousQuizzes={previousQuizzes}
 loadQuiz={loadQuiz}
+flashcards={flashcards}
+openCard={openCard}
+setOpenCard={setOpenCard}
+summaryStats={summaryStats}
+resultsData={resultsData}
 />
 
 </div>

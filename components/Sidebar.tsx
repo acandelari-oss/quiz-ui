@@ -10,7 +10,7 @@ import {
   BarChart3
 } from "lucide-react";
 
-export default function Sidebar({ activeView, setActiveView }: any) {
+export default function Sidebar({ activeView, setActiveView, loadResults, projectId }: any) {
   return (
     <div style={sidebar}>
 
@@ -94,7 +94,12 @@ export default function Sidebar({ activeView, setActiveView }: any) {
 
       <div
       style={menuItem}
-      onClick={() => setActiveView("results")}
+      onClick={async () => {
+        if(projectId){
+          await loadResults(projectId)
+        }
+        setActiveView("results")
+      }}
       >
       <BarChart3 size={16}/> Results
       </div>

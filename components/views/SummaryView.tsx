@@ -1,7 +1,11 @@
-export default function SummaryView({summaryStats}){
+export default function SummaryView({ summaryStats }){
 
-if(!summaryStats){
-return <div style={{color:"white"}}>No data yet</div>
+if(!summaryStats || Object.keys(summaryStats).length === 0){
+return (
+<div style={{color:"white"}}>
+No data yet
+</div>
+)
 }
 
 return(
@@ -14,22 +18,22 @@ return(
 
 <div style={card}>
 <h3>Quiz Attempts</h3>
-<p>{summaryStats.quiz_attempts}</p>
+<p>{summaryStats.quiz_attempts ?? 0}</p>
 </div>
 
 <div style={card}>
 <h3>Average Score</h3>
-<p>{summaryStats.avg_score}%</p>
+<p>{summaryStats.avg_score ?? 0}%</p>
 </div>
 
 <div style={card}>
 <h3>Flashcards Reviewed</h3>
-<p>{summaryStats.flashcards_reviewed}</p>
+<p>{summaryStats.flashcards_reviewed ?? 0}</p>
 </div>
 
 <div style={card}>
 <h3>Topics Studied</h3>
-<p>{summaryStats.topics_count}</p>
+<p>{summaryStats.topics_count ?? 0}</p>
 </div>
 
 </div>
