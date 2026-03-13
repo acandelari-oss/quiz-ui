@@ -88,6 +88,7 @@ useEffect(()=>{
 if(activeView !== "flashcards") return
 if(!projectId) return
 
+setFlashcards([])        // reset sessione di studio
 loadFlashcards(projectId)
 
 },[activeView])
