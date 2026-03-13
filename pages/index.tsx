@@ -94,6 +94,18 @@ loadFlashcards(projectId)
 },[activeView])
 
 useEffect(()=>{
+
+async function init(){
+
+await loadProjects()
+
+}
+
+init()
+
+},[])
+
+useEffect(()=>{
 if(!started) return
 if(timerMinutes===0) return
 
