@@ -185,6 +185,45 @@ setStatus("Project created")
 
 }
 
+async function deleteProject(id:string){
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+if(!token) return
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}`,
+{
+method:"DELETE",
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok){
+setStatus("Error deleting project")
+return
+}
+
+setProjects(projects.filter(p => p.id !== id))
+
+if(projectId === id){
+setProjectId("")
+setProjectName("")
+setDocuments([])
+setTopics([])
+setQuiz([])
+setPreviousQuizzes([])
+setPreviousFlashcards([])
+setFlashcards([])
+setSummaryStats(null)
+setResultsData(null)
+}
+
+setStatus("Project deleted")
+}
+
 async function loadDocuments(projectId:string){
 
 const { data:sessionData }=await supabase.auth.getSession()
@@ -201,6 +240,71 @@ if(!res.ok) return
 const data=await res.json()
 
 setDocuments(data.documents||[])
+
+}
+async function uploadFiles(){
+
+if(!projectId) return
+if(!files || files.length === 0) return
+
+setUploading(true)
+setUploadStatus("Uploading...")
+
+try{
+
+const docs = []
+
+for(const file of Array.from(files)){
+
+const buffer = await file.arrayBuffer()
+
+const base64 = btoa(
+String.fromCharCode(...new Uint8Array(buffer))
+)
+
+docs.push({
+title:file.name,
+file_bytes:base64
+})
+
+}
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body:JSON.stringify({
+documents:docs
+})
+}
+)
+
+if(!res.ok){
+setUploadStatus("Upload failed")
+setUploading(false)
+return
+}
+
+setUploadStatus("Files uploaded successfully")
+
+await loadDocuments(projectId)
+await loadTopics(projectId)
+
+}catch(e){
+
+console.error("UPLOAD ERROR:",e)
+setUploadStatus("Upload error")
+
+}
+
+setUploading(false)
 
 }
 
@@ -691,6 +795,7 @@ projects={projects}
 
 createProject={createProject}
 selectProject={selectProject}
+deleteProject={deleteProject}
 projectId={projectId}
 
 numQuestions={numQuestions}
