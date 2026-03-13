@@ -834,6 +834,7 @@ setStudyCount={setStudyCount}
 status={status}
 uploadStatus={uploadStatus}
 setProjectName={setProjectName}
+uploadFiles={uploadFiles}
 
 />
 
