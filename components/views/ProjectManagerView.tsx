@@ -67,9 +67,9 @@ cursor:"pointer"
 <label>Create project</label>
 
 <input
+placeholder="New project name"
 value={projectName}
 onChange={(e)=>setProjectName(e.target.value)}
-placeholder="New project name"
 style={input}
 />
 
