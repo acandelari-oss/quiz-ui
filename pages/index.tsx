@@ -149,6 +149,42 @@ setProjects(Array.isArray(data)?data:data.projects||[])
 
 }
 
+async function createProject(){
+
+if(!projectName.trim()) return
+
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+if(!token) return
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body: JSON.stringify({
+name: projectName
+})
+}
+)
+
+if(!res.ok) return
+
+const data = await res.json()
+
+setProjects([...projects,{
+id:data.project_id,
+name:data.name
+}])
+
+setProjectId(data.project_id)
+setStatus("Project created")
+
+}
+
 async function loadDocuments(projectId:string){
 
 const { data:sessionData }=await supabase.auth.getSession()
@@ -653,7 +689,7 @@ projectName={projectName}
 
 projects={projects}
 
-createProject={()=>{}}
+createProject={createProject}
 selectProject={selectProject}
 projectId={projectId}
 
