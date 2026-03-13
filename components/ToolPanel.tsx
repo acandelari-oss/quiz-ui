@@ -264,7 +264,8 @@ const panel: React.CSSProperties = {
   padding: 20,
   height: "100vh",
   overflowY: "auto" as const,
-  color: "white"
+  color: "white",
+  zIndex: 2
 }
 
 const input: React.CSSProperties = {
