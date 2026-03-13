@@ -1,92 +1,97 @@
 export default function AskView({
-askQuestion,
-setAskQuestion,
-askDocuments,
-asking,
-chatMessages
-}){
+  askQuestion,
+  setAskQuestion,
+  askDocuments,
+  asking,
+  chatMessages
+}) {
 
-return(
+  const messages = chatMessages || []
 
-<div style={container}>
+  return(
 
-<h3>Ask your documents</h3>
+    <div style={container}>
 
-<div style={chatBox}>
+      <h3>Ask your documents</h3>
 
-{chatMessages.map((m,i)=>(
-<div
-key={i}
-style={{
-display:"flex",
-justifyContent: m.role==="user" ? "flex-end":"flex-start",
-marginBottom:10
-}}
->
+      <div style={chatBox}>
 
-<div
-style={{
-background: m.role==="user" ? "#2563eb":"#1f2937",
-padding:"10px 12px",
-borderRadius:8,
-maxWidth:"70%",
-color:"white"
-}}
->
-{m.content}
-</div>
+        {messages.map((m,i)=>(
+          <div
+            key={i}
+            style={{
+              display:"flex",
+              justifyContent: m.role==="user" ? "flex-end":"flex-start",
+              marginBottom:10
+            }}
+          >
 
-</div>
-))}
+            <div
+              style={{
+                background: m.role==="user" ? "#2563eb":"#1f2937",
+                padding:"10px 12px",
+                borderRadius:8,
+                maxWidth:"70%",
+                color:"white"
+              }}
+            >
+              {m.content}
+            </div>
 
-</div>
+          </div>
+        ))}
 
-<div style={{marginTop:15}}>
+      </div>
 
-<input
-placeholder="Ask something about your documents..."
-value={askQuestion}
-onChange={(e)=>setAskQuestion(e.target.value)}
-style={input}
-/>
+      <div style={{marginTop:15}}>
 
-<button onClick={askDocuments} style={button}>
-{asking ? "Thinking..." : "Ask"}
-</button>
+        <input
+          placeholder="Ask something about your documents..."
+          value={askQuestion || ""}
+          onChange={(e)=>setAskQuestion(e.target.value)}
+          style={input}
+        />
 
-</div>
+        <button
+          onClick={askDocuments}
+          style={button}
+        >
+          {asking ? "Thinking..." : "Ask"}
+        </button>
 
-</div>
+      </div>
 
-)
+    </div>
+
+  )
 
 }
 
 const container={
-display:"flex",
-flexDirection:"column" as const,
-height:"100%"
+  display:"flex",
+  flexDirection:"column" as const,
+  height:"100%"
 }
 
 const chatBox={
-flex:1,
-overflowY:"auto" as const,
-marginBottom:10
+  flex:1,
+  overflowY:"auto" as const,
+  marginBottom:10
 }
 
 const input={
-width:"100%",
-padding:"10px",
-background:"#111827",
-border:"1px solid #374151",
-color:"white"
+  width:"100%",
+  padding:"10px",
+  background:"#111827",
+  border:"1px solid #374151",
+  color:"white"
 }
 
 const button={
-marginTop:8,
-padding:"10px",
-background:"#2563eb",
-color:"white",
-border:"none",
-cursor:"pointer"
+  marginTop:8,
+  padding:"10px",
+  background:"#2563eb",
+  color:"white",
+  border:"none",
+  cursor:"pointer"
 }
