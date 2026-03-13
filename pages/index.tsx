@@ -519,6 +519,55 @@ setGeneratingFlashcards(false)
 
 }
 
+async function askDocuments(){
+
+if(!projectId) return
+if(!askQuestion.trim()) return
+
+setAsking(true)
+
+try{
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/ask`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body: JSON.stringify({
+project_id: projectId,
+question: askQuestion,
+topics: selectedTopics
+})
+}
+)
+
+if(!res.ok){
+setAsking(false)
+return
+}
+
+const data = await res.json()
+
+setChatMessages([
+...chatMessages,
+{role:"user",content:askQuestion},
+{role:"assistant",content:data.answer}
+])
+
+setAskQuestion("")
+
+}catch(e){
+
+console.error("ASK ERROR:",e)
+
+}
+
+setAsking(false)
+
+}
+
 function selectAnswer(i:number,opt:string){
 
 if(finished) return
