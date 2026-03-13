@@ -84,6 +84,15 @@ init()
 },[])
 
 useEffect(()=>{
+
+if(activeView !== "flashcards") return
+if(!projectId) return
+
+loadFlashcards(projectId)
+
+},[activeView])
+
+useEffect(()=>{
 if(!started) return
 if(timerMinutes===0) return
 
