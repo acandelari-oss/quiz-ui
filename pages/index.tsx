@@ -256,11 +256,20 @@ const docs = []
 
 for(const file of Array.from(files)){
 
-const buffer = await file.arrayBuffer()
+const base64 = await new Promise((resolve,reject)=>{
 
-const base64 = btoa(
-String.fromCharCode(...new Uint8Array(buffer))
-)
+const reader = new FileReader()
+
+reader.onload = () => {
+const result = reader.result.split(",")[1]
+resolve(result)
+}
+
+reader.onerror = reject
+
+reader.readAsDataURL(file)
+
+})
 
 docs.push({
 title:file.name,
