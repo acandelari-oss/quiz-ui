@@ -117,7 +117,10 @@ style={input}
 />
 
 <button
-onClick={uploadFiles}
+onClick={()=>{
+console.log("UPLOAD CLICKED")
+uploadFiles()
+}}
 style={button}
 >
 Upload
