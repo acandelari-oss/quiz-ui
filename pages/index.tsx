@@ -657,7 +657,7 @@ return
 const data = await res.json()
 
 setFlashcards(data.flashcards || [])
-await loadFlashcards(projectId)
+
 
 setActiveView("flashcards")
 
