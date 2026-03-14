@@ -1,4 +1,3 @@
-import ProjectManagerView from "./views/ProjectManagerView"
 import TopicsView from "./views/TopicsView"
 import React from "react"
 
@@ -33,7 +32,6 @@ setProjectName,
 createProject,
 selectProject,
 projectId,
-deleteProject,
 files,
 setFiles,
 uploadFiles,
@@ -95,24 +93,162 @@ uploadStatus
         </div>
       )}
 
-      {activeView === "project" && (
-        <ProjectManagerView
-          projects={projects}
-          projectName={projectName}
-          setProjectName={setProjectName}
-          createProject={createProject}
-          selectProject={selectProject}
-          projectId={projectId}
-          deleteProject={deleteProject}
-          files={files}
-          setFiles={setFiles}
-          uploadFiles={uploadFiles}
-          documents={documents}
-          uploadStatus={uploadStatus}
-        />
+      {/* ========================= */}
+      {/* CREATE PROJECT */}
+      {/* ========================= */}
+      {activeView === "create_project" && (
+        <>
+          <h3>Create Project</h3>
+
+          <input
+            placeholder="Project name"
+            value={projectName}
+            onChange={(e)=>setProjectName(e.target.value)}
+            style={input}
+          />
+
+          <label>Upload documents</label>
+
+          <input
+            type="file"
+            multiple
+            onChange={(e)=>setFiles(e.target.files)}
+            style={input}
+          />
+
+          <button
+            onClick={createProject}
+            style={button}
+          >
+            Create project
+          </button>
+
+          {uploadStatus && (
+            <div style={statusBox}>
+              {uploadStatus}
+            </div>
+          )}
+        </>
       )}
 
-      {(activeView === "quiz" || activeView === "flashcards" || activeView === "ask") && (
+      {/* ========================= */}
+      {/* LOAD PROJECT */}
+      {/* ========================= */}
+      {activeView === "load_project" && (
+        <>
+          <h3>Load Project</h3>
+
+          <div style={{marginBottom:8,fontWeight:600}}>
+            Select project
+          </div>
+
+          <div style={projectList}>
+            {projects?.map((p:any)=>(
+              <div
+                key={p.id}
+                onClick={()=>selectProject(p.id)}
+                style={{
+                  padding:"8px 10px",
+                  background:p.id===projectId ? "#1f2937" : "#111827",
+                  borderBottom:"1px solid #374151",
+                  color:"white",
+                  fontSize:14,
+                  cursor:"pointer"
+                }}
+              >
+                {p.name}
+              </div>
+            ))}
+          </div>
+
+          {projectId && (
+            <>
+              <label style={{display:"block", marginTop:16}}>Upload documents</label>
+
+              <input
+                type="file"
+                multiple
+                onChange={(e)=>setFiles(e.target.files)}
+                style={input}
+              />
+
+              <button
+                onClick={uploadFiles}
+                style={button}
+              >
+                Upload files
+              </button>
+
+              {uploadStatus && (
+                <div style={statusBox}>
+                  {uploadStatus}
+                </div>
+              )}
+              {/* DOCUMENT LIST */}
+
+              {documents?.length > 0 && (
+
+              <div style={{marginTop:20}}>
+
+              <div style={{fontWeight:600, marginBottom:6}}>
+              Uploaded documents
+              </div>
+
+              {documents.map((doc:any,i:number)=>(
+
+              <div
+              key={i}
+              style={{
+              fontSize:13,
+              color:"#e5e7eb",
+              marginBottom:4
+              }}
+              >
+              • {doc.title}
+              </div>
+
+              ))}
+
+              </div>
+
+              )}
+              {/* TOPIC LIST */}
+
+              {topics?.length > 0 && (
+
+              <div style={{marginTop:20}}>
+
+              <div style={{fontWeight:600, marginBottom:6}}>
+              Detected topics
+              </div>
+
+              {topics.map((t:any,i:number)=>(
+
+              <div
+              key={i}
+              style={{
+              fontSize:13,
+              color:"#9ca3af",
+              marginBottom:4
+              }}
+              >
+              • {t.topic}
+              </div>
+
+              ))}
+
+              </div>
+
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {/* ========================= */}
+      {/* ASK */}
+      {/* ========================= */}
+      {(activeView === "quiz" || activeView === "ask") && (
         <TopicsView
           topics={topics}
           loadingTopics={loadingTopics}
@@ -125,71 +261,68 @@ uploadStatus
         />
       )}
 
-      {activeView === "ask" && (
+      
+
+      {/* ========================= */}
+      {/* GENERATE FLASHCARDS */}
+      {/* ========================= */}
+      {activeView === "generate_flashcards" && (
         <>
-          <h3>Ask your documents</h3>
+          <TopicsView
+            topics={topics}
+            loadingTopics={loadingTopics}
+            topicsOpen={topicsOpen}
+            setTopicsOpen={setTopicsOpen}
+            selectedTopics={selectedTopics}
+            setSelectedTopics={setSelectedTopics}
+          />
+
+          <h3>Generate Flashcards</h3>
+
+          <label>Number of cards</label>
 
           <input
-            placeholder="Ask something..."
-            value={askQuestion || ""}
-            onChange={(e)=>setAskQuestion(e.target.value)}
+            type="number"
+            value={numQuestions}
+            onChange={(e)=>setNumQuestions(Number(e.target.value))}
             style={input}
           />
 
-          <button onClick={askDocuments} style={button}>
-            {asking ? "Thinking..." : "Ask"}
+          <button onClick={generateFlashcards} style={button}>
+            Generate
           </button>
         </>
       )}
 
+      {/* ========================= */}
+      {/* STUDY FLASHCARDS */}
+      {/* ========================= */}
       {activeView === "flashcards" && (
         <>
-          <h3>Flashcards</h3>
+          <h3>Study Flashcards</h3>
 
-          <div style={{marginBottom:25}}>
+          <p style={{color:"#9ca3af"}}>
+            Available cards today: {availableFlashcards}
+          </p>
 
-            <h4 style={{marginBottom:10}}>Generate new flashcards</h4>
+          <label>How many cards do you want to study today?</label>
 
-            <label>Number of cards</label>
+          <input
+            type="number"
+            value={studyCount}
+            onChange={(e)=>setStudyCount(Number(e.target.value))}
+            style={input}
+          />
 
-            <input
-              type="number"
-              value={numQuestions}
-              onChange={(e)=>setNumQuestions(Number(e.target.value))}
-              style={input}
-            />
-
-            <button onClick={generateFlashcards} style={button}>
-              Generate
-            </button>
-
-          </div>
-
-          <div>
-
-            <h4 style={{marginBottom:10}}>Flashcard you have created:</h4>
-
-            <p style={{color:"#9ca3af"}}>
-              Available cards today: {availableFlashcards}
-            </p>
-
-            <label>How many cards do you want to study?</label>
-
-            <input
-              type="number"
-              value={studyCount}
-              onChange={(e)=>setStudyCount(Number(e.target.value))}
-              style={input}
-            />
-
-            <button onClick={loadStudyFlashcards} style={button}>
-              Start Study
-            </button>
-
-          </div>
+          <button onClick={loadStudyFlashcards} style={button}>
+            Start Study
+          </button>
         </>
       )}
 
+      {/* ========================= */}
+      {/* QUIZ */}
+      {/* ========================= */}
       {activeView === "quiz" && (
         <>
           <h3>Generate Quiz</h3>
@@ -236,13 +369,13 @@ uploadStatus
           />
 
           <button
-          onClick={()=>{
-          console.log("START QUIZ CLICKED")
-          generateQuiz()
-          }}
-          style={button}
+            onClick={()=>{
+              console.log("START QUIZ CLICKED")
+              generateQuiz()
+            }}
+            style={button}
           >
-          Start Quiz
+            Start Quiz
           </button>
         </>
       )}
@@ -298,4 +431,12 @@ const statusBox: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 13,
   color: "#9ca3af"
+}
+
+const projectList: React.CSSProperties = {
+  maxHeight: 180,
+  overflowY: "auto" as const,
+  border: "1px solid #374151",
+  borderRadius: 6,
+  marginBottom: 12
 }

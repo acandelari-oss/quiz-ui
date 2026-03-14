@@ -127,9 +127,32 @@ Upload
 </button>
 
 {uploadStatus && (
-<div style={statusBox}>
+
+<div
+style={{
+marginTop:15,
+padding:"10px 12px",
+borderRadius:8,
+fontSize:14,
+fontWeight:600,
+textAlign:"center",
+background:
+uploadStatus.includes("Uploading")
+? "#3b0a0a"
+: "#052e16",
+color:
+uploadStatus.includes("Uploading")
+? "#f87171"
+: "#22c55e",
+border:
+uploadStatus.includes("Uploading")
+? "1px solid #7f1d1d"
+: "1px solid #166534"
+}}
+>
 {uploadStatus}
 </div>
+
 )}
 
 </div>

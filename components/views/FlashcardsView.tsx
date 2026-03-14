@@ -6,6 +6,20 @@ export default function FlashcardsView({
   setOpenCard
 }) {
 
+  if(openCard === null){
+  return (
+    <div style={{
+      textAlign:"center",
+      color:"#9ca3af",
+      marginTop:60,
+      fontSize:18
+    }}>
+      Select how many flashcards you want to revise<br/>
+      and press <b>Start Study</b>
+    </div>
+  )
+}
+
   const [currentIndex, setCurrentIndex] = useState(0)
 
   // sicurezza: flashcards non esiste o non è array

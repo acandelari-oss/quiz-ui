@@ -7,14 +7,15 @@ export default function QuizView({
   finished,
   started,
   submitQuiz,
-  score,
   expanded,
   setExpanded,
   generatingQuiz,
   formatTime,
   answeredCount,
   projectId,
-  quizId
+  quizId,
+  calculateScore
+  
 }: any) {
 
   const [chatOpen, setChatOpen] = useState<{ [key: number]: boolean }>({})
@@ -24,6 +25,11 @@ export default function QuizView({
   async function askQuestionChat(i:number,q:any){
   if(!projectId){
   console.log("Missing projectId")
+  console.log("QUIZ VIEW STATE", {
+  started,
+  finished,
+  answers
+})
   return
   }
 
@@ -109,12 +115,21 @@ ${input}
       )}
 
       {started && !finished && (
+        <div style={{ marginBottom: 20, color: "#9ca3af", fontWeight: 600 }}>
+          Time left: {formatTime()}
+        </div>
+      )}
+
+      {started && !finished && (
         <div style={{ marginBottom: 20, color: "#9ca3af" }}>
           Answered: {answeredCount} / {quiz.length}
         </div>
       )}
 
       {quiz.map((q: any, i: number) => {
+
+        
+
         return (
           <div key={i} style={question}>
 
@@ -122,6 +137,7 @@ ${input}
 
             {(q.options || []).map((opt: string, j: number) => {
               const selected = answers[i] === opt
+              console.log("finished:", finished)
 
               const correctRaw = (q.correct ?? "").toString().trim()
               const optTextNorm = opt?.toString().trim().toLowerCase()
@@ -135,11 +151,22 @@ ${input}
 
               let background = "#020617"
 
-              if (finished) {
-                if (correct) background = "#2FA4A9"
-                else if (selected) background = "#ff6b6b"
+              if (finished === true) {
+
+                if (correct) {
+                  background = "#2FA4A9"
+                }
+
+                if (selected && !correct) {
+                  background = "#ff6b6b"
+                }
+
               } else {
-                if (selected) background = "#1f2937"
+
+                if (selected) {
+                  background = "#2FA4A9"
+                }
+
               }
 
               return (
@@ -175,7 +202,7 @@ ${input}
               )
             })}
 
-            {finished && (
+            {finished === true && (
               <div
                 style={{
                   marginTop: 10,
@@ -308,9 +335,9 @@ ${input}
         </button>
       )}
 
-      {finished && (
+      {finished && typeof calculateScore === "function" && (
         <div style={{ marginTop: 20 }}>
-          <h2>Score: {score()} / {quiz.length}</h2>
+          <h2>Score: {calculateScore()} / {quiz.length}</h2>
         </div>
       )}
     </div>

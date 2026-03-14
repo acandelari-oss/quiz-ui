@@ -1,19 +1,12 @@
-body {
-
-  background: #F4F7FA;
-
-  font-family:
-
-    -apple-system,
-    BlinkMacSystemFont,
-    Segoe UI,
-    Roboto;
-
-  color: #0B3C5D;
-
-  margin: 0;
-
+html, body, #__next {
+height: 100%;
+margin: 0;
+background: #0f172a;
 }
+
+#__next{height: 100%;
+margin: 0;
+background: #0f172a;}
 
 button {
 
@@ -51,4 +44,9 @@ button:hover {
 
     0 4px 10px rgba(0,0,0,0.05);
 
+}
+
+@keyframes spin {
+0% { transform: rotate(0deg); }
+100% { transform: rotate(360deg); }
 }

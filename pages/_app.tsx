@@ -1,5 +1,6 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
+import "../styles/global.css"
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
@@ -11,7 +12,7 @@ export default function App({ Component, pageProps }: AppProps) {
         />
       </Head>
 
-      <div style={{ fontFamily: "Nunito, sans-serif" }}>
+      <div style={{ fontFamily: "Nunito, sans-serif",background:"#0f172a", minHeight:"100vh" }}>
         <Component {...pageProps} />
       </div>
     </>

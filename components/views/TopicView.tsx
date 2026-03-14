@@ -1,4 +1,7 @@
 export default function TopicsView({
+
+
+
 topics,
 loadingTopics,
 topicsOpen,
@@ -10,27 +13,47 @@ setSelectedTopics
 return (
 
 <div style={box}>
+<div style={{color:"red",fontSize:14}}>
+TOPICS VIEW DEBUG
+</div>
 
 <h3
 style={{
 cursor:"pointer",
 display:"flex",
-alignItems:"center",
-gap:8,
+flexDirection:"column",
+alignItems:"flex-start",
+gap:4,
 color:"white",
 marginBottom:6
 }}
 onClick={()=>setTopicsOpen(!topicsOpen)}
 >
+<div style={{display:"flex",alignItems:"center",gap:6}}>
 Topics
-<span style={{color:"#9ca3af",fontSize:12,marginLeft:6}}>
+<span style={{color:"#9ca3af",fontSize:12}}>
 {topicsOpen ? "▲" : "▼"}
 </span>
+</div>
+
+<span style={{
+fontSize:11,
+color:"#9ca3af",
+fontWeight:400,
+marginTop:4,
+lineHeight:1.3
+}}>
+Select one or more topics to focus your study.
+</span>
+
 </h3>
+
 
 {topicsOpen && (
 
 <>
+
+
 
 {loadingTopics ? (
 <p style={{color:"#9ca3af"}}>Loading topics...</p>
@@ -59,6 +82,10 @@ if(t.difficulty==="hard") color="#ef4444"
 const checked=selectedTopics.includes(t.topic)
 
 return(
+
+<div style={{color:"red",marginBottom:10}}>
+TOPICS TEST TEXT
+</div>
 
 <div
 key={i}

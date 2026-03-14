@@ -10,7 +10,16 @@ import {
   BarChart3
 } from "lucide-react";
 
-export default function Sidebar({ activeView, setActiveView, loadResults, projectId }: any) {
+export default function Sidebar({ 
+  activeView,
+  setActiveView,
+  loadResults,
+  loadSummary,
+  projectId,
+  loadFlashcards,
+  availableFlashcards
+}: any) {
+
   return (
     <div style={sidebar}>
 
@@ -31,16 +40,16 @@ export default function Sidebar({ activeView, setActiveView, loadResults, projec
         <Folder size={16}/> Project
       </div>
 
-      <div style={menuItem} onClick={() => setActiveView("project")}>
-      Load project
+      <div style={menuItem} onClick={() => setActiveView("create_project")}>
+        Create project
       </div>
 
-      <div style={menuItem} onClick={() => setActiveView("project")}>
-      Create project
+      <div style={menuItem} onClick={() => setActiveView("load_project")}>
+        Load project
       </div>
 
-      <div style={menuItem} onClick={() => setActiveView("project")}>
-      Manage projects
+      <div style={menuItem} onClick={() => setActiveView("manage_projects")}>
+        Manage projects
       </div>
 
       <div style={divider} />
@@ -51,24 +60,32 @@ export default function Sidebar({ activeView, setActiveView, loadResults, projec
       </div>
 
       <div
-      style={menuItem}
-      onClick={() => setActiveView("ask")}
+        style={menuItem}
+        onClick={() => setActiveView("ask")}
       >
-      <HelpCircle size={16}/> Ask question
+        <HelpCircle size={16}/> Ask question
       </div>
 
       <div
-      style={menuItem}
-      onClick={() => setActiveView("flashcards")}
+        style={menuItem}
+        onClick={() => setActiveView("generate_flashcards")}
       >
-      <Layers size={16}/> Flashcards
+        <Layers size={16}/> Generate flashcards
       </div>
 
       <div
-      style={menuItem}
-      onClick={() => setActiveView("summary")}
+        style={menuItem}
+        onClick={async () => {
+          if(projectId){
+            await loadFlashcards(projectId)
+          }
+          setActiveView("flashcards")
+        }}
       >
-      <BarChart3 size={16}/> Summary
+        <Layers size={16}/> Load flashcards
+        <span style={{marginLeft:6,color:"#9ca3af"}}>
+          ({availableFlashcards || 0})
+        </span>
       </div>
 
       <div style={divider} />
@@ -79,34 +96,39 @@ export default function Sidebar({ activeView, setActiveView, loadResults, projec
       </div>
 
       <div
-      style={menuItem}
-      onClick={() => setActiveView("quiz")}
+        style={menuItem}
+        onClick={() => setActiveView("quiz")}
       >
-      <ClipboardList size={16}/> Generate quiz
+        <ClipboardList size={16}/> Generate quiz
       </div>
 
       <div
-      style={menuItem}
-      onClick={() => setActiveView("previous")}
+        style={menuItem}
+        onClick={() => setActiveView("previous")}
       >
-      <History size={16}/> Previous quizzes
+        <History size={16}/> Previous quizzes
       </div>
 
       <div
-      style={menuItem}
-      onClick={async () => {
-        if(projectId){
-          await loadResults(projectId)
-        }
-        setActiveView("results")
-      }}
+        style={menuItem}
+        onClick={async () => {
+
+          if(projectId){
+            await loadResults(projectId)
+            await loadSummary(projectId)
+          }
+
+          setActiveView("results_summary")
+
+        }}
       >
-      <BarChart3 size={16}/> Results
+        <BarChart3 size={16}/> Results & Summary
       </div>
 
     </div>
   );
 }
+
 const sidebar = {
   width: 260,
   background: "#020617",

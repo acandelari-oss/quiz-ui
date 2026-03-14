@@ -48,6 +48,7 @@ const [chatMessages,setChatMessages]=useState<any[]>([])
 const [asking,setAsking]=useState(false)
 
 const [answers,setAnswers]=useState<any>({})
+const [score,setScore] = useState<number | null>(null)
 
 const [status,setStatus]=useState("")
 const [uploadStatus,setUploadStatus]=useState("")
@@ -85,13 +86,13 @@ init()
 
 useEffect(()=>{
 
-if(activeView !== "flashcards") return
-if(!projectId) return
 
-setFlashcards([])        // reset sessione di studio
-loadFlashcards(projectId)
 
-},[activeView])
+  if (activeView === "flashcards" && projectId) {
+    loadFlashcards(projectId)
+  }
+
+}, [activeView, projectId])
 
 useEffect(()=>{
 
@@ -108,6 +109,10 @@ init()
 useEffect(()=>{
 if(!started) return
 if(timerMinutes===0) return
+
+if(timerMinutes > 0){
+setTimeLeft(timerMinutes * 60)
+}
 
 const interval=setInterval(()=>{
 setTimeLeft(prev=>{
@@ -415,25 +420,25 @@ if(previousFlashcards.length === 0) return
 const cards = previousFlashcards.slice(0,studyCount)
 
 setFlashcards(cards)
-setFlashcards([])
+
 setActiveView("flashcards")
 
-setOpenCard(false)
+setOpenCard(0)
 
 }
 
 
 async function loadQuiz(id:string){
 
-const res=await fetch(
+const res = await fetch(
 `${process.env.NEXT_PUBLIC_API_URL}/quizzes/${id}`
 )
 
 if(!res.ok) return
 
-const data=await res.json()
+const data = await res.json()
 
-setQuiz(data.questions||[])
+setQuiz(data.questions || [])
 setAnswers({})
 setFinished(false)
 setStarted(true)
@@ -442,29 +447,7 @@ setActiveView("quiz")
 
 }
 
-async function loadFlashcards(projectId:string){
 
-const { data:sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
-
-if(!token) return
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/flashcards`,
-{
-headers:{
-Authorization:`Bearer ${token}`
-}
-}
-)
-
-if(!res.ok) return
-
-const data = await res.json()
-
-setFlashcards(data.flashcards || [])
-
-}
 
 async function loadResults(projectId:string){
 
@@ -563,15 +546,31 @@ setStatus("Error loading project")
 
 async function generateQuiz(){
 
+console.log("GENERATE QUIZ FUNCTION RUNNING")
+
 if(!projectId) return
 
 setGeneratingQuiz(true)
+
+// reset stato quiz precedente
+setAnswers({})
+setExpanded({})
+setFinished(false)
+setStarted(false)
+setScore(null)
+
 setQuiz([])
 
-const { data:sessionData }=await supabase.auth.getSession()
-const token=sessionData.session?.access_token
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
 
-const res=await fetch(
+if(!token){
+console.error("Missing auth token")
+setGeneratingQuiz(false)
+return
+}
+
+const res = await fetch(
 `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz_stream`,
 {
 method:"POST",
@@ -588,23 +587,27 @@ language:language
 )
 
 if(!res.ok){
+console.error("Quiz generation failed")
 setGeneratingQuiz(false)
 return
 }
 
-const data=await res.json()
+const data = await res.json()
 
 console.log("QUIZ API RESPONSE:", data)
 console.log("QUESTIONS LENGTH:", data.questions?.length)
 
 setQuizId(data.quiz_id)
 
-setQuiz(data.questions||[])
+setQuiz(data.questions || [])
+
+setAnswers({})
+setExpanded({})
+setFinished(false)
+setStarted(true)
+setTimeLeft(timerMinutes * 60)
 
 await loadPreviousQuizzes(projectId)
-
-setStarted(true)
-setFinished(false)
 
 setGeneratingQuiz(false)
 
@@ -725,7 +728,7 @@ setAnswers({...answers,[i]:opt})
 
 }
 
-function score(){
+function calculateScore(){
 
 let s=0
 
@@ -775,7 +778,7 @@ Authorization:`Bearer ${token}`
 },
 body:JSON.stringify({
 quiz_id:quizId,
-score:score(),
+score:calculateScore(),
 total_questions:quiz.length
 })
 }
@@ -787,13 +790,16 @@ setStatus("Finished")
 
 return(
 
-<div style={{display:"flex",height:"100vh"}}>
+<div style={{display:"flex",height:"100vh",background:"#0f172a"}}>
 
 <Sidebar
 activeView={activeView}
 setActiveView={setActiveView}
 loadResults={loadResults}
+loadSummary={loadSummary}
 projectId={projectId}
+loadFlashcards={loadFlashcards}
+availableFlashcards={availableFlashcards}
 />
 
 <ToolPanel
@@ -844,24 +850,32 @@ status={status}
 uploadStatus={uploadStatus}
 setProjectName={setProjectName}
 uploadFiles={uploadFiles}
+loadStudyFlashcards={loadStudyFlashcards}
 
 />
 
 <Workspace
+key={quizId}
 activeView={activeView}
 quiz={quiz}
 answers={answers}
+askQuestion={askQuestion}
+setAskQuestion={setAskQuestion}
+askDocuments={askDocuments}
+chatMessages={chatMessages}
+asking={asking}
 selectAnswer={selectAnswer}
 finished={finished}
 started={started}
 submitQuiz={submitQuiz}
-score={score}
 generatingQuiz={generatingQuiz}
 expanded={expanded}
 setExpanded={setExpanded}
 formatTime={formatTime}
-answeredCount={quiz.length}
+answeredCount={Object.keys(answers).length}
 projectId={projectId}
+projects={projects}
+deleteProject={deleteProject}
 quizId={quizId}
 previousQuizzes={previousQuizzes}
 loadQuiz={loadQuiz}
@@ -870,6 +884,7 @@ openCard={openCard}
 setOpenCard={setOpenCard}
 summaryStats={summaryStats}
 resultsData={resultsData}
+calculateScore={calculateScore}
 />
 
 </div>
@@ -877,3 +892,4 @@ resultsData={resultsData}
 )
 
 }
+
