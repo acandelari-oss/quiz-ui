@@ -657,8 +657,7 @@ return
 const data = await res.json()
 
 setFlashcards(data.flashcards || [])
-
-
+setOpenCard(false)
 setActiveView("flashcards")
 
 }catch(e){
