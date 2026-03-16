@@ -117,6 +117,21 @@ uploadStatus
           />
 
           <button
+          onClick={uploadFiles}
+          style={{
+          marginTop:10,
+          padding:"8px 12px",
+          background:"#2563eb",
+          color:"white",
+          border:"none",
+          borderRadius:6,
+          cursor:"pointer"
+          }}
+          >
+          Upload documents
+          </button>
+
+          <button
             onClick={createProject}
             style={button}
           >

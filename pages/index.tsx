@@ -530,6 +530,7 @@ await loadTopics(id)
 await loadPreviousQuizzes(id)
 //await loadFlashcards(id)
 await loadSummary(id)
+await loadFlashcards(id)
 
 
 
