@@ -306,4 +306,6 @@ Start new session
 
 </div>
 
-)}
+)
+
+}
