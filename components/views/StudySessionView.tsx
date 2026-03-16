@@ -64,9 +64,6 @@ const { data } = await supabase.auth.getSession()
 const token = data.session?.access_token
 
 await fetch(
-if(!isCorrect){
-setWeakTopics(prev => [...prev, flashcardId.toString()])
-}
 `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
 {
 method:"POST",
@@ -82,6 +79,8 @@ is_correct:isCorrect
 }
 )
 
+if(!isCorrect){
+setWeakTopics(prev => [...prev, flashcardId.toString()])
 }
 
 const steps=[
