@@ -17,7 +17,8 @@ export default function Sidebar({
   loadSummary,
   projectId,
   loadFlashcards,
-  availableFlashcards
+  availableFlashcards,
+  previousQuizzes
 }: any) {
 
   return (
@@ -67,6 +68,21 @@ export default function Sidebar({
       </div>
 
       <div
+      style={menuItem}
+      onClick={() => setActiveView("study_session")}
+      >
+      <Brain size={16}/> Study Session
+      </div>
+
+      <div
+        style={menuItem}
+        onClick={() => setActiveView("active_recall")}
+      >
+        <Brain size={16}/> Memory check
+      </div>
+
+
+      <div
         style={menuItem}
         onClick={() => setActiveView("generate_flashcards")}
       >
@@ -88,6 +104,8 @@ export default function Sidebar({
         </span>
       </div>
 
+      
+
       <div style={divider} />
 
       {/* QUIZ */}
@@ -107,7 +125,12 @@ export default function Sidebar({
         onClick={() => setActiveView("previous")}
       >
         <History size={16}/> Previous quizzes
+        <span style={{marginLeft:6,color:"#9ca3af"}}>
+          ({previousQuizzes?.length || 0})
+        </span>
       </div>
+
+     
 
       <div
         style={menuItem}

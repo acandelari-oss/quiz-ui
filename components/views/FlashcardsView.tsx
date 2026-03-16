@@ -1,9 +1,12 @@
 import { useState } from "react"
+import { supabase } from "../../lib/supabase"
 
 export default function FlashcardsView({
-  flashcards,
-  openCard,
-  setOpenCard
+flashcards,
+openCard,
+setOpenCard,
+onReview,
+onFlashcardsComplete
 }) {
 
   if(openCard === null){
@@ -55,33 +58,52 @@ export default function FlashcardsView({
 
   async function reviewCard(id: number, isCorrect: boolean, difficulty: number) {
 
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        flashcard_id: id,
-        is_correct: isCorrect,
-        difficulty
-      })
-    })
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+
+  const res = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
+  {
+  method: "POST",
+  headers: {
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${token}`
+  },
+  body: JSON.stringify({
+  flashcard_id: id,
+  is_correct: isCorrect,
+  difficulty
+  })
+  }
+  )
+
+  if(!res.ok){
+  console.error("Flashcard review failed")
+  }
 
   }
 
   async function reviewAndNext(id: number, isCorrect: boolean, difficulty: number) {
 
-    await reviewCard(id, isCorrect, difficulty)
+  await reviewCard(id, isCorrect, difficulty)
 
-    setOpenCard(false)
+  setOpenCard(false)
 
-    if (currentIndex < flashcards.length - 1) {
-      setCurrentIndex(currentIndex + 1)
-    } else {
-      setCurrentIndex(flashcards.length)
+  if (currentIndex < flashcards.length - 1) {
+
+    setCurrentIndex(currentIndex + 1)
+
+  } else {
+
+    setCurrentIndex(flashcards.length)
+
+    if(onFlashcardsComplete){
+      onFlashcardsComplete()
     }
 
   }
+
+}
 
   return (
 

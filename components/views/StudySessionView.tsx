@@ -1,0 +1,310 @@
+import { useState, useEffect } from "react"
+import { supabase } from "../../lib/supabase"
+import FlashcardsView from "./FlashcardsView"
+import ActiveRecallView from "./ActiveRecallView"
+
+const description={
+color:"#9ca3af",
+marginBottom:20
+}
+
+const progress={
+display:"flex",
+gap:10,
+marginBottom:20
+}
+
+const stepBox={
+padding:"6px 10px",
+borderRadius:6,
+color:"white"
+}
+
+const button={
+marginTop:20,
+padding:"10px",
+background:"#2563eb",
+border:"none",
+color:"white",
+borderRadius:6,
+cursor:"pointer"
+}
+
+const progressContainer={
+display:"flex",
+gap:10,
+marginBottom:30
+}
+
+export default function StudySessionView({projectId}:{projectId:string}){
+
+
+
+
+const [step,setStep]=useState(0)
+const [openCard,setOpenCard]=useState<number|null>(0)
+const [flashcards,setFlashcards]=useState([])
+const [recallTopics,setRecallTopics]=useState([])
+const [loading,setLoading]=useState(true)
+const [weakTopics,setWeakTopics]=useState<string[]>([])
+function handleFlashcardsComplete(){
+setStep(1)
+}
+function handleRecallComplete(){
+setStep(2)
+}
+
+function handleQuizComplete(){
+setStep(3)
+}
+
+async function handleReview(flashcardId:number,difficulty:number,isCorrect:boolean){
+
+const { data } = await supabase.auth.getSession()
+const token = data.session?.access_token
+
+await fetch(
+if(!isCorrect){
+setWeakTopics(prev => [...prev, flashcardId.toString()])
+}
+`${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body:JSON.stringify({
+flashcard_id:flashcardId,
+difficulty:difficulty,
+is_correct:isCorrect
+})
+}
+)
+
+}
+
+const steps=[
+"Flashcards",
+"Active Recall",
+"Quiz",
+"Summary"
+]
+
+useEffect(()=>{
+
+async function loadSession(){
+
+const { data } = await supabase.auth.getSession()
+const token = data.session?.access_token
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`,
+{
+headers:{
+Authorization:`Bearer ${token}`
+}
+}
+)
+
+if(!res.ok){
+setLoading(false)
+return
+}
+
+const session = await res.json()
+
+setFlashcards(session.flashcards || [])
+setRecallTopics(session.recall_topics || [])
+
+setLoading(false)
+
+}
+
+loadSession()
+
+},[])
+
+return(
+
+<div>
+
+<div style={progressContainer}>
+
+{["Flashcards","Active Recall","Quiz","Summary"].map((label,i)=>(
+
+<div
+key={i}
+style={{
+flex:1,
+textAlign:"center",
+color: step>=i ? "white":"#6b7280",
+fontWeight: step===i ? 600:400
+}}
+>
+
+<div style={{
+height:6,
+background: step>=i ? "#22c55e":"#374151",
+marginBottom:6,
+borderRadius:4
+}}/>
+
+{label}
+
+</div>
+
+))}
+
+</div>
+
+
+
+<div>
+
+<h2>AI Study Session</h2>
+
+<p style={description}>
+A guided study session combining flashcards, active recall and quizzes.
+</p>
+
+<p style={description}>
+Your study session adapts automatically to your performance.
+Weak topics will generate more recall questions, while strong topics
+will generate more quiz questions.
+</p>
+
+<div style={progress}>
+
+{steps.map((s,i)=>(
+
+<div
+key={i}
+style={{
+...stepBox,
+background: step===i ? "#22c55e":"#1f2937"
+}}
+>
+
+{s}
+
+</div>
+
+))}
+
+</div>
+
+{step===0 && (
+
+<FlashcardsView
+flashcards={flashcards}
+openCard={openCard}
+setOpenCard={setOpenCard}
+onReview={handleReview}
+onFlashcardsComplete={handleFlashcardsComplete}
+/>
+
+)}
+
+{step===1 && (
+
+<ActiveRecallView
+projectId={projectId}
+onComplete={handleRecallComplete}
+/>
+
+)}
+
+{step===2 && (
+
+<div style={{color:"white"}}>
+Quiz phase coming next
+</div>
+
+)}
+
+{step===3 && (
+
+<div style={{
+textAlign:"center",
+marginTop:60,
+color:"white"
+}}>
+
+<h2>🎉 Study Session Completed</h2>
+
+<p style={{
+color:"#9ca3af",
+marginTop:10
+}}>
+Great work. You finished your study session.
+</p>
+
+{/* Weak topics section */}
+
+{weakTopics.length>0 && (
+
+<div style={{marginTop:30}}>
+
+<h3>Topics you should review</h3>
+
+<ul style={{
+marginTop:10,
+color:"#f87171",
+listStyle:"none",
+padding:0
+}}>
+
+{[...new Set(weakTopics)].map((t,i)=>(
+<li key={i}>{t}</li>
+))}
+
+</ul>
+
+</div>
+
+)}
+
+{/* Targeted review buttons */}
+
+<div style={{
+marginTop:30,
+display:"flex",
+gap:10,
+justifyContent:"center"
+}}>
+
+<button
+onClick={()=>console.log("Generate targeted flashcards",weakTopics)}
+style={button}
+>
+Targeted Flashcards
+</button>
+
+<button
+onClick={()=>console.log("Generate targeted quiz",weakTopics)}
+style={button}
+>
+Targeted Quiz
+</button>
+
+</div>
+
+<button
+onClick={()=>setStep(0)}
+style={{
+marginTop:30,
+padding:"12px 20px",
+background:"#2563eb",
+border:"none",
+borderRadius:8,
+color:"white",
+cursor:"pointer"
+}}
+>
+Start new session
+</button>
+
+</div>
+
+)}

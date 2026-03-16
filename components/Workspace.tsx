@@ -3,7 +3,9 @@ import FlashcardsView from "./views/FlashcardsView"
 import QuizView from "./views/QuizView"
 import ResultsView from "./views/ResultsView"
 import SummaryView from "./views/SummaryView"
+import ActiveRecallView from "./views/ActiveRecallView"
 import { useState, useEffect } from "react"
+import StudySessionView from "./views/StudySessionView"
 
 export default function Workspace({
 
@@ -143,6 +145,8 @@ Delete project
 {/* ASK */}
 {/* ========================= */}
 
+
+
 {activeView === "ask" && (
 <AskView
 askQuestion={askQuestion}
@@ -151,6 +155,18 @@ askDocuments={askDocuments}
 asking={asking}
 chatMessages={chatMessages}
 />
+)}
+
+{/* ========================= */}
+{/* ACTIVE RECALL */}
+{/* ========================= */}
+
+{activeView === "active_recall" && (
+
+<ActiveRecallView
+projectId={projectId}
+/>
+
 )}
 
 {/* ========================= */}
@@ -306,6 +322,19 @@ quizId={quizId}
 </div>
 
 )}
+
+{/* ========================= */}
+{/* STUDY SESSION */}
+{/* ========================= */}
+
+{activeView === "study_session" && (
+
+<StudySessionView
+projectId={projectId}
+/>
+
+)}
+
 
 {/* ========================= */}
 {/* RESULTS + SUMMARY */}

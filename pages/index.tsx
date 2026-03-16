@@ -799,6 +799,7 @@ loadSummary={loadSummary}
 projectId={projectId}
 loadFlashcards={loadFlashcards}
 availableFlashcards={availableFlashcards}
+previousQuizzes={previousQuizzes}
 />
 
 <ToolPanel

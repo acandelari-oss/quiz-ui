@@ -90,7 +90,7 @@ const input={
 const button={
   marginTop:8,
   padding:"10px",
-  background:"#2563eb",
+  background:"#2FA4A9",
   color:"white",
   border:"none",
   cursor:"pointer"
