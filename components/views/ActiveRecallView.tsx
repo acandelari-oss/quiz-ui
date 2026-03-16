@@ -6,6 +6,7 @@ export default function ActiveRecallView({ projectId }:{projectId:string}){
 const [messages,setMessages]=useState<any[]>([])
 const [sessionStarted,setSessionStarted]=useState(false)
 const [questionCount,setQuestionCount]=useState(0)
+const [answerHistory,setAnswerHistory]=useState<string[]>([])
 const maxQuestions=5
 const [input,setInput]=useState("")
 const [loading,setLoading]=useState(false)
@@ -75,7 +76,8 @@ headers:{
 },
 body:JSON.stringify({
 question:messages[messages.length-1]?.content,
-student_answer:studentAnswer
+student_answer:studentAnswer,
+history:answerHistory
 })
 }
 )
@@ -87,10 +89,14 @@ return
 
 const data = await res.json()
 
+setAnswerHistory(prev => [...prev, studentAnswer])
+
 setMessages(prev=>[
 ...prev,
 {role:"feedback",content:data.feedback}
 ])
+
+setAnswerHistory([])
 
 setLoading(false)
 
