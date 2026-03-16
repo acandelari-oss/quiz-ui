@@ -36,13 +36,43 @@ const progressContainer = {
   marginBottom: 30
 }
 
+const loaderContainer = {
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "center",
+  justifyContent: "center",
+  height: "60vh",
+  color: "white"
+}
+
+const spinner = {
+  width: 40,
+  height: 40,
+  border: "4px solid #374151",
+  borderTop: "4px solid #2FA4A9",
+  borderRadius: "50%",
+  animation: "spin 0.8s linear infinite",
+  marginBottom: 20
+}
+
+const loaderTitle = {
+  fontSize: 24,
+  fontWeight: 600,
+  marginBottom: 8
+}
+
+const loaderSubtitle = {
+  color: "#9ca3af"
+}
+
 export default function StudySessionView({ projectId }: { projectId: string }) {
   const [step, setStep] = useState(0)
   const [openCard, setOpenCard] = useState<number | null>(0)
   const [flashcards, setFlashcards] = useState<any[]>([])
-  const [recallTopics, setRecallTopics] = useState<string[]>([])
+  
   const [loading, setLoading] = useState(true)
   const [weakTopics, setWeakTopics] = useState<string[]>([])
+  const [sessionVersion, setSessionVersion] = useState(0)
 
   function handleFlashcardsComplete() {
     setStep(1)
@@ -114,15 +144,25 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
     }
 
     loadSession()
-  }, [projectId])
+}, [projectId, sessionVersion])
 
   if (loading) {
     return (
-      <div style={{ color: "white", padding: 20 }}>
-        Loading study session...
-      </div>
+        <div style={loaderContainer}>
+
+        <div style={spinner} />
+
+        <div style={loaderTitle}>
+            Preparing your AI study session
+        </div>
+
+        <div style={loaderSubtitle}>
+            Generating flashcards for study session...
+        </div>
+
+        </div>
     )
-  }
+    }
 
   return (
     <div>
@@ -274,7 +314,9 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
                 setStep(0)
                 setOpenCard(0)
                 setWeakTopics([])
-              }}
+                setLoading(true)
+                setSessionVersion(prev => prev + 1)
+            }}
               style={{
                 marginTop: 30,
                 padding: "12px 20px",
