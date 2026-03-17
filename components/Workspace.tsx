@@ -329,10 +329,8 @@ quizId={quizId}
 
 {activeView === "study_session" && (
 
-<StudySessionView
-projectId={projectId}
-/>
-
+{selectedProject && (
+  <StudySessionView projectId={selectedProject.id} />
 )}
 
 
