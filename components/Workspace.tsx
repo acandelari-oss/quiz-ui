@@ -327,9 +327,7 @@ quizId={quizId}
 {/* STUDY SESSION */}
 {/* ========================= */}
 
-{activeView === "study_session" && (
-
-{selectedProject && (
+{activeView === "study_session" && selectedProject && (
   <StudySessionView projectId={selectedProject.id} />
 )}
 

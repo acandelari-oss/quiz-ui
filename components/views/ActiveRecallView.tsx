@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
 
 export default function ActiveRecallView({ projectId }:{projectId:string}){
@@ -10,6 +10,50 @@ const [answerHistory,setAnswerHistory]=useState<string[]>([])
 const maxQuestions=5
 const [input,setInput]=useState("")
 const [loading,setLoading]=useState(false)
+const [isRecording, setIsRecording] = useState(false)
+const [recognition, setRecognition] = useState<any>(null)
+const [speechSupported, setSpeechSupported] = useState(true)
+
+useEffect(() => {
+  const SpeechRecognition =
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition
+
+  if (!SpeechRecognition) {
+    setSpeechSupported(false)
+    return
+  }
+
+  const recog = new SpeechRecognition()
+
+  recog.lang = "en-US"
+  recog.continuous = false
+  recog.interimResults = true
+
+  recog.onresult = (event: any) => {
+    let interimTranscript = ""
+    let finalTranscript = ""
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript
+
+      if (event.results[i].isFinal) {
+        finalTranscript += transcript
+      } else {
+        interimTranscript += transcript
+      }
+    }
+
+    setInput(finalTranscript + interimTranscript)
+  }
+
+  recog.onend = () => {
+    setIsRecording(false)
+  }
+
+  setRecognition(recog)
+
+}, [])
 
 async function generateQuestion(){
 
@@ -50,6 +94,25 @@ setQuestionCount(prev=>prev+1)
 
 setLoading(false)
 
+}
+
+function toggleRecording() {
+  console.log("🎤 CLICK MIC")
+
+  if (!recognition) {
+    console.log("❌ recognition is null")
+    return
+  }
+
+  if (isRecording) {
+    console.log("🛑 STOP")
+    recognition.stop()
+    setIsRecording(false)
+  } else {
+    console.log("▶️ START")
+    recognition.start()
+    setIsRecording(true)
+  }
 }
 
 async function submitAnswer(){
@@ -218,25 +281,50 @@ Great job reviewing your material.
 )}
 
 <textarea
-value={input}
-onChange={(e)=>setInput(e.target.value)}
-placeholder="Write your answer..."
-style={textarea}
+  value={input}
+  onChange={(e)=>setInput(e.target.value)}
+  placeholder="Write your answer or use voice..."
+  style={{
+    ...textarea,
+    border: isRecording ? "2px solid #ef4444" : textarea.border
+  }}
 />
 
-<button
-onClick={submitAnswer}
-style={submitButton}
->
-Submit
-</button>
+<div style={{ display: "flex", gap: 8 }}>
+
+  {speechSupported && (
+    <button
+      onClick={toggleRecording}
+      style={{
+        background: isRecording ? "#ef4444" : "#1f2937",
+        color: "white",
+        padding: "10px",
+        border: "none",
+        borderRadius: 6,
+        cursor: "pointer"
+      }}
+    >
+      {isRecording ? "🎤 Recording..." : "🎤 Speak"}
+    </button>
+  )}
+
+  <button
+    onClick={submitAnswer}
+    style={submitButton}
+  >
+    Submit
+  </button>
 
 </div>
 
+{isRecording && (
+  <div style={{ color: "#ef4444", fontSize: 12 }}>
+    Listening... speak clearly
+  </div>
+)}
 </div>
-
+</div>
 )
-
 }
 
 const container={
