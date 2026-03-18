@@ -6,7 +6,8 @@ flashcards,
 openCard,
 setOpenCard,
 onReview,
-onFlashcardsComplete
+onFlashcardsComplete,
+projectId
 }) {
 
   if(openCard === null){
@@ -80,6 +81,8 @@ onFlashcardsComplete
   if(!res.ok){
   console.error("Flashcard review failed")
   }
+
+  
 
   }
 

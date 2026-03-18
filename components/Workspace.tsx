@@ -6,6 +6,8 @@ import SummaryView from "./views/SummaryView"
 import ActiveRecallView from "./views/ActiveRecallView"
 import { useState, useEffect } from "react"
 import StudySessionView from "./views/StudySessionView"
+import { Heading2 } from "lucide-react"
+import { supabase } from "../lib/supabase"
 
 export default function Workspace({
 
@@ -52,6 +54,8 @@ const quizList = Array.isArray(quiz) ? quiz : []
 const previous = Array.isArray(previousQuizzes) ? previousQuizzes : []
 
 const [loaderStep,setLoaderStep] = useState(0)
+const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
+const [openProjects, setOpenProjects] = useState<{[key:string]: boolean}>({})
 
 const loaderMessages = [
 "Analyzing documents",
@@ -85,276 +89,300 @@ return ()=>clearInterval(interval)
 
 },[generatingQuiz])
 
+useEffect(()=>{
+
+  async function loadAllDocs(){
+
+    if(!projects) return
+
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+
+    if(!token) return
+
+    const result: {[key:string]: any[]} = {}
+
+    for(const p of projects){
+
+      try{
+
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/documents`,
+          {
+            headers:{
+              Authorization: `Bearer ${token}`
+            }
+          }
+        )
+
+        if(!res.ok){
+          console.error("Docs fetch failed", res.status)
+          result[p.id] = []
+          continue
+        }
+
+        const data = await res.json()
+
+        result[p.id] = data.documents || []
+
+      } catch(e){
+        console.error("Docs load error", e)
+        result[p.id] = []
+      }
+
+    }
+
+    setDocsByProject(result)
+  }
+
+  loadAllDocs()
+
+}, [projects])
 
 return (
 
 <div style={workspace}>
 
-{/* ========================= */}
-{/* MANAGE PROJECTS */}
-{/* ========================= */}
+{!projectId ? (
 
-{activeView === "manage_projects" && (
+  // =========================
+  // WELCOME ONLY
+  // =========================
+  <div style={{
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    justifyContent:"center",
+    height:"70vh",
+    textAlign:"center"
+  }}>
 
-<div style={{padding:40}}>
+    <img
+      src="/logo.png"
+      alt="StudyForge logo"
+      style={{
+        width:80,
+        marginBottom:20,
+        opacity:0.9
+      }}
+    />
 
-<h2>Manage Projects</h2>
+    <h1 style={{
+      color:"white",
+      fontSize:32,
+      marginBottom:10
+    }}>
+      StudyForge
+    </h1>
 
-{projects?.map((p:any)=>(
+    <p style={{
+      color:"#9ca3af",
+      maxWidth:400,
+      lineHeight:1.6
+    }}>
+      Welcome 👋  
+      Create a new project or load an existing one to start studying.
+    </p>
 
-<div
-key={p.id}
-style={{
-display:"flex",
-justifyContent:"space-between",
-alignItems:"center",
-padding:"12px 14px",
-marginBottom:10,
-background:"#111827",
-border:"1px solid #374151",
-borderRadius:8,
-color:"white"
-}}
->
-
-<span>{p.name}</span>
-
-<button
-onClick={()=>deleteProject(p.id)}
-style={{
-background:"#7f1d1d",
-color:"white",
-border:"1px solid #ef4444",
-borderRadius:6,
-padding:"8px 10px",
-cursor:"pointer"
-}}
->
-Delete project
-</button>
-
-</div>
-
-))}
-
-</div>
-
-)}
-
-{/* ========================= */}
-{/* ASK */}
-{/* ========================= */}
-
-
-
-{activeView === "ask" && (
-<AskView
-askQuestion={askQuestion}
-setAskQuestion={setAskQuestion}
-askDocuments={askDocuments}
-asking={asking}
-chatMessages={chatMessages}
-/>
-)}
-
-{/* ========================= */}
-{/* ACTIVE RECALL */}
-{/* ========================= */}
-
-{activeView === "active_recall" && (
-
-<ActiveRecallView
-projectId={projectId}
-/>
-
-)}
-
-{/* ========================= */}
-{/* FLASHCARDS */}
-{/* ========================= */}
-
-{activeView === "flashcards" && (
-
-<>
-
-{flashcards.length > 0 ? (
-
-<FlashcardsView
-flashcards={flashcards}
-openCard={openCard}
-setOpenCard={setOpenCard}
-/>
+  </div>
 
 ) : (
 
-<div style={{
-display:"flex",
-flexDirection:"column",
-alignItems:"center",
-justifyContent:"center",
-height:"60vh",
-textAlign:"center"
-}}>
+  // =========================
+  // NORMAL APP
+  // =========================
+  <>
 
-<h3 style={{
-color:"white",
-fontSize:22,
-marginBottom:10
-}}>
-Flashcard Study
-</h3>
+    {/* MANAGE PROJECTS */}
+    {activeView === "manage_projects" && (
+      <div style={{padding:40}}>
+        <h2>Manage Projects</h2>
 
-<p style={{
-color:"#9ca3af",
-maxWidth:500,
-lineHeight:1.6
-}}>
-Choose how many new flashcards you want to generate and press 
-<b style={{color:"white"}}> Generate </b>,  
-or choose how many of your existing flashcards you’d like to review and press 
-<b style={{color:"white"}}> Start Study </b>.
-</p>
+        {projects?.map((p:any)=>{
 
-</div>
+          const docs = docsByProject[p.id] || []
 
-)}
+          return (
 
-</>
+            <div
+              key={p.id}
+              style={{
+                padding:"12px 14px",
+                marginBottom:14,
+                background:"#111827",
+                border:"1px solid #374151",
+                borderRadius:8,
+                color:"white"
+              }}
+            >
 
-)}
+              {/* HEADER */}
+              <div style={{
+                display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center",
+                marginBottom:8
+              }}>
 
-{/* ========================= */}
-{/* PREVIOUS QUIZZES */}
-{/* ========================= */}
+                <span style={{fontWeight:600}}>
+                  {p.name}
+                </span>
 
-{activeView === "previous" && (
+                <button
+                  onClick={()=>deleteProject(p.id)}
+                  style={{
+                    background:"#7f1d1d",
+                    color:"white",
+                    border:"1px solid #ef4444",
+                    borderRadius:6,
+                    padding:"6px 8px",
+                    cursor:"pointer"
+                  }}
+                >
+                  Delete project
+                </button>
 
-<div>
+              </div>
 
-<h2 style={{marginBottom:20}}>Previous quizzes</h2>
+              {/* DOCUMENT LIST */}
+              {docs.length === 0 && (
+                <div style={{color:"#9ca3af", fontSize:13}}>
+                  No documents
+                </div>
+              )}
 
-{previous.length === 0 && (
+              {docs.map((d:any)=>(
+                <div
+                  key={d.title}
+                  style={{
+                    display:"flex",
+                    justifyContent:"space-between",
+                    alignItems:"center",
+                    fontSize:13,
+                    marginBottom:6
+                  }}
+                >
+                  <span>📄 {d.title}</span>
 
-<div style={{color:"#9ca3af"}}>
-No quizzes created yet
-</div>
+                  <button
+                    onClick={async ()=>{
+                      await fetch(
+                        `${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/documents/${encodeURIComponent(d.title)}`,
+                        { method:"DELETE" }
+                      )
 
-)}
+                      setDocsByProject(prev => ({
+                        ...prev,
+                        [p.id]: prev[p.id].filter((doc:any)=>doc.title !== d.title)
+                      }))
+                    }}
+                    style={{
+                      background:"#7f1d1d",
+                      border:"1px solid #ef4444",
+                      color:"white",
+                      borderRadius:4,
+                      padding:"2px 6px",
+                      cursor:"pointer"
+                    }}
+                  >
+                    ✕
+                  </button>
 
-{previous.map((q:any)=>(
+                </div>
+              ))}
 
-<div
-key={q.id}
-onClick={()=>loadQuiz(q.id)}
-style={{
-background:"#020617",
-border:"1px solid #374151",
-borderRadius:8,
-padding:14,
-marginBottom:10,
-cursor:"pointer"
-}}
->
+            </div>
 
-<div style={{fontWeight:600}}>
-{q.num_questions} questions
-</div>
+          )
 
-<div style={{color:"#9ca3af",fontSize:13}}>
-Difficulty: {q.difficulty}
-</div>
+        })}
 
-</div>
+      </div>
+    )}
 
-))}
+    {/* ASK */}
+    {activeView === "ask" && (
+      <AskView
+        askQuestion={askQuestion}
+        setAskQuestion={setAskQuestion}
+        askDocuments={askDocuments}
+        asking={asking}
+        chatMessages={chatMessages}
+      />
+    )}
 
-</div>
+    {/* ACTIVE RECALL */}
+    {activeView === "active_recall" && (
+      <ActiveRecallView projectId={projectId} />
+    )}
 
-)}
+    {/* FLASHCARDS */}
+    {activeView === "flashcards" && (
+      <>
+        {flashcards.length > 0 ? (
+          <FlashcardsView
+            flashcards={flashcards}
+            openCard={openCard}
+            setOpenCard={setOpenCard}
+          />
+        ) : (
+          <div style={{
+            display:"flex",
+            flexDirection:"column",
+            alignItems:"center",
+            justifyContent:"center",
+            height:"60vh",
+            textAlign:"center"
+          }}>
+            <h3 style={{
+              color:"white",
+              fontSize:22,
+              marginBottom:10
+            }}>
+              Flashcard Study
+            </h3>
 
-{/* ========================= */}
-{/* QUIZ */}
-{/* ========================= */}
+            <p style={{
+              color:"#9ca3af",
+              maxWidth:500,
+              lineHeight:1.6
+            }}>
+              Choose how many new flashcards you want to generate and press 
+              <b style={{color:"white"}}> Generate </b>,  
+              or choose how many of your existing flashcards you’d like to review and press 
+              <b style={{color:"white"}}> Start Study </b>.
+            </p>
+          </div>
+        )}
+      </>
+    )}
 
-{activeView === "quiz" && (
+    {/* STUDY SESSION */}
+    {activeView === "study_session" && projectId && (
+      <StudySessionView projectId={projectId} />
+    )}
 
-<div>
+    {/* RESULTS */}
+    {activeView === "results_summary" && (
+      <div>
+        <ResultsView resultsData={resultsData} />
+        <div style={{ marginTop: 40 }} />
+        <SummaryView 
+          summaryStats={summaryStats} 
+          projectId={projectId}
+        />
+      </div>
+    )}
 
-{generatingQuiz && (
+  </>   
 
-<div style={loaderContainer}>
+)}   
 
-<div style={spinner}/>
-
-<div style={loaderTitle}>
-Generating quiz
-</div>
-
-<div style={loaderSubtitle}>
-{loaderMessages[loaderStep]}
-</div>
-
-</div>
-
-)}
-
-{quizList.length > 0 && (
-
-<QuizView
-quiz={quizList}
-answers={answers}
-selectAnswer={selectAnswer}
-finished={finished}
-started={started}
-submitQuiz={submitQuiz}
-calculateScore={calculateScore}
-generatingQuiz={generatingQuiz}
-expanded={expanded}
-setExpanded={setExpanded}
-formatTime={formatTime}
-answeredCount={answeredCount}
-projectId={projectId}
-quizId={quizId}
-/>
-
-)}
-
-</div>
-
-)}
-
-{/* ========================= */}
-{/* STUDY SESSION */}
-{/* ========================= */}
-
-{activeView === "study_session" && selectedProject && (
-  <StudySessionView projectId={selectedProject.id} />
-)}
-
-
-{/* ========================= */}
-{/* RESULTS + SUMMARY */}
-{/* ========================= */}
-
-{activeView === "results_summary" && (
-
-<div>
-
-<ResultsView resultsData={resultsData} />
-
-<div style={{marginTop:40}} />
-
-<SummaryView summaryStats={summaryStats} />
-
-</div>
-
-)}
-
-</div>
+</div>  
 
 )
-
 }
+
 
 const workspace = {
 flex:1,

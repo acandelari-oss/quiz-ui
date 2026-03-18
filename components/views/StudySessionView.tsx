@@ -73,6 +73,7 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
   const [loading, setLoading] = useState(true)
   const [weakTopics, setWeakTopics] = useState<string[]>([])
   const [sessionVersion, setSessionVersion] = useState(0)
+  const [recallTopics, setRecallTopics] = useState<string[]>([])
 
   function handleFlashcardsComplete() {
     setStep(1)

@@ -187,6 +187,7 @@ name:data.name
 
 setProjectId(data.project_id)
 setStatus("Project created")
+setProjectName("")
 
 }
 

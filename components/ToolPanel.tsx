@@ -3,6 +3,7 @@ import React from "react"
 
 export default function ToolPanel({
 
+
 activeView,
 projectName,
 
@@ -54,6 +55,9 @@ uploadStatus
 
 }: any) {
 
+  const [selectedFiles, setSelectedFiles] = React.useState<File[]>([])
+  const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([])
+
   return (
     <div style={panel}>
       
@@ -100,49 +104,97 @@ uploadStatus
         <>
           <h3>Create Project</h3>
 
-          <input
-            placeholder="Project name"
-            value={projectName}
-            onChange={(e)=>setProjectName(e.target.value)}
-            style={input}
-          />
-
-          <label>Upload documents</label>
-
-          <input
-            type="file"
-            multiple
-            onChange={(e)=>setFiles(e.target.files)}
-            style={input}
-          />
-
-          <button
-          onClick={uploadFiles}
-          style={{
-          marginTop:10,
-          padding:"8px 12px",
-          background:"#2563eb",
-          color:"white",
-          border:"none",
-          borderRadius:6,
-          cursor:"pointer"
-          }}
-          >
-          Upload documents
-          </button>
-
-          <button
-            onClick={createProject}
-            style={button}
-          >
-            Create project
-          </button>
-
-          {uploadStatus && (
-            <div style={statusBox}>
-              {uploadStatus}
+          {/* STEP 1 */}
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              1. Project Name
             </div>
-          )}
+
+            <input
+              placeholder="Enter project name..."
+              value={projectName || ""}
+              onChange={(e) => setProjectName(e.target.value)}
+              style={input}
+            />
+
+            <button
+              onClick={createProject}
+              disabled={!projectName?.trim()}
+              style={{
+                ...button,
+                opacity: !projectName?.trim() ? 0.5 : 1,
+                cursor: !projectName?.trim() ? "not-allowed" : "pointer"
+              }}
+            >
+              Create project
+            </button>
+          </div>
+
+          <hr style={{ borderColor: "#374151", margin: "16px 0" }} />
+
+          {/* STEP 2 */}
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>
+              2. Upload Documents
+            </div>
+
+            {!projectId ? (
+              <div style={{ color: "#9ca3af", fontSize: 13 }}>
+                Create the project first to enable document upload.
+              </div>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => setFiles(e.target.files)}
+                  style={input}
+                />
+
+                <button
+                  onClick={uploadFiles}
+                  style={{
+                    marginTop: 10,
+                    padding: "8px 12px",
+                    background: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer"
+                  }}
+                >
+                  Upload documents
+                </button>
+
+                {uploadStatus && (
+                  <div style={statusBox}>
+                    {uploadStatus}
+                  </div>
+                )}
+
+                {documents?.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                      Uploaded documents
+                    </div>
+
+                    {documents.map((doc: any, i: number) => (
+                      <div
+                        key={i}
+                        style={{
+                          fontSize: 13,
+                          color: "#22c55e",
+                          marginBottom: 4
+                        }}
+                      >
+                        ✔ {doc.title}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </>
       )}
 
@@ -329,7 +381,13 @@ uploadStatus
             style={input}
           />
 
-          <button onClick={loadStudyFlashcards} style={button}>
+          <button 
+            onClick={() => {
+              console.log("CLICK LOAD FLASHCARDS")
+              loadStudyFlashcards()
+            }} 
+            style={button}
+          >
             Start Study
           </button>
         </>
