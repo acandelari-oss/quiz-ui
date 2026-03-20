@@ -163,7 +163,44 @@ return (
 ) : !projectId ? (
 
   // WELCOME (può anche essere vuoto per ora)
-  <div></div>
+   <div style={{
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    justifyContent:"center",
+    height:"70vh",
+    textAlign:"center"
+  }}>
+
+    <img
+      src="/logo.png"
+      alt="StudyForge logo"
+      style={{
+        width:80,
+        marginBottom:20,
+        opacity:0.9
+      }}
+    />
+
+    <h1 style={{
+      color:"white",
+      fontSize:32,
+      marginBottom:10
+    }}>
+      StudyForge
+    </h1>
+
+    <p style={{
+      color:"#9ca3af",
+      maxWidth:400,
+      lineHeight:1.6
+    }}>
+      Welcome 👋  
+      Create a new project or load an existing one to start studying.
+    </p>
+
+  </div>
+
 
 ) : (
 
