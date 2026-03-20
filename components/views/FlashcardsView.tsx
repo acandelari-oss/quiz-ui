@@ -57,30 +57,40 @@ projectId
 
   const card = flashcards[currentIndex]
 
+  console.log("CARD:", card)
+
   async function reviewCard(id: number, isCorrect: boolean, difficulty: number) {
 
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-
-  const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
-  {
-  method: "POST",
-  headers: {
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`
-  },
-  body: JSON.stringify({
-  flashcard_id: id,
-  is_correct: isCorrect,
-  difficulty
-  })
+  if (!token) {
+    console.error("No auth token")
+    return
   }
+  console.log("API URL:", process.env.NEXT_PUBLIC_API_URL)
+
+  try {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        fflashcard_id: id,
+        difficulty,
+        is_correct: isCorrect
+      })
+    }
   )
 
-  if(!res.ok){
-  console.error("Flashcard review failed")
-  }
+  console.log("RESPONSE STATUS:", res.status)
+
+} catch (e) {
+  console.error("FETCH ERROR:", e)
+}
 
   
 

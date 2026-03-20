@@ -72,10 +72,18 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
   
   const [loading, setLoading] = useState(true)
   const [weakTopics, setWeakTopics] = useState<string[]>([])
+  const [correctCount, setCorrectCount] = useState<number>(0)
+  const [wrongCount, setWrongCount] = useState<number>(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [recallTopics, setRecallTopics] = useState<string[]>([])
 
   function handleFlashcardsComplete() {
+
+    if (accuracy < 0.5) {
+        alert("Let's review a bit more before moving on 💪")
+        return
+    }
+
     setStep(1)
   }
 
@@ -111,41 +119,110 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
       }
     )
 
+    // ... (tutto uguale sopra)
+
     if (!isCorrect) {
-      setWeakTopics(prev => [...prev, `Flashcard ${flashcardId}`])
-    }
-  }
 
-  const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
+        // ❌ completamente sbagliato
+        setWrongCount(prev => prev + 1)
+        setWeakTopics(prev => [...prev, `Flashcard ${flashcardId}`])
 
-  useEffect(() => {
-    async function loadSession() {
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token
+        generateRecoveryFlashcards(
+            flashcardId,
+            flashcards.find(f => f.id === flashcardId)?.question
+        )
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
+    } else {
+
+        // ✅ corretto → differenziamo
+        if (difficulty <= 1) {
+            // ⚠️ difficile → trattalo quasi come errore
+            setWrongCount(prev => prev + 1)
+        } else if (difficulty === 2) {
+            // 🙂 corretto normale
+            setCorrectCount(prev => prev + 1)
+        } else {
+            // 😎 facile → boost
+            setCorrectCount(prev => prev + 1)
         }
-      )
 
-      if (!res.ok) {
-        setLoading(false)
-        return
-      }
+    }   
 
-      const session = await res.json()
+}   // ✅ QUESTA ERA LA GRAFFA MANCANTE
 
-      setFlashcards(session.flashcards || [])
-      setRecallTopics(session.recall_topics || [])
-      setLoading(false)
-    }
+const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
 
-    loadSession()
-}, [projectId, sessionVersion])
+// ... (tutto il resto IDENTICO) 
+
+  
+
+    useEffect(() => {
+        async function loadSession() {
+            const { data } = await supabase.auth.getSession()
+            const token = data.session?.access_token
+
+            const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`,
+            {
+                headers: {
+                Authorization: `Bearer ${token}`
+                }
+            }
+            )
+
+            if (!res.ok) {
+            setLoading(false)
+            return
+            }
+
+            const session = await res.json()
+
+            setFlashcards(session.flashcards || [])
+            setRecallTopics(session.recall_topics || [])
+            setLoading(false)
+        }
+
+        loadSession()
+        }, [projectId, sessionVersion])
+
+        async function generateRecoveryFlashcards(
+        flashcardId: number,
+        question?: string
+        ) {
+        try {
+            const { data } = await supabase.auth.getSession()
+            const token = data.session?.access_token
+
+            const res = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL}/generate_recovery_flashcards`,
+            {
+                method: "POST",
+                headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                project_id: projectId,
+                question: question
+                })
+            }
+            )
+
+            if (!res.ok) {
+            console.error("Recovery fetch failed")
+            return
+            }
+
+            const result = await res.json()
+
+            setFlashcards(prev => [...prev, ...(result.flashcards || [])])
+
+        } catch (e) {
+            console.error("Recovery error:", e)
+        }
+        }
+
+    
 
   if (loading) {
     return (
@@ -164,7 +241,10 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
         </div>
     )
     }
-
+  const accuracy =
+    correctCount + wrongCount > 0
+        ? correctCount / (correctCount + wrongCount)
+        : 0.5
   return (
     <div>
       <div style={progressContainer}>
@@ -336,8 +416,14 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
         {step < 3 && (
           <button
             onClick={() => {
-              setStep(step + 1)
-              setOpenCard(0)
+
+                if (accuracy > 0.8 && step === 0) {
+                    setStep(2) // salta recall
+                    return
+                }
+
+                setStep(step + 1)
+                setOpenCard(0)
             }}
             style={button}
           >

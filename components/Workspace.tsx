@@ -282,9 +282,17 @@ return (
 
                   <button
                     onClick={async ()=>{
+                      const { data: sessionData } = await supabase.auth.getSession()
+                      const token = sessionData.session?.access_token
+
                       await fetch(
                         `${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/documents/${encodeURIComponent(d.title)}`,
-                        { method:"DELETE" }
+                        {
+                          method: "DELETE",
+                          headers: {
+                            Authorization: `Bearer ${token}`
+                          }
+                        }
                       )
 
                       setDocsByProject(prev => ({

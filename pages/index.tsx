@@ -827,27 +827,7 @@ return(
 
 <div style={{display:"flex",height:"100vh",background:"#0f172a"}}>
 
-{uploadLog && (
-  <div style={{
-    position: "fixed",
-    top: 20,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: "50%",
-    background: "#020617",
-    color: "#22c55e",
-    padding: "16px",
-    borderRadius: "8px",
-    fontSize: "12px",
-    maxHeight: "300px",
-    overflow: "auto",
-    zIndex: 999999
-  }}>
-    <pre style={{ whiteSpace: "pre-wrap" }}>
-      {uploadLog}
-    </pre>
-  </div>
-)}
+
 
 <Sidebar
 activeView={activeView}
