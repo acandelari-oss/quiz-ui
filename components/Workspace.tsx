@@ -173,7 +173,7 @@ return (
   }}>
 
     <img
-      src="/logo.png"
+      src="/logoSF.png"
       alt="StudyForge logo"
       style={{
         width:80,
