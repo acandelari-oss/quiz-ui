@@ -43,6 +43,8 @@ asking,
 summaryStats,
 resultsData,
 
+uploadLog,
+uploading,
 projectId,
 quizId,
 previousQuizzes,
@@ -138,53 +140,30 @@ useEffect(()=>{
   loadAllDocs()
 
 }, [projects])
-
+console.log("WORKSPACE LOG:", uploadLog)
 return (
 
-<div style={workspace}>
 
-{!projectId ? (
+<div style={{...workspace, position:"relative"}}>
 
-  // =========================
-  // WELCOME ONLY
-  // =========================
-  <div style={{
-    display:"flex",
-    flexDirection:"column",
-    alignItems:"center",
-    justifyContent:"center",
-    height:"70vh",
-    textAlign:"center"
-  }}>
+{uploading ? (
 
-    <img
-      src="/logo.png"
-      alt="StudyForge logo"
-      style={{
-        width:80,
-        marginBottom:20,
-        opacity:0.9
-      }}
-    />
+  <div style={loaderContainer}>
+    <div style={spinner}></div>
 
-    <h1 style={{
-      color:"white",
-      fontSize:32,
-      marginBottom:10
-    }}>
-      StudyForge
-    </h1>
+    <div style={loaderTitle}>
+      Uploading document...
+    </div>
 
-    <p style={{
-      color:"#9ca3af",
-      maxWidth:400,
-      lineHeight:1.6
-    }}>
-      Welcome 👋  
-      Create a new project or load an existing one to start studying.
-    </p>
-
+    <div style={loaderSubtitle}>
+      OCR files may take longer to process
+    </div>
   </div>
+
+) : !projectId ? (
+
+  // WELCOME (può anche essere vuoto per ora)
+  <div></div>
 
 ) : (
 

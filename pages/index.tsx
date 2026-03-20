@@ -74,6 +74,11 @@ const [studyCount,setStudyCount]=useState(10)
 
 const [summaryStats,setSummaryStats]=useState<any>(null)
 const [resultsData,setResultsData]=useState<any>(null)
+const [uploadLog, setUploadLog] = useState("")
+
+useEffect(() => {
+  console.log("INDEX uploadLog:", uploadLog)
+}, [uploadLog])
 
 useEffect(()=>{
 async function init(){
@@ -288,18 +293,45 @@ const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
 
 const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest`,
-{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-Authorization:`Bearer ${token}`
-},
-body:JSON.stringify({
-documents:docs
-})
-}
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest_stream`,
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({
+        documents: docs
+    })
+  }
 )
+
+const reader = res.body.getReader()
+const decoder = new TextDecoder()
+
+let fullText = ""
+
+while (true) {
+  const { value, done } = await reader.read()
+
+  if (done) break
+
+  const chunk = decoder.decode(value, { stream: true })
+
+  console.log("STREAM:", chunk)
+
+  fullText += chunk
+
+  setUploadLog(fullText)
+}
+
+setUploadStatus("Upload complete")
+
+setTimeout(() => {
+  setUploadLog("")
+}, 3000)
+
+
 
 if(!res.ok){
 setUploadStatus("Upload failed")
@@ -791,7 +823,31 @@ setStatus("Finished")
 
 return(
 
+
+
 <div style={{display:"flex",height:"100vh",background:"#0f172a"}}>
+
+{uploadLog && (
+  <div style={{
+    position: "fixed",
+    top: 20,
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "50%",
+    background: "#020617",
+    color: "#22c55e",
+    padding: "16px",
+    borderRadius: "8px",
+    fontSize: "12px",
+    maxHeight: "300px",
+    overflow: "auto",
+    zIndex: 999999
+  }}>
+    <pre style={{ whiteSpace: "pre-wrap" }}>
+      {uploadLog}
+    </pre>
+  </div>
+)}
 
 <Sidebar
 activeView={activeView}
@@ -887,6 +943,9 @@ setOpenCard={setOpenCard}
 summaryStats={summaryStats}
 resultsData={resultsData}
 calculateScore={calculateScore}
+uploadLog={uploadLog}
+uploading={uploading}
+
 />
 
 </div>
