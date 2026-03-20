@@ -176,7 +176,7 @@ return (
       src="/logoSF.png"
       alt="StudyForge logo"
       style={{
-        width:80,
+        width:280,
         marginBottom:20,
         opacity:0.9
       }}
