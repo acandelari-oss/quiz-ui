@@ -67,7 +67,7 @@ const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
 const [activeView,setActiveView]=useState("project")
 
 const [topicsOpen,setTopicsOpen]=useState(true)
-const [selectedTopics,setSelectedTopics]=useState<string[]>([])
+const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
 
 const [availableFlashcards,setAvailableFlashcards]=useState(0)
 const [studyCount,setStudyCount]=useState(10)
@@ -75,10 +75,18 @@ const [studyCount,setStudyCount]=useState(10)
 const [summaryStats,setSummaryStats]=useState<any>(null)
 const [resultsData,setResultsData]=useState<any>(null)
 const [uploadLog, setUploadLog] = useState("")
+const [loadingFlashcards, setLoadingFlashcards] = useState(false)
+const [studyMode, setStudyMode] = useState<"generated" | "loaded" | null>(null)
 
 useEffect(() => {
   console.log("INDEX uploadLog:", uploadLog)
 }, [uploadLog])
+
+useEffect(() => {
+  if(activeView !== "project"){
+    setStatus("")
+  }
+}, [activeView])
 
 useEffect(()=>{
 async function init(){
@@ -89,12 +97,16 @@ await loadProjects()
 init()
 },[])
 
-useEffect(()=>{
-
-
+useEffect(() => {
 
   if (activeView === "flashcards" && projectId) {
+
+    setStudyMode("loaded")
+
+    setSelectedTopic(null)
+
     loadFlashcards(projectId)
+
   }
 
 }, [activeView, projectId])
@@ -192,7 +204,7 @@ name:data.name
 
 setProjectId(data.project_id)
 setStatus("Project created")
-setProjectName("")
+//setProjectName("")
 
 }
 
@@ -314,7 +326,19 @@ let fullText = ""
 while (true) {
   const { value, done } = await reader.read()
 
-  if (done) break
+  if (done) {
+    console.log("STREAM FINISHED")
+
+
+    setUploading(false)
+    setStatus("Project loaded successfully")
+
+    setTimeout(() => {
+      setUploadLog("")
+    }, 1500)
+
+    break
+  }
 
   const chunk = decoder.decode(value, { stream: true })
 
@@ -323,6 +347,25 @@ while (true) {
   fullText += chunk
 
   setUploadLog(fullText)
+}
+await loadDocuments(projectId)
+
+setUploadStatus("Generating topics...")
+
+const resTopics = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
+)
+
+if (!resTopics.ok) {
+  console.error("TOPICS GENERATION FAILED")
+} else {
+  console.log("TOPICS GENERATED OK")
 }
 
 setUploadStatus("Upload complete")
@@ -342,6 +385,26 @@ return
 setUploadStatus("Files uploaded successfully")
 
 await loadDocuments(projectId)
+
+setUploadStatus("Generating topics...")
+
+const resTopicsFinal = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  }
+)
+
+if (!resTopicsFinal.ok) {
+  console.error("TOPICS GENERATION FAILED")
+} else {
+  console.log("TOPICS GENERATED OK")
+}
+
+await new Promise(r => setTimeout(r, 500))
 await loadTopics(projectId)
 
 }catch(e){
@@ -437,7 +500,7 @@ const data = await res.json()
 setPreviousFlashcards(data.flashcards || [])
 
 setAvailableFlashcards((data.flashcards || []).length)
-
+setStudyMode("loaded")
 }catch(e){
 
 console.error("FLASHCARDS LOAD ERROR:",e)
@@ -446,17 +509,72 @@ console.error("FLASHCARDS LOAD ERROR:",e)
 
 }
 
+async function loadQuizStats(projectId){
+
+  if(!projectId) return
+
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+
+  if(!token) return
+
+  try{
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/quiz_attempts_summary`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if(!res.ok){
+      console.log("stats error", res.status)
+      return
+    }
+
+    const dataJson = await res.json()
+
+    return dataJson.data || {}
+
+  } catch(e){
+    console.log("stats fetch error", e)
+    return {}
+  }
+}
+
 async function loadStudyFlashcards(){
+  console.log("SELECTED TOPICS:", selectedTopics)
+  console.log("FLASHCARDS:", previousFlashcards)
 
-if(previousFlashcards.length === 0) return
+  if(previousFlashcards.length === 0) return
 
-const cards = previousFlashcards.slice(0,studyCount)
+  let filtered = previousFlashcards
 
-setFlashcards(cards)
+  // 🔥 FILTRO PER TOPIC
+  if(selectedTopics && selectedTopics.length > 0){
 
-setActiveView("flashcards")
+    filtered = previousFlashcards.filter(card =>
+      selectedTopics.includes(card.topic)
+    )
 
-setOpenCard(0)
+  }
+
+  // fallback se niente match
+  if(filtered.length === 0){
+    console.warn("No flashcards match selected topics")
+    filtered = previousFlashcards
+  }
+
+  const cards = filtered.slice(0, studyCount)
+
+  setFlashcards(cards)
+
+  setStudyMode("loaded")
+  setActiveView("flashcards")
+
+  setOpenCard(0)
 
 }
 
@@ -560,14 +678,16 @@ try{
 
 await loadDocuments(id)
 await loadTopics(id)
+
+setStatus("Loading previous material...")
+
 await loadPreviousQuizzes(id)
-//await loadFlashcards(id)
 await loadSummary(id)
 await loadFlashcards(id)
 
+setStatus("Project loaded successfully")
 
 
-setStatus("Project loaded")
 
 }catch(e){
 
@@ -615,7 +735,8 @@ Authorization:`Bearer ${token}`
 body:JSON.stringify({
 num_questions:numQuestions,
 difficulty:difficulty,
-language:language
+language:language,
+topics: selectedTopics
 })
 }
 )
@@ -635,17 +756,19 @@ setQuizId(data.quiz_id)
 
 setQuiz(data.questions || [])
 
+setActiveView("quiz")
+
 setAnswers({})
 setExpanded({})
 setFinished(false)
 setStarted(true)
 setTimeLeft(timerMinutes * 60)
 
-await loadPreviousQuizzes(projectId)
+loadPreviousQuizzes(projectId)
 
 setGeneratingQuiz(false)
 
-setActiveView("quiz")
+
 
 }
 
@@ -657,41 +780,51 @@ if(!projectId) return
 
 setGeneratingFlashcards(true)
 
-const { data:sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
+const { data, error } = await supabase.auth.getSession()
+
+console.log("SESSION:", data)
+console.log("ERROR:", error)
+
+const token = data?.session?.access_token
 
 if(!token){
-setGeneratingFlashcards(false)
-return
+  console.error("❌ TOKEN MISSING")
+  setGeneratingFlashcards(false)
+  return
 }
 
 try{
 
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
-{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-Authorization:`Bearer ${token}`
-},
-body: JSON.stringify({
-num_cards: numQuestions,
-topics: selectedTopics
-})
-}
-)
+console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);    
+setLoadingFlashcards(true)
+console.log("LOADING FLASHCARDS → TRUE")
 
-if(!res.ok){
-console.error("Flashcards generation failed")
-setGeneratingFlashcards(false)
-return
-}
+const { data: sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+const res = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
+  {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      topics: selectedTopics,
+      num_cards: 5
+    })
+  }
+)
 
 const data = await res.json()
 
+setLoadingFlashcards(false)
+console.log("LOADING FLASHCARDS → FALSE")
+
 setFlashcards(data.flashcards || [])
 setOpenCard(false)
+setStudyMode("generated")
 setActiveView("flashcards")
 
 }catch(e){
@@ -712,7 +845,7 @@ if(!askQuestion.trim()) return
 setAsking(true)
 
 try{
-
+console.log("ASK TOPICS SENT:", selectedTopics)
 const res = await fetch(
 `${process.env.NEXT_PUBLIC_API_URL}/ask`,
 {
@@ -723,7 +856,9 @@ headers:{
 body: JSON.stringify({
 project_id: projectId,
 question: askQuestion,
-topics: selectedTopics
+topics: (selectedTopics || []).map(t =>
+    typeof t === "string" ? t : t.topic
+  )
 })
 }
 )
@@ -838,6 +973,11 @@ projectId={projectId}
 loadFlashcards={loadFlashcards}
 availableFlashcards={availableFlashcards}
 previousQuizzes={previousQuizzes}
+setStarted={setStarted}
+setFinished={setFinished}
+setAnswers={setAnswers}
+loadPreviousQuizzes={loadPreviousQuizzes}
+loadQuizStats={loadQuizStats}
 />
 
 <ToolPanel
@@ -875,10 +1015,11 @@ documents={documents}
 
 topics={topics}
 loadingTopics={loadingTopics}
+previousFlashcards={previousFlashcards}
 topicsOpen={topicsOpen}
 setTopicsOpen={setTopicsOpen}
-selectedTopics={selectedTopics}
-setSelectedTopics={setSelectedTopics}
+selectedTopic={selectedTopic}
+setSelectedTopic={setSelectedTopic}
 
 availableFlashcards={availableFlashcards}
 studyCount={studyCount}
@@ -889,6 +1030,9 @@ uploadStatus={uploadStatus}
 setProjectName={setProjectName}
 uploadFiles={uploadFiles}
 loadStudyFlashcards={loadStudyFlashcards}
+studyMode={studyMode}
+selectedTopic={selectedTopic}
+setSelectedTopic={setSelectedTopic}
 
 />
 
@@ -925,6 +1069,14 @@ resultsData={resultsData}
 calculateScore={calculateScore}
 uploadLog={uploadLog}
 uploading={uploading}
+loadQuizStats={loadQuizStats}
+loadPreviousQuizzes={loadPreviousQuizzes}
+status={status}
+loadingFlashcards={loadingFlashcards}
+generatingFlashcards={generatingFlashcards}
+selectedTopic={selectedTopic}
+setSelectedTopic={setSelectedTopic}
+documents={documents}
 
 />
 

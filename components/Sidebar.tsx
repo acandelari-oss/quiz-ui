@@ -18,7 +18,12 @@ export default function Sidebar({
   projectId,
   loadFlashcards,
   availableFlashcards,
-  previousQuizzes
+  previousQuizzes,
+  setStarted,
+  setFinished,
+  setAnswers,
+  loadPreviousQuizzes,
+  loadQuizStats
 }: any) {
 
   return (
@@ -62,21 +67,36 @@ export default function Sidebar({
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("ask")}
+        onClick={() => {
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})
+          setActiveView("ask")
+        }}
       >
         <HelpCircle size={16}/> Ask question
       </div>
 
       <div
       style={menuItem}
-      onClick={() => setActiveView("study_session")}
-      >
+      onClick={() => {
+        setStarted(false)
+        setFinished(false)
+        setAnswers({})
+        setActiveView("study_session")
+      }}
+            >
       <Brain size={16}/> Study Session
       </div>
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("active_recall")}
+        onClick={() => {
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})
+          setActiveView("active_recall")
+        }}
       >
         <Brain size={16}/> Memory check
       </div>
@@ -84,7 +104,12 @@ export default function Sidebar({
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("generate_flashcards")}
+        onClick={() => {
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})
+          setActiveView("generate_flashcards")
+        }}
       >
         <Layers size={16}/> Generate flashcards
       </div>
@@ -115,14 +140,31 @@ export default function Sidebar({
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("quiz")}
+        onClick={() => {
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})
+          setActiveView("quiz")
+        }}
       >
         <ClipboardList size={16}/> Generate quiz
       </div>
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("previous")}
+        onClick={async () => {
+
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})
+
+          if(projectId){
+            await loadPreviousQuizzes(projectId)
+          }
+
+          setActiveView("previous_quizzes")
+
+        }}
       >
         <History size={16}/> Previous quizzes
         <span style={{marginLeft:6,color:"#9ca3af"}}>
@@ -135,6 +177,11 @@ export default function Sidebar({
       <div
         style={menuItem}
         onClick={async () => {
+
+          // reset quiz
+          setStarted(false)
+          setFinished(false)
+          setAnswers({})  
 
           if(projectId){
             await loadResults(projectId)

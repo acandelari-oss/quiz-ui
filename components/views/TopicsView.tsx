@@ -7,7 +7,9 @@ loadingTopics,
 topicsOpen,
 setTopicsOpen,
 selectedTopics,
-setSelectedTopics
+setSelectedTopics,
+previousFlashcards,
+studyMode
 }) {
 
 return (
@@ -70,18 +72,36 @@ width:"100%"
 >
 
 {topics.map((t, i) => {
+  const id = t.topic + "_" + i
+  const value = t.topic
+  console.log("TOPIC:", t)
 
   let color = "#9ca3af"
 
-  if (t.difficulty === "easy") color = "#22c55e"
-  if (t.difficulty === "medium") color = "#eab308"
-  if (t.difficulty === "hard") color = "#ef4444"
+  if (t.accuracy !== undefined) {
+    if (t.accuracy > 70) color = "#22c55e"   // verde
+    else if (t.accuracy > 40) color = "#eab308" // giallo
+    else color = "#ef4444"   // rosso
+  }
 
-  const checked = selectedTopics.includes(t.topic)
+  const checked = selectedTopics.includes(value)
+  const topicCounts = {}
+
+  if (studyMode === "loaded" && Array.isArray(previousFlashcards)) {
+    previousFlashcards.forEach(card => {
+
+      const key = (card.topic || "").trim().toLowerCase()
+
+      if (!key) return
+
+      topicCounts[key] = (topicCounts[key] || 0) + 1
+
+    })
+  }
 
   return (
     <div
-      key={i}
+      key={id}
       style={{
         padding: "6px 8px",
         background: "#111827",
@@ -102,10 +122,10 @@ width:"100%"
         onChange={(e) => {
 
           if (e.target.checked) {
-            setSelectedTopics([...selectedTopics, t.topic])
+            setSelectedTopics(prev => [...prev, value])
           } else {
-            setSelectedTopics(
-              selectedTopics.filter(x => x !== t.topic)
+            setSelectedTopics(prev =>
+              prev.filter(x => x !== value)
             )
           }
 
@@ -114,13 +134,42 @@ width:"100%"
 
       <div>
 
-        <div style={{ fontWeight: 600, color }}>
-          {t.topic}
+        <div style={{ flex: 1 }}>
+
+        <div style={{
+          fontWeight: 600,
+          color,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center"
+        }}>
+          <span>{t.topic}</span>
+
+          {studyMode === "loaded" && (
+            <span style={{
+              marginLeft: 6,
+              fontSize: 12,
+              color: "#9ca3af"
+            }}>
+              ({topicCounts[t.topic?.trim().toLowerCase()] || 0})
+            </span>
+          )}
+
+          {/* 🔥 ACCURACY */}
+          <span style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color
+          }}>
+            {t.accuracy ?? 50}%
+          </span>
         </div>
 
         <div style={{ fontSize: 12, marginTop: 2, color: "#9ca3af" }}>
           Page: {t.suggested_page}
         </div>
+
+      </div>
 
       </div>
 

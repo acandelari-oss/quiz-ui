@@ -7,24 +7,41 @@ openCard,
 setOpenCard,
 onReview,
 onFlashcardsComplete,
-projectId
+projectId,
+loadingFlashcards
 }) {
 
   if(openCard === null){
-  return (
-    <div style={{
-      textAlign:"center",
-      color:"#9ca3af",
-      marginTop:60,
-      fontSize:18
-    }}>
-      Select how many flashcards you want to revise<br/>
-      and press <b>Start Study</b>
-    </div>
-  )
-}
+    return (
+      <div>
+
+        {loadingFlashcards && (
+          <p style={{ color: "#9ca3af", textAlign: "center" }}>
+            Generating flashcards...
+          </p>
+        )}
+
+        <div style={{
+          textAlign:"center",
+          color:"#9ca3af",
+          marginTop:60,
+          fontSize:18
+        }}>
+          Select how many flashcards you want to revise<br/>
+          and press <b>Start Study</b>
+        </div>
+
+      </div>
+    )
+  }
 
   const [currentIndex, setCurrentIndex] = useState(0)
+
+  const goToPrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1)
+    }
+  }
 
   // sicurezza: flashcards non esiste o non è array
   if (!Array.isArray(flashcards) || flashcards.length === 0) {
@@ -59,7 +76,12 @@ projectId
 
   console.log("CARD:", card)
 
-  async function reviewCard(id: number, isCorrect: boolean, difficulty: number) {
+ async function reviewCard(id, isCorrect, difficulty) {
+
+  if (!id) {
+    console.warn("Skipping review: no flashcard_id")
+    return
+  }
 
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
@@ -70,33 +92,48 @@ projectId
   console.log("API URL:", process.env.NEXT_PUBLIC_API_URL)
 
   try {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        fflashcard_id: id,
-        difficulty,
-        is_correct: isCorrect
-      })
-    }
-  )
+    console.log("reviewCard payload:", {
+    flashcard_id: id,
+    difficulty,
+    is_correct: isCorrect,
+    elapsed_seconds: 0
+  })
+  console.log("typeof id:", typeof id, "value:", id)
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          flashcard_id: id,
+          difficulty,
+          is_correct: isCorrect,
+          elapsed_seconds: 0
+        })
+      }
+    )
 
+
+  const responseText = await res.text()
   console.log("RESPONSE STATUS:", res.status)
+  console.log("RESPONSE BODY:", responseText)
 
 } catch (e) {
   console.error("FETCH ERROR:", e)
 }
+
+
 
   
 
   }
 
   async function reviewAndNext(id: number, isCorrect: boolean, difficulty: number) {
+
+ 
 
   await reviewCard(id, isCorrect, difficulty)
 
@@ -222,6 +259,10 @@ projectId
                 style={easyBtn}
               >
                 Easy
+              </button>
+
+              <button onClick={goToPrevious}>
+                ⬅️ Previous
               </button>
 
             </div>

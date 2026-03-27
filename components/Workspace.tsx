@@ -43,21 +43,44 @@ asking,
 summaryStats,
 resultsData,
 
+selectedTopic,
+setSelectedTopic,
+
 uploadLog,
 uploading,
 projectId,
 quizId,
 previousQuizzes,
-loadQuiz
+loadQuiz,
+loadQuizStats,
+status,
+loadPreviousQuizzes,
+loadingFlashcards,
+generatingFlashcards,
+documents
+
 
 }) {
 
 const quizList = Array.isArray(quiz) ? quiz : []
-const previous = Array.isArray(previousQuizzes) ? previousQuizzes : []
+
+
 
 const [loaderStep,setLoaderStep] = useState(0)
 const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
 const [openProjects, setOpenProjects] = useState<{[key:string]: boolean}>({})
+const [quizStats, setQuizStats] = useState<{[key:string]: any}>({})
+const [statsLoaded, setStatsLoaded] = useState(false)
+
+const previous = Array.isArray(previousQuizzes) ? previousQuizzes : []
+const chartData = previous.map((q:any, index:number) => {
+  const stats = quizStats?.[q.id]
+
+  return {
+    name: `Q${index + 1}`, 
+    score: stats?.last_score || 0
+  }
+})
 
 const loaderMessages = [
 "Analyzing documents",
@@ -140,29 +163,117 @@ useEffect(()=>{
   loadAllDocs()
 
 }, [projects])
+
+useEffect(() => {
+  setStatsLoaded(false)
+}, [activeView, projectId])
+
+useEffect(() => {
+
+  async function loadStats(){
+
+    if(activeView !== "previous_quizzes") return
+    if(!projectId) return
+    if(!loadQuizStats) return
+    if(statsLoaded) return   // 🔥 BLOCCO CORRETTO
+
+    const data = await loadQuizStats(projectId)
+
+    console.log("STATS RESPONSE:", data)
+
+    const map = {}
+
+    if(Array.isArray(data)){
+      data.forEach((s:any) => {
+        map[s.quiz_id] = s
+      })
+    } else if (data && typeof data === "object") {
+      Object.entries(data).forEach(([quizId, s]: any) => {
+        map[quizId] = s
+      })
+    }
+
+    setQuizStats(map)
+    setStatsLoaded(true)   // 🔥 IMPORTANTISSIMO
+  }
+
+  loadStats()
+
+}, [activeView, projectId])
+
+
 console.log("WORKSPACE LOG:", uploadLog)
 return (
 
 
 <div style={{...workspace, position:"relative"}}>
 
-{uploading ? (
+{uploading ||
+ status === "Loading project..." ||
+ status === "Loading previous material..." ||
+ status === "Project loaded successfully" ||
+ generatingFlashcards ? (
 
   <div style={loaderContainer}>
-    <div style={spinner}></div>
+      {status === "Project loaded successfully" ? (
+        <div style={{
+          width:40,
+          height:40,
+          borderRadius:"50%",
+          background:"#22c55e",
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          fontSize:20,
+          color:"white",
+          animation:"pop 0.3s ease"
+        }}>
+          ✔
+        </div>
+      ) : (
+        <div style={spinner}></div>
+      )}
 
-    <div style={loaderTitle}>
-      Uploading document...
-    </div>
+      <div
+        style={{
+          ...loaderTitle,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          opacity: status === "Project loaded successfully" ? 1 : 0.9,
+          transform: status === "Project loaded successfully"
+            ? "scale(1)"
+            : "scale(0.98)",
+          transition: "all 0.3s ease"
+        }}
+      >
+        {!uploading && status === "Project loaded successfully" && (
+          <span style={{
+            color: "#22c55e",
+            fontSize: 22,
+            animation: "pop 0.3s ease"
+          }}>
+            ✔
+          </span>
+        )}
 
-    <div style={loaderSubtitle}>
-      OCR files may take longer to process
-    </div>
+        {uploading
+          ? (uploadLog || "Uploading document...")
+          : generatingFlashcards
+            ? "Generating flashcards..."
+            : status}
+      </div>
+
+  <div style={loaderSubtitle}>
+    {uploading
+      ? "OCR files may take longer to process"
+      : "Please wait while we prepare your project"}
+  </div>
   </div>
 
 ) : !projectId ? (
 
-  // WELCOME (può anche essere vuoto per ora)
+  
    <div style={{
     display:"flex",
     flexDirection:"column",
@@ -201,8 +312,40 @@ return (
 
   </div>
 
+) : documents?.length === 0 ? (
 
-) : (
+  // 🔥 NUOVA SCHERMATA (DOPO CREAZIONE PROGETTO)
+  <div style={{
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    justifyContent:"center",
+    height:"70vh",
+    textAlign:"center"
+  }}>
+
+    <h2 style={{
+      color:"white",
+      fontSize:26,
+      marginBottom:10
+    }}>
+      Upload your study material
+    </h2>
+
+    <p style={{
+      color:"#9ca3af",
+      maxWidth:400,
+      lineHeight:1.6
+    }}>
+      Upload your files to start generating topics, flashcards and quizzes.
+    </p>
+
+  </div>
+
+) : (  
+
+
+
 
   // =========================
   // NORMAL APP
@@ -341,15 +484,54 @@ return (
     )}
 
     {/* FLASHCARDS */}
+    {/* GENERATE FLASHCARDS VIEW */}
+    {activeView === "generate_flashcards" && (
+      <div style={{
+        display:"flex",
+        flexDirection:"column",
+        alignItems:"center",
+        justifyContent:"center",
+        height:"60vh",
+        textAlign:"center"
+      }}>
+        <h3 style={{ color:"white", fontSize:22 }}>
+          Generate Flashcards
+        </h3>
+
+        <p style={{ color:"#9ca3af", maxWidth:500 }}>
+          Select topics and number of cards in the left panel, then press 
+          <b style={{color:"white"}}> Generate </b>.
+        </p>
+      </div>
+    )}
     {activeView === "flashcards" && (
       <>
-        {flashcards.length > 0 ? (
+        {loadingFlashcards ? (
+
+          // 🔥 SPINNER SOLO DURANTE GENERAZIONE
+          <div style={{
+            display:"flex",
+            flexDirection:"column",
+            alignItems:"center",
+            justifyContent:"center",
+            height:"60vh",
+            color:"white"
+          }}>
+            <div style={spinner}></div>
+            <div style={{marginTop:10}}>Generating flashcards...</div>
+          </div>
+
+        ) : flashcards.length > 0 ? (
+
           <FlashcardsView
             flashcards={flashcards}
             openCard={openCard}
             setOpenCard={setOpenCard}
           />
+
         ) : (
+
+          // 👇 QUESTA PARTE RIMANE quando entri nella view
           <div style={{
             display:"flex",
             flexDirection:"column",
@@ -377,15 +559,212 @@ return (
               <b style={{color:"white"}}> Start Study </b>.
             </p>
           </div>
+
         )}
       </>
     )}
 
     {/* STUDY SESSION */}
-    {activeView === "study_session" && projectId && (
-      <StudySessionView projectId={projectId} />
+    {/* ========================= */}
+    
+    
+    {activeView === "study_session" && (
+
+      projectId ? (
+
+        <StudySessionView projectId={projectId} />
+
+      ) : (
+
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "60vh",
+          color: "white",
+          textAlign: "center"
+        }}>
+
+          <img
+            src="/logo.png"
+            alt="StudyForge logo"
+            style={{
+              width: 80,
+              marginBottom: 20,
+              opacity: 0.9
+            }}
+          />
+
+          <h2 style={{ color: "#9ca3af", maxWidth: 400 }}>
+            Welcome 👋  
+            Create a new project or load an existing one to start studying.
+          </h2>
+
+        </div>
+
+      )
+
+    )}
+    {activeView === "quiz" && (
+  <div>
+
+    
+
+    {/* EMPTY STATE (quando non c'è quiz) */}
+    {quiz.length === 0 && !generatingQuiz && (
+      <div style={{
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    justifyContent:"center",
+    height:"60vh",
+    textAlign:"center"
+  }}>
+    <h3 style={{ color:"white", fontSize:22 }}>
+      Generate Quiz
+    </h3>
+
+    <p style={{ color:"#9ca3af", maxWidth:500 }}>
+      Configure your quiz in the left panel and press Generate.
+    </p>
+  </div>
     )}
 
+    {/* QUIZ IN CORSO */}
+    {quiz.length > 0 && (
+      <QuizView
+        quiz={quiz}
+        answers={answers}
+        selectAnswer={selectAnswer}
+        finished={finished}
+        started={started}
+        submitQuiz={submitQuiz}
+        score={score}
+        generatingQuiz={generatingQuiz}
+        expanded={expanded}
+        setExpanded={setExpanded}
+        formatTime={formatTime}
+        answeredCount={answeredCount}
+        calculateScore={calculateScore}
+      />
+    )}
+
+  </div>
+)}
+    {activeView === "previous_quizzes" && (
+      <div style={{ padding: 20 }}>
+
+        <h3 style={{ color: "white", marginBottom: 20 }}>
+          Previous quizzes
+        </h3>
+        {chartData.length > 0 && (
+          <div style={{
+            background:"#111827",
+            border:"1px solid #374151",
+            borderRadius:10,
+            padding:20,
+            marginBottom:20
+          }}>
+            <div style={{ color:"#9ca3af", marginBottom:10 }}>
+              Score trend
+            </div>
+
+            <div style={{ display:"flex", alignItems:"flex-end", gap:8 }}>
+              {chartData.map((d:any, i:number) => (
+                <div key={i} style={{ textAlign:"center" }}>
+                  <div style={{
+                    height: d.score * 2,
+                    width: 20,
+                    background:"#22c55e",
+                    borderRadius:4,
+                    transition:"all 0.3s ease"
+                  }} />
+
+                  <div style={{
+                    fontSize:10,
+                    color:"#9ca3af",
+                    marginTop:4
+                  }}>
+                    {d.name}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(previous) && previous.length > 0 ? (
+          previous.map((q:any, index:number) => {
+
+            const stats = quizStats?.[q.id]
+
+            
+
+            return (
+              <div
+                key={q.id}
+                style={{
+                  padding: "12px 14px",
+                  marginBottom: 10,
+                  background: "#111827",
+                  border: "1px solid #374151",
+                  borderRadius: 8,
+                  color: "white",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center"
+                }}
+              >
+
+                <div>
+                  <div style={{ fontWeight: 600 }}>
+                     Quiz Q{index + 1}
+                  </div>
+
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                    {q.num_questions} questions
+                  </div>
+
+                  {stats && (
+                    <div style={{
+                      fontSize: 12,
+                      color: "#9ca3af",
+                      marginTop: 4
+                    }}>
+                      Attempts: {stats.attempts} · 
+                      Best: {stats.best_score}% · 
+                      Last: {stats.last_score}%
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => loadQuiz(q.id)}
+                  style={{
+                    background: "#22c55e",
+                    color: "black",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontWeight: 600
+                  }}
+                >
+                  Retake
+                </button>
+
+              </div>
+            )
+          })
+        ) : (
+          <div style={{ color:"#9ca3af" }}>
+            No quizzes yet
+          </div>
+        )}
+
+      </div>
+    )}
     {/* RESULTS */}
     {activeView === "results_summary" && (
       <div>
@@ -398,8 +777,7 @@ return (
       </div>
     )}
 
-  </>   
-
+  </>
 )}   
 
 </div>  
@@ -443,4 +821,17 @@ fontWeight:600
 const loaderSubtitle = {
 color:"#9ca3af",
 marginTop:6
+}
+
+const styleSheet = typeof document !== "undefined" && document.createElement("style")
+
+if (styleSheet && !document.getElementById("loader-animations")) {
+  styleSheet.id = "loader-animations"
+  styleSheet.innerHTML = `
+    @keyframes pop {
+      0% { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  `
+  document.head.appendChild(styleSheet)
 }

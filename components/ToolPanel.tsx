@@ -42,14 +42,16 @@ topics,
 loadingTopics,
 topicsOpen,
 setTopicsOpen,
-selectedTopics,
-setSelectedTopics,
+selectedTopic,
+setSelectedTopic,
 
 availableFlashcards = 0,
 studyCount,
 setStudyCount,
 loadStudyFlashcards,
 
+previousFlashcards,
+studyMode,
 status,
 uploadStatus
 
@@ -315,17 +317,24 @@ uploadStatus
       {/* ========================= */}
       {/* ASK */}
       {/* ========================= */}
-      {(activeView === "quiz" || activeView === "ask") && (
-        <TopicsView
-          topics={topics}
-          loadingTopics={loadingTopics}
-          topicsOpen={topicsOpen}
-          setTopicsOpen={setTopicsOpen}
-          selectedTopics={selectedTopics}
-          setSelectedTopics={setSelectedTopics}
-          setAskQuestion={setAskQuestion}
-          activeView={activeView}
-        />
+      {projectId &&
+        topics?.length > 0 &&
+        (activeView === "ask" ||
+          activeView === "quiz" ||
+          activeView === "generate_flashcards" ||
+          activeView === "active_recall") && (
+          <TopicsView
+            topics={topics}
+            loadingTopics={loadingTopics}
+            topicsOpen={topicsOpen}
+            setTopicsOpen={setTopicsOpen}
+            selectedTopic={selectedTopic}
+            setSelectedTopic={setSelectedTopic}
+            setAskQuestion={setAskQuestion}
+            activeView={activeView}
+            previousFlashcards={previousFlashcards}   
+            studyMode={studyMode}
+          />
       )}
 
       
@@ -335,17 +344,10 @@ uploadStatus
       {/* ========================= */}
       {activeView === "generate_flashcards" && (
         <>
-          <TopicsView
-            topics={topics}
-            loadingTopics={loadingTopics}
-            topicsOpen={topicsOpen}
-            setTopicsOpen={setTopicsOpen}
-            selectedTopics={selectedTopics}
-            setSelectedTopics={setSelectedTopics}
-          />
+          
 
           <h3>Generate Flashcards</h3>
-
+          
           <label>Number of cards</label>
 
           <input
@@ -364,9 +366,38 @@ uploadStatus
       {/* ========================= */}
       {/* STUDY FLASHCARDS */}
       {/* ========================= */}
-      {activeView === "flashcards" && (
+      {activeView === "flashcards" && studyMode === "loaded" && (
         <>
           <h3>Study Flashcards</h3>
+
+          <TopicsView
+            topics={topics}
+            loadingTopics={loadingTopics}
+            topicsOpen={topicsOpen}
+            setTopicsOpen={setTopicsOpen}
+            selectedTopic={selectedTopic}
+            setSelectedTopic={setSelectedTopic}
+          />
+
+          {selectedTopic && (
+            <div style={{
+              marginBottom: 12,
+              padding: "8px 10px",
+              background: "#111827",
+              border: "1px solid #374151",
+              borderRadius: 6,
+              fontSize: 13,
+              color: "#e5e7eb"
+            }}>
+              <b>Selected topics:</b>
+              <div style={{ marginTop: 4 }}>
+                <div style={{ color: "#22c55e" }}>
+                  • {selectedTopic}
+                </div>
+              </div>
+            </div>
+          )}
+          
 
           <p style={{color:"#9ca3af"}}>
             Available cards today: {availableFlashcards}
@@ -390,6 +421,30 @@ uploadStatus
           >
             Start Study
           </button>
+        </>
+      )}
+
+      {activeView === "flashcards" && studyMode === "generated" && (
+        <>
+          <h3>Generated Flashcards</h3>
+
+          {selectedTopic && (
+            <div style={{
+              marginBottom: 12,
+              padding: "8px 10px",
+              background: "#111827",
+              border: "1px solid #374151",
+              borderRadius: 6,
+              fontSize: 13,
+              color: "#e5e7eb"
+            }}>
+              <b>Selected topics:</b>
+
+              <div style={{ color: "#22c55e" }}>
+                • {selectedTopic}
+              </div>
+            </div>
+          )}
         </>
       )}
 

@@ -13,6 +13,8 @@ const [loading,setLoading]=useState(false)
 const [isRecording, setIsRecording] = useState(false)
 const [recognition, setRecognition] = useState<any>(null)
 const [speechSupported, setSpeechSupported] = useState(true)
+const [showAnswer, setShowAnswer] = useState(false)
+const [aiAnswer, setAiAnswer] = useState("")
 
 useEffect(() => {
   const SpeechRecognition =
@@ -90,9 +92,13 @@ setMessages(prev=>[
 {role:"assistant",content:data.question}
 ])
 
+setShowAnswer(false)
+
 setQuestionCount(prev=>prev+1)
 
 setLoading(false)
+
+setAiAnswer("")
 
 }
 
@@ -165,6 +171,47 @@ setLoading(false)
 
 }
 
+async function fetchAnswer(){
+
+  const question = messages[messages.length - 1]?.content
+
+  if(!question) return
+
+  setLoading(true)
+
+  try {
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/ask`,
+      {
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body: JSON.stringify({
+          project_id: projectId,
+          question: question
+        })
+      }
+    )
+
+    if(!res.ok){
+      setLoading(false)
+      return
+    }
+
+    const data = await res.json()
+
+    setAiAnswer(data.answer || "")
+    setShowAnswer(true)
+
+  } catch(e){
+    console.log("ANSWER ERROR:", e)
+  }
+
+  setLoading(false)
+}
+
 return(
 
 <div style={container}>
@@ -210,11 +257,31 @@ Session practice – answer the questions and improve your understanding.
 {messages.map((m,i)=>{
 
 if(m.role==="assistant"){
-return(
-<div key={i} style={assistantBubble}>
-{m.content}
-</div>
-)
+  return(
+    <div key={i}>
+
+      <div style={assistantBubble}>
+        {m.content}
+      </div>
+
+      {/* 🔥 RISPOSTA QUI */}
+      {i === messages.length - 1 && showAnswer && aiAnswer && (
+        <div style={{
+          marginTop: 8,
+          padding: "12px",
+          background: "#020617",
+          border: "1px solid #374151",
+          borderRadius: 8,
+          color: "white",
+          lineHeight: 1.6
+        }}>
+          <strong>Answer:</strong>
+          <p>{aiAnswer}</p>
+        </div>
+      )}
+
+    </div>
+  )
 }
 
 if(m.role==="user"){
@@ -280,42 +347,85 @@ Great job reviewing your material.
 
 )}
 
-<textarea
-  value={input}
-  onChange={(e)=>setInput(e.target.value)}
-  placeholder="Write your answer or use voice..."
-  style={{
-    ...textarea,
-    border: isRecording ? "2px solid #ef4444" : textarea.border
-  }}
-/>
+<div style={{ position: "relative", width: "100%" }}>
 
-<div style={{ display: "flex", gap: 8 }}>
+  <textarea
+    value={input}
+    onChange={(e)=>setInput(e.target.value)}
+    placeholder="Write your answer or use voice..."
+    style={{
+      width: "100%",
+      minHeight: 80,
+      maxHeight: 200,
+      resize: "none",
+      padding: "12px 110px 12px 12px",
+      borderRadius: 14,
+      border: isRecording ? "2px solid #ef4444" : "1px solid #374151",
+      background: "#111827",
+      color: "white",
+      lineHeight: 1.5,
+      outline: "none",
+      boxSizing: "border-box"
+    }}
+  />
 
+  {/* 🎤 MIC */}
   {speechSupported && (
     <button
       onClick={toggleRecording}
       style={{
+        position: "absolute",
+        right: 50,
+        top: "50%",
+        transform: "translateY(-50%)",
         background: isRecording ? "#ef4444" : "#1f2937",
         color: "white",
-        padding: "10px",
-        border: "none",
+        border: "1px solid #374151",
         borderRadius: 6,
+        padding: "6px 8px",
         cursor: "pointer"
       }}
     >
-      {isRecording ? "🎤 Recording..." : "🎤 Speak"}
+      🎤
     </button>
   )}
 
+  {/* ➤ SEND */}
   <button
     onClick={submitAnswer}
-    style={submitButton}
+    style={{
+      position: "absolute",
+      right: 10,
+      top: "50%",
+      transform: "translateY(-50%)",
+      background: "#22c55e",
+      border: "none",
+      borderRadius: 6,
+      padding: "6px 8px",
+      cursor: "pointer",
+      fontWeight: 600
+    }}
   >
-    Submit
+    ➤
   </button>
 
 </div>
+<button
+  onClick={fetchAnswer}
+  style={{
+    marginTop: 8,
+    background: "#ef4444",
+    color: "white",
+    padding: "8px 10px",
+    border: "none",
+    borderRadius: 6,
+    cursor: "pointer",
+    fontWeight: 600,
+    width: "fit-content"
+  }}
+>
+  Show answer
+</button>
 
 {isRecording && (
   <div style={{ color: "#ef4444", fontSize: 12 }}>
