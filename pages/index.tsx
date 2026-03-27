@@ -318,39 +318,43 @@ const res = await fetch(
   }
 )
 
-const reader = res.body.getReader()
+if(!res.ok){
+  console.error("INGEST STREAM FAILED", res.status)
+  setUploadStatus("Upload failed")
+  setUploading(false)
+  return
+}
+
+const streamReader = res.body.getReader()
 const decoder = new TextDecoder()
 
 let fullText = ""
 
 while (true) {
-  const { value, done } = await reader.read()
+  const { value, done } = await streamReader.read()
 
   if (done) {
     console.log("STREAM FINISHED")
-
-
-    setUploading(false)
-    setStatus("Project loaded successfully")
-
-    setTimeout(() => {
-      setUploadLog("")
-    }, 1500)
-
     break
   }
 
   const chunk = decoder.decode(value, { stream: true })
 
-  console.log("STREAM:", chunk)
+  console.log("STREAM CHUNK:", chunk)
 
   fullText += chunk
 
   setUploadLog(fullText)
 }
+
+console.log("LOADING DOCUMENTS...")
 await loadDocuments(projectId)
 
+console.log("WAITING FOR DB SYNC...")
+await new Promise(r => setTimeout(r, 1000)) // wait for DB to commit chunks
+
 setUploadStatus("Generating topics...")
+console.log("CALLING GENERATE TOPICS...")
 
 const resTopics = await fetch(
   `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
@@ -363,49 +367,19 @@ const resTopics = await fetch(
 )
 
 if (!resTopics.ok) {
-  console.error("TOPICS GENERATION FAILED")
+  console.error("TOPICS GENERATION FAILED", resTopics.status)
+  setUploadStatus("Topics generation failed")
 } else {
   console.log("TOPICS GENERATED OK")
+  setUploadStatus("Upload complete")
+  await loadTopics(projectId)
 }
 
-setUploadStatus("Upload complete")
+setStatus("Project loaded successfully")
 
 setTimeout(() => {
   setUploadLog("")
 }, 3000)
-
-
-
-if(!res.ok){
-setUploadStatus("Upload failed")
-setUploading(false)
-return
-}
-
-setUploadStatus("Files uploaded successfully")
-
-await loadDocuments(projectId)
-
-setUploadStatus("Generating topics...")
-
-const resTopicsFinal = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  }
-)
-
-if (!resTopicsFinal.ok) {
-  console.error("TOPICS GENERATION FAILED")
-} else {
-  console.log("TOPICS GENERATED OK")
-}
-
-await new Promise(r => setTimeout(r, 500))
-await loadTopics(projectId)
 
 }catch(e){
 
