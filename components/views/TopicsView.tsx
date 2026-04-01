@@ -9,8 +9,21 @@ setTopicsOpen,
 selectedTopics,
 setSelectedTopics,
 previousFlashcards,
-studyMode
-}) {
+studyMode,
+setSelectedTopic,
+setActiveView
+
+}: any) {
+
+const topicCounts: { [key: string]: number } = {};
+  if (Array.isArray(previousFlashcards)) {
+    previousFlashcards.forEach((f) => {
+      const t = f.topic?.trim().toLowerCase();
+      if (t) {
+        topicCounts[t] = (topicCounts[t] || 0) + 1;
+      }
+    });
+  }
 
 return (
 
@@ -72,110 +85,106 @@ width:"100%"
 >
 
 {topics.map((t, i) => {
-  const id = t.topic + "_" + i
-  const value = t.topic
-  console.log("TOPIC:", t)
-
-  let color = "#9ca3af"
-
-  if (t.accuracy !== undefined) {
-    if (t.accuracy > 70) color = "#22c55e"   // verde
-    else if (t.accuracy > 40) color = "#eab308" // giallo
-    else color = "#ef4444"   // rosso
-  }
-
-  const checked = selectedTopics.includes(value)
-  const topicCounts = {}
-
-  if (studyMode === "loaded" && Array.isArray(previousFlashcards)) {
-    previousFlashcards.forEach(card => {
-
-      const key = (card.topic || "").trim().toLowerCase()
-
-      if (!key) return
-
-      topicCounts[key] = (topicCounts[key] || 0) + 1
-
-    })
-  }
+  const value = t.topic;
+  const checked = Array.isArray(selectedTopics) && selectedTopics.includes(value);
+  const count = topicCounts[value?.trim().toLowerCase()] || 0;
 
   return (
     <div
-      key={id}
+      key={i}
       style={{
-        padding: "6px 8px",
-        background: "#111827",
-        border: "1px solid #374151",
-        borderRadius: 6,
-        fontSize: 13,
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        width: "100%",
-        color: "white"
+        justifyContent: "space-between",
+        padding: "12px 16px",
+        background: "rgba(255, 255, 255, 0.05)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        borderRadius: "12px",
+        marginBottom: "10px"
       }}
     >
-
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => {
-
-          if (e.target.checked) {
-            setSelectedTopics(prev => [...prev, value])
-          } else {
-            setSelectedTopics(prev =>
-              prev.filter(x => x !== value)
-            )
-          }
-
-        }}
-      />
-
-      <div>
-
-        <div style={{ flex: 1 }}>
-
-        <div style={{
-          fontWeight: 600,
-          color,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center"
-        }}>
-          <span>{t.topic}</span>
-
-          {studyMode === "loaded" && (
-            <span style={{
-              marginLeft: 6,
-              fontSize: 12,
-              color: "#9ca3af"
-            }}>
-              ({topicCounts[t.topic?.trim().toLowerCase()] || 0})
-            </span>
-          )}
-
-          {/* 🔥 ACCURACY */}
-          <span style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color
-          }}>
-            {t.accuracy ?? 50}%
-          </span>
+      {/* SINISTRA: Checkbox e Info */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => {
+            if (e.target.checked) {
+              setSelectedTopics((prev: string[]) => [...prev, value]);
+            } else {
+              setSelectedTopics((prev: string[]) => prev.filter((x) => x !== value));
+            }
+          }}
+          style={{ width: "18px", height: "18px", cursor: "pointer" }}
+        />
+        <div>
+          <p style={{ margin: 0, fontWeight: 500, color: "white" }}>{value}</p>
+          <div style={{ fontSize: "11px", color: "#9ca3af" }}>
+            Pagina: {t.suggested_page} 
+            {count > 0 && <span style={{ color: "#60a5fa", marginLeft: "8px" }}>• {count} Flashcards</span>}
+          </div>
         </div>
-
-        <div style={{ fontSize: 12, marginTop: 2, color: "#9ca3af" }}>
-          Page: {t.suggested_page}
-        </div>
-
       </div>
 
-      </div>
+      {/* DESTRA: Bottoni Azione Rapida */}
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={() => {
+            setSelectedTopic(value);
+            setActiveView("quiz");
+          }}
+          style={{
+            padding: "6px 12px",
+            fontSize: "11px",
+            background: "#2563eb",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer"
+          }}
+        >
+          Quiz
+        </button>
+        <button
+          onClick={() => {
+            setSelectedTopic(value);
+            setActiveView("ask");
+          }}
+          style={{
+            padding: "6px 12px",
+            fontSize: "11px",
+            background: "#059669",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer"
+          }}
+        >
+          Ask
+        </button>
 
+        {/* Bottone STUDY SESSION */}
+        <button
+          onClick={() => {
+            setSelectedTopic(value);
+            setActiveView("study_session");
+          }}
+          style={{
+            padding: "6px 12px",
+            backgroundColor: "#8b5cf6", // Viola
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "12px",
+            fontWeight: "600"
+          }}
+        >
+          Study
+        </button>
+      </div>
     </div>
-  )
-
+  );
 })}
 
 </div>

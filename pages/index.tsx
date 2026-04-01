@@ -68,6 +68,7 @@ const [activeView,setActiveView]=useState("project")
 
 const [topicsOpen,setTopicsOpen]=useState(true)
 const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+const [selectedTopics, setSelectedTopics] = useState<string[]>([])
 
 const [availableFlashcards,setAvailableFlashcards]=useState(0)
 const [studyCount,setStudyCount]=useState(10)
@@ -77,6 +78,8 @@ const [resultsData,setResultsData]=useState<any>(null)
 const [uploadLog, setUploadLog] = useState("")
 const [loadingFlashcards, setLoadingFlashcards] = useState(false)
 const [studyMode, setStudyMode] = useState<"generated" | "loaded" | null>(null)
+
+
 
 useEffect(() => {
   console.log("INDEX uploadLog:", uploadLog)
@@ -103,7 +106,7 @@ useEffect(() => {
 
     setStudyMode("loaded")
 
-    setSelectedTopic(null)
+   
 
     loadFlashcards(projectId)
 
@@ -122,6 +125,17 @@ await loadProjects()
 init()
 
 },[])
+
+// Se l'utente seleziona un topic tramite checkbox, 
+// impostiamo automaticamente l'ultimo selezionato come 'selectedTopic'
+useEffect(() => {
+  if (selectedTopics.length > 0) {
+    // Prende l'ultimo topic spuntato e lo imposta come attivo per tutti
+    setSelectedTopic(selectedTopics[selectedTopics.length - 1]);
+  } else {
+    setSelectedTopic(null);
+  }
+}, [selectedTopics]);
 
 useEffect(()=>{
 if(!started) return
@@ -145,6 +159,8 @@ return prev-1
 return()=>clearInterval(interval)
 
 },[started])
+
+
 
 function formatTime(){
 const m=Math.floor(timeLeft/60)
@@ -318,105 +334,53 @@ const res = await fetch(
   }
 )
 
-const reader = res.body.getReader()
-const decoder = new TextDecoder()
+    const reader = res.body.getReader()
 
-let fullText = ""
+    const decoder = new TextDecoder();
+    let fullText = "";
 
-while (true) {
-  const { value, done } = await reader.read()
+    // 1. Leggiamo lo streaming fino alla fine
+    while (true) {
+      const { value, done } = await reader.read();
+      
+      if (done) {
+        console.log("STREAM FINITO");
+        setStatus("Processing topics..."); 
+        setUploading(false);
+        break; 
+      }
 
-  if (done) {
-    console.log("STREAM FINISHED")
+      const chunk = decoder.decode(value, { stream: true });
+      fullText += chunk;
+      setUploadLog(fullText); 
+    }
 
+    // 2. Controllo finale: se la risposta NON era OK, fermati qui
+    if (!res.ok) {
+      setUploadStatus("Upload failed");
+      setUploading(false);
+      return;
+    }
 
-    setUploading(false)
-    setStatus("Project loaded successfully")
+    // 3. Successo! Aggiorniamo la UI e facciamo partire i processi post-upload
+    setUploading(false);
+    setUploadStatus("Files uploaded successfully! Processing topics...");
 
+    // Carichiamo i documenti e i topic (in ordine)
+    await loadDocuments(projectId);
+    await pollTopicStatus(projectId); 
+
+    // Pulizia estetica del log dopo un po'
     setTimeout(() => {
-      setUploadLog("")
-    }, 1500)
+      setUploadLog("");
+    }, 2000);
 
-    break
+  } catch (e) {
+    console.error("UPLOAD ERROR:", e);
+    setUploadStatus("Upload error");
+    setUploading(false);
   }
-
-  const chunk = decoder.decode(value, { stream: true })
-
-  console.log("STREAM:", chunk)
-
-  fullText += chunk
-
-  setUploadLog(fullText)
-}
-await loadDocuments(projectId)
-
-setUploadStatus("Generating topics...")
-
-const resTopics = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  }
-)
-
-if (!resTopics.ok) {
-  console.error("TOPICS GENERATION FAILED")
-} else {
-  console.log("TOPICS GENERATED OK")
-}
-
-setUploadStatus("Upload complete")
-
-setTimeout(() => {
-  setUploadLog("")
-}, 3000)
-
-
-
-if(!res.ok){
-setUploadStatus("Upload failed")
-setUploading(false)
-return
-}
-
-setUploadStatus("Files uploaded successfully")
-
-await loadDocuments(projectId)
-
-setUploadStatus("Generating topics...")
-
-const resTopicsFinal = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_topics`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`
-    }
-  }
-)
-
-if (!resTopicsFinal.ok) {
-  console.error("TOPICS GENERATION FAILED")
-} else {
-  console.log("TOPICS GENERATED OK")
-}
-
-await new Promise(r => setTimeout(r, 500))
-await loadTopics(projectId)
-
-}catch(e){
-
-console.error("UPLOAD ERROR:",e)
-setUploadStatus("Upload error")
-
-}
-
-setUploading(false)
-
-}
+} // Chiusura finale della funzione uploadFiles
 
 async function loadTopics(projectId:string){
 
@@ -448,8 +412,74 @@ return
 const data=await res.json()
 
 setTopics(data.topics||[])
+
+console.log("DATI ARRIVATI DAL SERVER:", data); // <--- TEST 1
+
+
+setTopics(data.topics || []);
+
+
+console.log("STATO TOPICS AGGIORNATO CON:", data.topics?.length, "elementi"); // <--- TEST 2
+
 setLoadingTopics(false)
 
+}
+
+async function pollTopicStatus(projectId:string){
+
+  const { data:sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+
+  if(!token) return
+
+  let attempts = 0
+  const maxAttempts = 40
+
+  const interval = setInterval(async () => {
+    attempts += 1
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    )
+
+    if(!res.ok){
+      clearInterval(interval)
+      console.error("TOPIC STATUS FAILED")
+      return
+    }
+
+    const data = await res.json()
+    console.log("TOPIC STATUS:", data.status)
+
+    if(data.status === "completed"){
+      clearInterval(interval)
+      await loadTopics(projectId)
+      setStatus("Project loaded successfully"); 
+      setUploadStatus("Topics ready!"); 
+      
+
+      console.log("WORKSPACE SBLOCCATA!");
+      return
+    }
+
+    if(data.status === "error"){
+      clearInterval(interval)
+      setUploadStatus("Topic generation failed")
+      return
+    }
+
+    if(attempts >= maxAttempts){
+      clearInterval(interval)
+      setUploadStatus("Topic generation timeout")
+    }
+
+  }, 3000)
 }
 
 async function loadPreviousQuizzes(projectId:string){
@@ -658,44 +688,47 @@ console.error("SUMMARY ERROR:",e)
 
 }
 
-async function selectProject(id:string){
+async function selectProject(id: string) {
+  // Se il progetto cliccato è DIVERSO da quello attuale, allora resettiamo il topic
+  if (id !== projectId) {
+    setSelectedTopic(null);
+    setSelectedTopics([]); // Puliamo anche la lista dei quiz per sicurezza
+  }
 
-const project=projects.find(p=>p.id===id)
-setProjectName(project?.name||"")
+  const project = projects.find(p => p.id === id);
+  setProjectName(project?.name || "");
+  setStatus("Loading project...");
+  setProjectId(id);
+  
+  // Rimosso il setSelectedTopic(null) che era qui sotto fisso
+  setDocuments([]);
+    setTopics([]);
+  setQuiz([])
+  setAnswers({})
+  setPreviousQuizzes([])
+  setPreviousFlashcards([])
 
-setStatus("Loading project...")
+  try{
 
-setProjectId(id)
+  await loadDocuments(id)
+  await loadTopics(id)
 
-setDocuments([])
-setTopics([])
-setQuiz([])
-setAnswers({})
-setPreviousQuizzes([])
-setPreviousFlashcards([])
+  setStatus("Loading previous material...")
 
-try{
+  await loadPreviousQuizzes(id)
+  await loadSummary(id)
+  await loadFlashcards(id)
 
-await loadDocuments(id)
-await loadTopics(id)
-
-setStatus("Loading previous material...")
-
-await loadPreviousQuizzes(id)
-await loadSummary(id)
-await loadFlashcards(id)
-
-setStatus("Project loaded successfully")
-
+  setStatus("Project loaded successfully")
 
 
-}catch(e){
 
-console.error("PROJECT LOAD ERROR:",e)
-setStatus("Error loading project")
+  }catch(e){
 
-}
+  console.error("PROJECT LOAD ERROR:",e)
+  setStatus("Error loading project")
 
+  }
 }
 
 async function generateQuiz(){
@@ -978,10 +1011,13 @@ setFinished={setFinished}
 setAnswers={setAnswers}
 loadPreviousQuizzes={loadPreviousQuizzes}
 loadQuizStats={loadQuizStats}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
 />
 
 <ToolPanel
 activeView={activeView}
+setActiveView={setActiveView}
 projectName={projectName}
 
 projects={projects}
@@ -1020,6 +1056,10 @@ topicsOpen={topicsOpen}
 setTopicsOpen={setTopicsOpen}
 selectedTopic={selectedTopic}
 setSelectedTopic={setSelectedTopic}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+
+compactMode={true}
 
 availableFlashcards={availableFlashcards}
 studyCount={studyCount}
@@ -1031,14 +1071,15 @@ setProjectName={setProjectName}
 uploadFiles={uploadFiles}
 loadStudyFlashcards={loadStudyFlashcards}
 studyMode={studyMode}
-selectedTopic={selectedTopic}
-setSelectedTopic={setSelectedTopic}
+
+
 
 />
 
 <Workspace
 key={quizId}
 activeView={activeView}
+setActiveView={setActiveView}
 quiz={quiz}
 answers={answers}
 askQuestion={askQuestion}
@@ -1077,6 +1118,11 @@ generatingFlashcards={generatingFlashcards}
 selectedTopic={selectedTopic}
 setSelectedTopic={setSelectedTopic}
 documents={documents}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+topics={topics}                // <--- AGGIUNGI
+loadingTopics={loadingTopics}
+compactMode={false}
 
 />
 

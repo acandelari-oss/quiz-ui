@@ -65,11 +65,10 @@ const loaderSubtitle = {
   color: "#9ca3af"
 }
 
-export default function StudySessionView({ projectId }: { projectId: string }) {
+export default function StudySessionView({ projectId, selectedTopic }: { projectId: string, selectedTopic?: string | null }) {
   const [step, setStep] = useState(0)
   const [openCard, setOpenCard] = useState<number | null>(0)
   const [flashcards, setFlashcards] = useState<any[]>([])
-  
   const [loading, setLoading] = useState(true)
   const [weakTopics, setWeakTopics] = useState<string[]>([])
   const [correctCount, setCorrectCount] = useState<number>(0)
@@ -77,13 +76,14 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
   const [sessionVersion, setSessionVersion] = useState(0)
   const [recallTopics, setRecallTopics] = useState<string[]>([])
 
+  const accuracy = correctCount + wrongCount > 0 ? correctCount / (correctCount + wrongCount) : 0.5
+  const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
+
   function handleFlashcardsComplete() {
-
     if (accuracy < 0.5) {
-        alert("Let's review a bit more before moving on 💪")
-        return
+      alert("Let's review a bit more before moving on 💪")
+      return
     }
-
     setStep(1)
   }
 
@@ -95,206 +95,131 @@ export default function StudySessionView({ projectId }: { projectId: string }) {
     setStep(3)
   }
 
-  async function handleReview(
-    flashcardId: number,
-    difficulty: number,
-    isCorrect: boolean
-  ) {
+  async function handleReview(flashcardId: number, difficulty: number, isCorrect: boolean) {
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
 
-    await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`,
-      {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/review_flashcard`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        flashcard_id: flashcardId,
+        difficulty: difficulty,
+        is_correct: isCorrect
+      })
+    })
+
+    if (!isCorrect) {
+      setWrongCount(prev => prev + 1)
+      setWeakTopics(prev => [...prev, `Flashcard ${flashcardId}`])
+      generateRecoveryFlashcards(flashcardId, flashcards.find(f => f.id === flashcardId)?.question)
+    } else {
+      if (difficulty <= 1) {
+        setWrongCount(prev => prev + 1)
+      } else {
+        setCorrectCount(prev => prev + 1)
+      }
+    }
+  }
+
+  useEffect(() => {
+    async function loadSession() {
+      setLoading(true)
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+
+      let url = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`
+      if (selectedTopic) {
+        url += `?topic=${encodeURIComponent(selectedTopic)}`
+      }
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!res.ok) {
+        setLoading(false)
+        return
+      }
+
+      const session = await res.json()
+      setFlashcards(session.flashcards || [])
+      setRecallTopics(session.recall_topics || [])
+      setLoading(false)
+    }
+    loadSession()
+  }, [projectId, sessionVersion, selectedTopic])
+
+  async function generateRecoveryFlashcards(flashcardId: number, question?: string) {
+    try {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate_recovery_flashcards`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          flashcard_id: flashcardId,
-          difficulty: difficulty,
-          is_correct: isCorrect
+          project_id: projectId,
+          question: question
         })
-      }
-    )
+      })
 
-    // ... (tutto uguale sopra)
-
-    if (!isCorrect) {
-
-        // ❌ completamente sbagliato
-        setWrongCount(prev => prev + 1)
-        setWeakTopics(prev => [...prev, `Flashcard ${flashcardId}`])
-
-        generateRecoveryFlashcards(
-            flashcardId,
-            flashcards.find(f => f.id === flashcardId)?.question
-        )
-
-    } else {
-
-        // ✅ corretto → differenziamo
-        if (difficulty <= 1) {
-            // ⚠️ difficile → trattalo quasi come errore
-            setWrongCount(prev => prev + 1)
-        } else if (difficulty === 2) {
-            // 🙂 corretto normale
-            setCorrectCount(prev => prev + 1)
-        } else {
-            // 😎 facile → boost
-            setCorrectCount(prev => prev + 1)
-        }
-
-    }   
-
-}   // ✅ QUESTA ERA LA GRAFFA MANCANTE
-
-const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
-
-// ... (tutto il resto IDENTICO) 
-
-  
-
-    useEffect(() => {
-        async function loadSession() {
-            const { data } = await supabase.auth.getSession()
-            const token = data.session?.access_token
-
-            const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`,
-            {
-                headers: {
-                Authorization: `Bearer ${token}`
-                }
-            }
-            )
-
-            if (!res.ok) {
-            setLoading(false)
-            return
-            }
-
-            const session = await res.json()
-
-            setFlashcards(session.flashcards || [])
-            setRecallTopics(session.recall_topics || [])
-            setLoading(false)
-        }
-
-        loadSession()
-        }, [projectId, sessionVersion])
-
-        async function generateRecoveryFlashcards(
-        flashcardId: number,
-        question?: string
-        ) {
-        try {
-            const { data } = await supabase.auth.getSession()
-            const token = data.session?.access_token
-
-            const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/generate_recovery_flashcards`,
-            {
-                method: "POST",
-                headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                project_id: projectId,
-                question: question
-                })
-            }
-            )
-
-            if (!res.ok) {
-            console.error("Recovery fetch failed")
-            return
-            }
-
-            const result = await res.json()
-
-            setFlashcards(prev => [...prev, ...(result.flashcards || [])])
-
-        } catch (e) {
-            console.error("Recovery error:", e)
-        }
-        }
-
-    
+      if (!res.ok) return
+      const result = await res.json()
+      setFlashcards(prev => [...prev, ...(result.flashcards || [])])
+    } catch (e) {
+      console.error("Recovery error:", e)
+    }
+  }
 
   if (loading) {
     return (
-        <div style={loaderContainer}>
-
+      <div style={loaderContainer}>
         <div style={spinner} />
-
         <div style={loaderTitle}>
-            Preparing your AI study session
+            {selectedTopic ? `Generating study sesion based on the topic: ${selectedTopic}` : "Preparing your AI study session"}
         </div>
-
         <div style={loaderSubtitle}>
-            Generating flashcards for study session...
+            {selectedTopic ? "Filtering materials..." : "Generating flashcards..."}
         </div>
-
-        </div>
+      </div>
     )
-    }
-  const accuracy =
-    correctCount + wrongCount > 0
-        ? correctCount / (correctCount + wrongCount)
-        : 0.5
+  }
+
   return (
     <div>
       <div style={progressContainer}>
-        {["Flashcards", "Active Recall", "Quiz", "Summary"].map((label, i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              textAlign: "center" as const,
-              color: step >= i ? "white" : "#6b7280",
-              fontWeight: step === i ? 600 : 400
-            }}
-          >
-            <div
-              style={{
-                height: 6,
-                background: step >= i ? "#22c55e" : "#374151",
-                marginBottom: 6,
-                borderRadius: 4
-              }}
-            />
+        {steps.map((label, i) => (
+          <div key={i} style={{ flex: 1, textAlign: "center", color: step >= i ? "white" : "#6b7280", fontWeight: step === i ? 600 : 400 }}>
+            <div style={{ height: 6, background: step >= i ? "#22c55e" : "#374151", marginBottom: 6, borderRadius: 4 }} />
             {label}
           </div>
         ))}
       </div>
 
       <div>
+        {selectedTopic && (
+          <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid #8b5cf6", padding: "15px", borderRadius: "10px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: "10px", color: "#8b5cf6", fontWeight: "bold", letterSpacing: "1px" }}>FOCUS STUDY ACTIVE</div>
+              <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}</div>
+            </div>
+            <span style={{ fontSize: "24px" }}>📚</span>
+          </div>
+        )}
+
         <h2>AI Study Session</h2>
-
-        <p style={description}>
-          A guided study session combining flashcards, active recall and quizzes.
-        </p>
-
-        <p style={description}>
-          Your study session adapts automatically to your performance.
-          Weak topics will generate more recall questions, while strong topics
-          will generate more quiz questions.
-        </p>
+        <p style={description}>A guided study session combining flashcards, active recall and quizzes.</p>
 
         <div style={progress}>
           {steps.map((s, i) => (
-            <div
-              key={i}
-              style={{
-                ...stepBox,
-                background: step === i ? "#22c55e" : "#1f2937"
-              }}
-            >
-              {s}
-            </div>
+            <div key={i} style={{ ...stepBox, background: step === i ? "#22c55e" : "#1f2937" }}>{s}</div>
           ))}
         </div>
 
@@ -309,104 +234,37 @@ const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
         )}
 
         {step === 1 && (
-          <ActiveRecallView
-            projectId={projectId}
-            onComplete={handleRecallComplete}
+          <ActiveRecallView 
+            projectId={projectId} 
+            selectedTopic={selectedTopic} // <--- AGGIUNGI QUESTA RIGA
+            onComplete={handleRecallComplete} 
           />
         )}
 
         {step === 2 && (
           <div style={{ color: "white" }}>
             Quiz phase coming next
-            <div>
-              <button
-                onClick={handleQuizComplete}
-                style={button}
-              >
-                Complete Quiz Phase
-              </button>
-            </div>
+            <div><button onClick={handleQuizComplete} style={button}>Complete Quiz Phase</button></div>
           </div>
         )}
 
         {step === 3 && (
-          <div
-            style={{
-              textAlign: "center" as const,
-              marginTop: 60,
-              color: "white"
-            }}
-          >
+          <div style={{ textAlign: "center", marginTop: 60, color: "white" }}>
             <h2>🎉 Study Session Completed</h2>
-
-            <p
-              style={{
-                color: "#9ca3af",
-                marginTop: 10
-              }}
-            >
-              Great work. You finished your study session.
-            </p>
-
+            <p style={{ color: "#9ca3af", marginTop: 10 }}>Great work. You finished your study session.</p>
             {weakTopics.length > 0 && (
               <div style={{ marginTop: 30 }}>
                 <h3>Topics you should review</h3>
-
-                <ul
-                  style={{
-                    marginTop: 10,
-                    color: "#f87171",
-                    listStyle: "none",
-                    padding: 0
-                  }}
-                >
-                  {[...new Set(weakTopics)].map((t, i) => (
-                    <li key={i}>{t}</li>
-                  ))}
+                <ul style={{ marginTop: 10, color: "#f87171", listStyle: "none", padding: 0 }}>
+                  {[...new Set(weakTopics)].map((t, i) => <li key={i}>{t}</li>)}
                 </ul>
               </div>
             )}
-
-            <div
-              style={{
-                marginTop: 30,
-                display: "flex",
-                gap: 10,
-                justifyContent: "center"
-              }}
-            >
-              <button
-                onClick={() => console.log("Generate targeted flashcards", weakTopics)}
-                style={button}
-              >
-                Targeted Flashcards
-              </button>
-
-              <button
-                onClick={() => console.log("Generate targeted quiz", weakTopics)}
-                style={button}
-              >
-                Targeted Quiz
-              </button>
-            </div>
-
             <button
               onClick={() => {
-                setStep(0)
-                setOpenCard(0)
-                setWeakTopics([])
-                setLoading(true)
-                setSessionVersion(prev => prev + 1)
-            }}
-              style={{
-                marginTop: 30,
-                padding: "12px 20px",
-                background: "#2563eb",
-                border: "none",
-                borderRadius: 8,
-                color: "white",
-                cursor: "pointer"
+                setStep(0); setOpenCard(0); setWeakTopics([]); setLoading(true); setSessionVersion(prev => prev + 1);
               }}
+              style={{ marginTop: 30, padding: "12px 20px", background: "#2563eb", border: "none", borderRadius: 8, color: "white", cursor: "pointer" }}
             >
               Start new session
             </button>
@@ -416,14 +274,8 @@ const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
         {step < 3 && (
           <button
             onClick={() => {
-
-                if (accuracy > 0.8 && step === 0) {
-                    setStep(2) // salta recall
-                    return
-                }
-
-                setStep(step + 1)
-                setOpenCard(0)
+              if (accuracy > 0.8 && step === 0) { setStep(2); return; }
+              setStep(step + 1); setOpenCard(0);
             }}
             style={button}
           >
@@ -433,4 +285,14 @@ const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
       </div>
     </div>
   )
+}
+
+if (typeof document !== "undefined" && !document.getElementById("study-animations")) {
+  const styleSheet = document.createElement("style")
+  styleSheet.id = "study-animations"
+  styleSheet.innerHTML = `
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  `
+  document.head.appendChild(styleSheet)
 }

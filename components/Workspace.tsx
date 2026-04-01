@@ -8,11 +8,12 @@ import { useState, useEffect } from "react"
 import StudySessionView from "./views/StudySessionView"
 import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
+import TopicsView from "./views/TopicsView"
 
 export default function Workspace({
 
 activeView,
-
+setActiveView,
 projects,
 deleteProject,
 
@@ -45,6 +46,8 @@ resultsData,
 
 selectedTopic,
 setSelectedTopic,
+selectedTopics,
+setSelectedTopics,
 
 uploadLog,
 uploading,
@@ -57,7 +60,10 @@ status,
 loadPreviousQuizzes,
 loadingFlashcards,
 generatingFlashcards,
-documents
+documents,
+topics,
+loadingTopics,
+
 
 
 }) {
@@ -212,6 +218,7 @@ return (
  status === "Loading project..." ||
  status === "Loading previous material..." ||
  status === "Project loaded successfully" ||
+ status === "Processing topics..." || // <--- Questa riga tiene sveglia la pagina!
  generatingFlashcards ? (
 
   <div style={loaderContainer}>
@@ -351,7 +358,7 @@ return (
   // NORMAL APP
   // =========================
   <>
-
+    
     {/* MANAGE PROJECTS */}
     {activeView === "manage_projects" && (
       <div style={{padding:40}}>
@@ -466,7 +473,31 @@ return (
 
       </div>
     )}
+    {/* 🎯 NUOVA DASHBOARD TOPICS */}
+    {activeView === "topics" && (
+      <div style={{ padding: "20px", maxWidth: "900px", margin: "0 auto" }}>
+        <h2 style={{ fontSize: "24px", marginBottom: "20px", fontWeight: "600" }}>
+          📚 Centro di Controllo Argomenti
+        </h2>
+        <p style={{ color: "#9ca3af", marginBottom: "30px" }}>
+          Seleziona un argomento specifico per avviare una sessione di studio mirata.
+        </p>
 
+        <TopicsView
+          topics={topics}
+          loadingTopics={loadingTopics}
+          topicsOpen={true}
+          setTopicsOpen={() => {}}
+          selectedTopics={selectedTopics}
+          setSelectedTopics={setSelectedTopics}
+          previousFlashcards={flashcards}
+          studyMode={status === "completed" ? "loaded" : "generated"}
+          // Funzioni per far funzionare i bottoni dentro TopicsView
+          setSelectedTopic={setSelectedTopic}
+          setActiveView={setActiveView}
+        />
+      </div>
+    )}
     {/* ASK */}
     {activeView === "ask" && (
       <AskView
@@ -475,12 +506,16 @@ return (
         askDocuments={askDocuments}
         asking={asking}
         chatMessages={chatMessages}
+        selectedTopic={selectedTopic}
       />
     )}
 
-    {/* ACTIVE RECALL */}
+    {/* ACTIVE RECALL - CORRETTO */}
     {activeView === "active_recall" && (
-      <ActiveRecallView projectId={projectId} />
+      <ActiveRecallView 
+        projectId={projectId} 
+        selectedTopic={selectedTopic} 
+      />
     )}
 
     {/* FLASHCARDS */}
@@ -504,8 +539,24 @@ return (
         </p>
       </div>
     )}
-    {activeView === "flashcards" && (
-      <>
+      {activeView === "flashcards" && (
+        <>
+        {selectedTopic && (
+        <div style={{
+          background: "rgba(34, 197, 94, 0.1)",
+          border: "1px solid #22c55e",
+          padding: "10px 15px",
+          borderRadius: "8px",
+          marginBottom: "20px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          color: "#22c55e",
+          fontWeight: "bold"
+        }}>
+          🎯 Focusing on: {typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}
+        </div>
+      )}
         {loadingFlashcards ? (
 
           // 🔥 SPINNER SOLO DURANTE GENERAZIONE
@@ -564,18 +615,16 @@ return (
       </>
     )}
 
+    {/* ========================= */}
     {/* STUDY SESSION */}
     {/* ========================= */}
-    
-    
     {activeView === "study_session" && (
-
       projectId ? (
-
-        <StudySessionView projectId={projectId} />
-
+        <StudySessionView 
+          projectId={projectId} 
+          selectedTopic={selectedTopic} // <--- Fondamentale per filtrare i materiali
+        />
       ) : (
-
         <div style={{
           display: "flex",
           flexDirection: "column",
@@ -585,7 +634,6 @@ return (
           color: "white",
           textAlign: "center"
         }}>
-
           <img
             src="/logo.png"
             alt="StudyForge logo"
@@ -595,63 +643,78 @@ return (
               opacity: 0.9
             }}
           />
-
           <h2 style={{ color: "#9ca3af", maxWidth: 400 }}>
             Welcome 👋  
             Create a new project or load an existing one to start studying.
           </h2>
-
         </div>
-
       )
-
     )}
+
+    {/* ========================= */}
+    {/* QUIZ VIEW */}
+    {/* ========================= */}
     {activeView === "quiz" && (
-  <div>
+      <div style={{ padding: 20 }}>
+        {generatingQuiz ? (
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            height: "60vh" 
+          }}>
+            {/* 1. DEFINIZIONE DELLO STILE (Lo spinner che mi hai inviato) */}
+            <div style={{
+              width: 40,
+              height: 40,
+              border: "4px solid #374151",
+              borderTop: "4px solid #22c55e",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+              marginBottom: 20
+            }}></div>
 
-    
-
-    {/* EMPTY STATE (quando non c'è quiz) */}
-    {quiz.length === 0 && !generatingQuiz && (
-      <div style={{
-    display:"flex",
-    flexDirection:"column",
-    alignItems:"center",
-    justifyContent:"center",
-    height:"60vh",
-    textAlign:"center"
-  }}>
-    <h3 style={{ color:"white", fontSize:22 }}>
-      Generate Quiz
-    </h3>
-
-    <p style={{ color:"#9ca3af", maxWidth:500 }}>
-      Configure your quiz in the left panel and press Generate.
-    </p>
-  </div>
+            {/* 2. DEFINIZIONE DELL'ANIMAZIONE (Necessaria per far girare lo stile sopra) */}
+            <style>{`
+              @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+            
+            <p style={{ 
+              color: "#9ca3af", 
+              fontWeight: 500,
+              fontSize: "14px" 
+            }}>
+              Generating your {selectedTopic ? `"${selectedTopic}"` : "general"} quiz...
+            </p>
+          </div>
+        ) : (
+          <QuizView
+            quiz={quiz}
+            answers={answers}
+            selectAnswer={selectAnswer}
+            finished={finished}
+            started={started}
+            submitQuiz={submitQuiz}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            formatTime={formatTime}
+            answeredCount={answeredCount}
+            calculateScore={calculateScore}
+            loadQuizStats={loadQuizStats}
+            projectId={projectId}
+            quizId={quizId}
+          />
+        )}
+      </div>
     )}
 
-    {/* QUIZ IN CORSO */}
-    {quiz.length > 0 && (
-      <QuizView
-        quiz={quiz}
-        answers={answers}
-        selectAnswer={selectAnswer}
-        finished={finished}
-        started={started}
-        submitQuiz={submitQuiz}
-        score={score}
-        generatingQuiz={generatingQuiz}
-        expanded={expanded}
-        setExpanded={setExpanded}
-        formatTime={formatTime}
-        answeredCount={answeredCount}
-        calculateScore={calculateScore}
-      />
-    )}
-
-  </div>
-)}
+    {/* ========================= */}
+    {/* PREVIOUS QUIZZES */}
+    {/* ========================= */}
     {activeView === "previous_quizzes" && (
       <div style={{ padding: 20 }}>
 

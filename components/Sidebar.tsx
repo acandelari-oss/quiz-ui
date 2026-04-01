@@ -58,6 +58,13 @@ export default function Sidebar({
         Manage projects
       </div>
 
+      <div 
+        style={{...menuItem, color: activeView === "topics" ? "#22c55e" : "#e5e7eb", fontWeight: activeView === "topics" ? "600" : "400"}} 
+        onClick={() => setActiveView("topics")}
+      >
+        <Layers size={16} style={{marginRight: 8}}/> Topics Dashboard
+      </div>
+
       <div style={divider} />
 
       {/* STUDY */}
