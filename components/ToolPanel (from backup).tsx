@@ -5,7 +5,6 @@ export default function ToolPanel({
 
 
 activeView,
-setActiveView,
 projectName,
 
 askQuestion,
@@ -53,8 +52,6 @@ availableFlashcards = 0,
 studyCount,
 setStudyCount,
 loadStudyFlashcards,
-flashcards,
-generatingFlashcards,
 
 previousFlashcards,
 studyMode,
@@ -374,74 +371,35 @@ uploadStatus
         </div>
       )}
 
-    
+      
+
       {/* ========================= */}
-      {/* GENERATE FLASHCARDS VIEW  */}
+      {/* GENERATE FLASHCARDS */}
       {/* ========================= */}
       {activeView === "generate_flashcards" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Generate Flashcards</h3>
+          
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 11, color: "#9ca3af", letterSpacing: 0.5, marginBottom: 8, display: "block" }}>
-              SELECT TOPICS TO COVER
-            </label>
-            
-            {/* LISTA COMPATTA (Checkbox + Nome) */}
-            <div style={{ 
-              maxHeight: "250px", 
-              overflowY: "auto", 
-               
-              padding: "10px", 
-              
-            }}>
-              {topics && topics.map((t: any) => (
-                <label key={t.id} style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "10px", 
-                  padding: "6px 0", 
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  color: selectedTopics.includes(t.topic) ? "#22c55e" : "#cbd5e1"
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedTopics.includes(t.topic)}
-                    onChange={() => {
-                      if (selectedTopics.includes(t.topic)) {
-                        setSelectedTopics(selectedTopics.filter((item: string) => item !== t.topic));
-                      } else {
-                        setSelectedTopics([...selectedTopics, t.topic]);
-                      }
-                    }}
-                    style={{ accentColor: "#22c55e" }}
-                  />
-                  {t.topic}
-                </label>
-              ))}
-            </div>
-          </div>
+          <h3>Generate Flashcards</h3>
+          
+          <label>Number of cards</label>
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Number of cards</div>
           <input
             type="number"
             value={numQuestions}
-            onChange={(e) => setNumQuestions(Number(e.target.value))}
+            onChange={(e)=>setNumQuestions(Number(e.target.value))}
             style={input}
           />
 
           <button
-            onClick={() => generateFlashcards()}
-            disabled={generatingFlashcards}
-            style={{
-              ...button,
-              marginTop: 15,
-              background: generatingFlashcards ? "#334155" : "#22c55e",
-              cursor: generatingFlashcards ? "not-allowed" : "pointer"
+            onClick={() => {
+              // Passiamo selectedTopic come argomento alla funzione
+              generateFlashcards(selectedTopic); 
             }}
-          >
-            {generatingFlashcards ? "Generating..." : "GENERATE FLASHCARDS"}
+            style={button}>
+            Generate {selectedTopic 
+              ? `"${typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}"` 
+              : "General"} Flashcards
           </button>
         </>
       )}
@@ -449,12 +407,24 @@ uploadStatus
       {/* ========================= */}
       {/* STUDY FLASHCARDS */}
       {/* ========================= */}
-      {activeView === "flashcards" && (
+      {activeView === "flashcards" && studyMode === "loaded" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Generate Flashcards</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Study Flashcards</h3>
 
-          {/* SELEZIONE TOPIC: Apparirà qui la lista con i checkbox */}
-          {selectedTopic && (
+          {!selectedTopic ? (
+            <TopicsView
+              topics={topics}
+              loadingTopics={loadingTopics}
+              topicsOpen={topicsOpen}
+              setTopicsOpen={setTopicsOpen}
+              selectedTopics={selectedTopics}
+              setSelectedTopics={setSelectedTopics}
+              previousFlashcards={previousFlashcards}
+              studyMode={studyMode}
+              setSelectedTopic={setSelectedTopic} // Deve puntare alla funzione dello stato globale
+              setActiveView={setActiveView}
+            />
+          ) : (
             <div style={{
               marginBottom: 16,
               padding: "12px",
@@ -462,7 +432,7 @@ uploadStatus
               border: "1px solid #22c55e",
               borderRadius: 8
             }}>
-              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>TARGET TOPIC</div>
+              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>FOCUS MODE ACTIVE</div>
               <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 {selectedTopic}
                 <button onClick={() => setSelectedTopic(null)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 16 }}>✕</button>
@@ -470,24 +440,27 @@ uploadStatus
             </div>
           )}
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Number of cards</div>
+          <p style={{color:"#9ca3af", marginTop: 12}}>
+            Available cards today: {availableFlashcards}
+          </p>
+
+          <label style={{ fontSize: 13 }}>How many cards do you want to study today?</label>
+
           <input
             type="number"
-            value={numQuestions}
-            onChange={(e) => setNumQuestions(Number(e.target.value))}
+            value={studyCount}
+            onChange={(e)=>setStudyCount(Number(e.target.value))}
             style={input}
           />
 
-          <button
-            onClick={() => generateFlashcards()}
-            disabled={generatingFlashcards}
-            style={{
-              ...button, // usa il tuo stile standard dei bottoni
-              marginTop: 15,
-              background: generatingFlashcards ? "#334155" : "#22c55e",
-            }}
+          <button 
+            onClick={() => {
+              console.log("CLICK LOAD FLASHCARDS")
+              loadStudyFlashcards()
+            }} 
+            style={button}
           >
-            {generatingFlashcards ? "Generating..." : `Generate ${selectedTopics?.length > 0 ? 'Selected' : 'General'} Flashcards`}
+            Start Study
           </button>
         </>
       )}

@@ -1,21 +1,15 @@
 export default function TopicsView({
-
-
-
-topics,
-loadingTopics,
-topicsOpen,
-setTopicsOpen,
-selectedTopics,
-setSelectedTopics,
-previousFlashcards,
-studyMode,
-setSelectedTopic,
-setActiveView
-
+  topics,
+  loadingTopics,
+  topicsOpen,
+  setTopicsOpen,
+  selectedTopics,
+  setSelectedTopics,
+  previousFlashcards,
+  setSelectedTopic,
+  setActiveView
 }: any) {
-
-const topicCounts: { [key: string]: number } = {};
+  const topicCounts: { [key: string]: number } = {};
   if (Array.isArray(previousFlashcards)) {
     previousFlashcards.forEach((f) => {
       const t = f.topic?.trim().toLowerCase();
@@ -25,193 +19,142 @@ const topicCounts: { [key: string]: number } = {};
     });
   }
 
-return (
-
-<div style={box}>
-
-
-<h3
-style={{
-cursor:"pointer",
-display:"flex",
-flexDirection:"column",
-alignItems:"flex-start",
-gap:4,
-color:"white",
-marginBottom:6
-}}
-onClick={()=>setTopicsOpen(!topicsOpen)}
->
-<div style={{display:"flex",alignItems:"center",gap:6}}>
-Topics
-<span style={{color:"#9ca3af",fontSize:12}}>
-{topicsOpen ? "▲" : "▼"}
-</span>
-</div>
-
-<span style={{
-fontSize:12,
-color:"#9ca3af",
-fontWeight:400,
-marginTop:4,
-lineHeight:1.3
-}}>
-Select one or more topics to focus your study.
-</span>
-
-</h3>
-
-
-{topicsOpen && (
-
-<>
-
-
-
-{loadingTopics ? (
-<p style={{color:"#9ca3af"}}>Loading topics...</p>
-) : topics.length === 0 ? (
-<p style={{color:"#9ca3af"}}>No topics detected yet</p>
-) : null}
-
-<div
-style={{
-marginTop:10,
-display:"flex",
-flexDirection:"column",
-gap:6,
-width:"100%"
-}}
->
-
-{topics.map((t, i) => {
-  const value = t.topic;
-  const checked = Array.isArray(selectedTopics) && selectedTopics.includes(value);
-  const count = topicCounts[value?.trim().toLowerCase()] || 0;
-
   return (
-    <div
-      key={i}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "12px 16px",
-        background: "rgba(255, 255, 255, 0.05)",
-        border: "1px solid rgba(255, 255, 255, 0.1)",
-        borderRadius: "12px",
-        marginBottom: "10px"
-      }}
-    >
-      {/* SINISTRA: Checkbox e Info */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => {
-            if (e.target.checked) {
-              setSelectedTopics((prev: string[]) => [...prev, value]);
-            } else {
-              setSelectedTopics((prev: string[]) => prev.filter((x) => x !== value));
-            }
-          }}
-          style={{ width: "18px", height: "18px", cursor: "pointer" }}
-        />
-        <div>
-          <p style={{ margin: 0, fontWeight: 500, color: "white" }}>{value}</p>
-          <div style={{ fontSize: "11px", color: "#9ca3af" }}>
-            Pagina: {t.suggested_page} 
-            {count > 0 && <span style={{ color: "#60a5fa", marginLeft: "8px" }}>• {count} Flashcards</span>}
-          </div>
+    <div style={box}>
+      <h3
+        style={{
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          gap: 4,
+          color: "white",
+          marginBottom: 6
+        }}
+        onClick={() => setTopicsOpen(!topicsOpen)}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          Topics
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>
+            {topicsOpen ? "▲" : "▼"}
+          </span>
         </div>
-      </div>
+        <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400, marginTop: 4 }}>
+          Select one or more topics to focus your study.
+        </span>
+      </h3>
 
-      {/* DESTRA: Bottoni Azione Rapida */}
-      <div style={{ display: "flex", gap: "8px" }}>
-        <button
-          onClick={() => {
-            setSelectedTopic(value);
-            setActiveView("quiz");
-          }}
-          style={{
-            padding: "6px 12px",
-            fontSize: "11px",
-            background: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer"
-          }}
-        >
-          Quiz
-        </button>
-        <button
-          onClick={() => {
-            setSelectedTopic(value);
-            setActiveView("ask");
-          }}
-          style={{
-            padding: "6px 12px",
-            fontSize: "11px",
-            background: "#059669",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: "pointer"
-          }}
-        >
-          Ask
-        </button>
+      {topicsOpen && (
+        <>
+          {loadingTopics ? (
+            <p style={{ color: "#9ca3af" }}>Loading topics...</p>
+          ) : topics.length === 0 ? (
+            <p style={{ color: "#9ca3af" }}>No topics detected yet</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+              {/* Categorization Logic */}
+              {Object.entries(
+                topics.reduce((acc: any, curr: any) => {
+                  const cat = curr.category || "General";
+                  if (!acc[cat]) acc[cat] = [];
+                  acc[cat].push(curr);
+                  return acc;
+                }, {})
+              ).map(([category, categoryTopics]: [string, any]) => (
+                <div key={category} style={{ marginBottom: "10px" }}>
+                  <h4 style={{ 
+                    color: "#60a5fa", 
+                    fontSize: "16px", 
+                    textTransform: "uppercase", 
+                    borderBottom: "1px solid #374151",
+                    paddingBottom: "4px",
+                    marginBottom: "10px"
+                  }}>
+                    {category}
+                  </h4>
 
-        {/* Bottone STUDY SESSION */}
-        <button
-          onClick={() => {
-            setSelectedTopic(value);
-            setActiveView("study_session");
-          }}
-          style={{
-            padding: "6px 12px",
-            backgroundColor: "#8b5cf6", // Viola
-            color: "white",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "12px",
-            fontWeight: "600"
-          }}
-        >
-          Study
-        </button>
+                  {categoryTopics.map((t: any) => {
+                    const value = t.topic;
+                    const isSelected = selectedTopics.includes(value);
+                    const count = topicCounts[value.toLowerCase()] || 0;
+
+                    return (
+                      <div key={value} style={{ marginBottom: "12px", paddingLeft: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              if (isSelected) {
+                                setSelectedTopics(selectedTopics.filter((x: string) => x !== value));
+                              } else {
+                                setSelectedTopics([...selectedTopics, value]);
+                              }
+                            }}
+                            style={{ marginTop: "4px", cursor: "pointer" }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: "white", fontSize: "14px", fontWeight: 500 }}>
+                                {value}
+                              </span>
+                              {count > 0 && (
+                                <span style={{ fontSize: 10, color: "#60a5fa", background: "#1e3a8a", padding: "1px 6px", borderRadius: 10 }}>
+                                  {count} cards
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Topic Description */}
+                            {t.description && (
+                              <p style={{ color: "#9ca3af", fontSize: "12px", margin: "4px 0", lineHeight: "1.4" }}>
+                                {t.description}
+                              </p>
+                            )}
+                            
+                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                              <button
+                                onClick={() => { setSelectedTopic(value); setActiveView("quiz"); }}
+                                style={{ padding: "4px 10px", fontSize: "11px", background: "#2563eb", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                              >
+                                Quiz
+                              </button>
+                              <button
+                                onClick={() => { setSelectedTopic(value); setActiveView("ask"); }}
+                                style={{ padding: "4px 10px", fontSize: "11px", background: "#059669", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                              >
+                                Ask
+                              </button>
+                              <button
+                                onClick={() => { setSelectedTopic(value); setActiveView("study_session"); }}
+                                style={{ padding: "4px 10px", fontSize: "11px", background: "#8b5cf6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+                              >
+                                Study
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Difficulty Footer */}
+      <div style={{ marginTop: 20, paddingTop: 12, borderTop: "1px solid #374151", fontSize: 12, color: "#9ca3af" }}>
+        Difficulty:
+        <span style={{ color: "#22c55e", marginLeft: 8 }}>Easy</span>
+        <span style={{ color: "#eab308", marginLeft: 8 }}>Medium</span>
+        <span style={{ color: "#ef4444", marginLeft: 8 }}>Hard</span>
       </div>
     </div>
   );
-})}
-
-</div>
-
-<div
-style={{
-marginTop:12,
-fontSize:12,
-color:"#9ca3af"
-}}
->
-Difficulty:
-<span style={{color:"#22c55e",marginLeft:8}}>Easy</span>
-<span style={{color:"#eab308",marginLeft:8}}>Medium</span>
-<span style={{color:"#ef4444",marginLeft:8}}>Hard</span>
-</div>
-
-</>
-
-)}
-
-</div>
-
-)
-
 }
 
 const box = {
-marginBottom:20
-}
+  marginBottom: 20
+};

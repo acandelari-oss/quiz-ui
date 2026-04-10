@@ -78,26 +78,7 @@ const [resultsData,setResultsData]=useState<any>(null)
 const [uploadLog, setUploadLog] = useState("")
 const [loadingFlashcards, setLoadingFlashcards] = useState(false)
 const [studyMode, setStudyMode] = useState<"generated" | "loaded" | null>(null)
-const [isGenerating, setIsGenerating] = useState(false);
-const [loaderStep, setLoaderStep] = useState(0);
-const [loaderType, setLoaderType] = useState<"quiz" | "flashcards">("quiz");
 
-const loaderMessages = {
-  quiz: [
-    "Analyzing study material...",
-    "Extracting key concepts...",
-    "Formulating questions...",
-    "Generating options and explanations...",
-    "Finalizing your quiz..."
-  ],
-  flashcards: [
-    "Scanning documents...",
-    "Identifying core definitions...",
-    "Creating flashcards...",
-    "Polishing content...",
-    "Almost ready..."
-  ]
-};
 
 
 useEffect(() => {
@@ -156,39 +137,28 @@ useEffect(() => {
   }
 }, [selectedTopics]);
 
-// Timer per il cambio messaggi del loader
-useEffect(() => {
-  let interval: NodeJS.Timeout;
-  if (isGenerating) {
-    setLoaderStep(0); 
-    interval = setInterval(() => {
-      setLoaderStep((prev) => (prev < 4 ? prev + 1 : prev));
-    }, 3500);
-  }
-  return () => { if (interval) clearInterval(interval); };
-}, [isGenerating]);
+useEffect(()=>{
+if(!started) return
+if(timerMinutes===0) return
 
-// Timer del Quiz (conto alla rovescia)
-useEffect(() => {
-  if (!started || timerMinutes === 0) return;
+if(timerMinutes > 0){
+setTimeLeft(timerMinutes * 60)
+}
 
-  if (timerMinutes > 0 && timeLeft === 0) {
-    setTimeLeft(timerMinutes * 60);
-  }
+const interval=setInterval(()=>{
+setTimeLeft(prev=>{
+if(prev<=1){
+clearInterval(interval)
+submitQuiz()
+return 0
+}
+return prev-1
+})
+},1000)
 
-  const interval = setInterval(() => {
-    setTimeLeft((prev) => {
-      if (prev <= 1) {
-        clearInterval(interval);
-        submitQuiz();
-        return 0;
-      }
-      return prev - 1;
-    });
-  }, 1000);
+return()=>clearInterval(interval)
 
-  return () => clearInterval(interval);
-}, [started, timerMinutes]);
+},[started])
 
 
 
@@ -761,365 +731,405 @@ async function selectProject(id: string) {
   }
 }
 
-async function generateQuiz() {
-    console.log("GENERATE QUIZ FUNCTION RUNNING")
-    if (!projectId) return
+async function generateQuiz(){
 
-    // Attiviamo i loader
-    setIsGenerating(true)
-    setLoaderType("quiz")
-    setGeneratingQuiz(true)
+console.log("GENERATE QUIZ FUNCTION RUNNING")
 
-    // Reset stati
-    setAnswers({})
-    setExpanded({})
-    setFinished(false)
-    setStarted(false)
-    setQuiz([])
+if(!projectId) return
 
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
+setGeneratingQuiz(true)
 
-    if (!token) {
-      setIsGenerating(false)
-      setGeneratingQuiz(false)
-      return
-    }
+// reset stato quiz precedente
+setAnswers({})
+setExpanded({})
+setFinished(false)
+setStarted(false)
+setScore(null)
 
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz_stream`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            num_questions: numQuestions,
-            difficulty: difficulty,
-            language: language,
-            topics: selectedTopics
-          })
-        }
-      )
+setQuiz([])
 
-      if (!res.ok) throw new Error("Fetch failed");
+const { data:sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
 
-      const reader = res.body?.getReader()
-      const decoder = new TextDecoder()
-
-      setActiveView("quiz")
-      setTimeLeft(timerMinutes * 60)
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split("\n")
-
-          for (const line of lines) {
-            const trimmedLine = line.trim()
-            if (!trimmedLine) continue
-
-            // 1. Gestione ID (salta il parsing JSON)
-            if (trimmedLine.startsWith("ID:")) {
-              const receivedId = trimmedLine.replace("ID:", "").trim()
-              setQuizId(receivedId)
-              setStarted(true)
-              continue 
-            }
-
-            // 2. Parsing della domanda
-            try {
-              const questionObj = JSON.parse(trimmedLine)
-              // Supporta sia singola domanda che array
-              if (Array.isArray(questionObj)) {
-                setQuiz((prev) => [...prev, ...questionObj])
-              } else {
-                setQuiz((prev) => [...prev, questionObj])
-              }
-            } catch (e) {
-              console.error("JSON Parsing error on line:", trimmedLine)
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("STREAM ERROR:", e)
-    } finally {
-      // Spegniamo tutto alla fine
-      setIsGenerating(false)
-      setGeneratingQuiz(false)
-      loadPreviousQuizzes(projectId)
-    }
-  }
-
-  // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
-  async function generateFlashcards() {
-    console.log("GENERATE FLASHCARDS FUNCTION RUNNING")
-    if (!projectId) return
-
-    setIsGenerating(true);       
-    setLoaderType("flashcards");
-
-    setGeneratingFlashcards(true)
-    setLoadingFlashcards(true)
-
-    setFlashcards([]) 
-    setOpenCard(null)
-
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-
-    if (!token) {
-      console.error("❌ TOKEN MISSING")
-      setGeneratingFlashcards(false)
-      setLoadingFlashcards(false)
-      return
-    }
-
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            topics: selectedTopics,
-            num_cards: numQuestions || 5
-          })
-        }
-      )
-
-      if (!res.ok) throw new Error("Flashcards generation failed")
-
-      const data = await res.json()
-      if (data.flashcards && data.flashcards.length > 0) {
-        setFlashcards(data.flashcards)
-        setStudyMode("generated")   // Diciamo al sistema: "Queste sono nuove!"
-        setOpenCard(0)              // <--- CAMBIATO DA null A 0: apre subito la prima carta
-        setActiveView("flashcards") // Sposta la vista sulle flashcards
-      } else {
-        alert("L'IA non ha generato flashcards. Prova a selezionare altri argomenti.")
-      }
-    } catch (e) {
-      console.error("FLASHCARDS ERROR:", e)
-    } finally {
-      setLoadingFlashcards(false)
-      setGeneratingFlashcards(false)
-    }
-  }
-
-  async function askDocuments() {
-    if (!projectId) return
-    if (!askQuestion.trim()) return
-    setAsking(true)
-
-    try {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const token = sessionData.session?.access_token
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          question: askQuestion,
-          topics: (selectedTopics || []).map((t) =>
-            typeof t === "string" ? t : t.topic
-          ),
-          history: chatMessages.slice(-6)
-        })
-      })
-
-      if (!res.ok) return
-      const data = await res.json()
-      setChatMessages([
-        ...chatMessages,
-        { role: "user", content: askQuestion },
-        { role: "assistant", content: data.answer }
-      ])
-      setAskQuestion("")
-    } catch (e) {
-      console.error("ASK ERROR:", e)
-    } finally {
-      setAsking(false)
-    }
-  }
-
-  function selectAnswer(i: number, opt: string) {
-    if (finished) return
-    setAnswers({ ...answers, [i]: opt })
-  }
-
-  function calculateScore() {
-    let s = 0
-    quiz.forEach((q, i) => {
-      const userAnswer = answers[i]
-      const correctRaw = (q.correct ?? "").toString().trim()
-      q.options.forEach((opt: string, j: number) => {
-        const optTextNorm = opt.toLowerCase()
-        const correctTextNorm = correctRaw.toLowerCase()
-        const optLetter = String.fromCharCode(65 + j)
-        const correct =
-          correctTextNorm === optTextNorm ||
-          correctRaw === optLetter ||
-          String(Number(correctRaw)) === String(j)
-        if (correct && userAnswer === opt) s++
-      })
-    })
-    return s
-  }
-
-  async function submitQuiz() {
-    setStarted(false)
-    setFinished(true)
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
-    if (!token) return
-
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        quiz_id: quizId,
-        score: calculateScore(),
-        total_questions: quiz.length
-      })
-    })
-    setStatus("Finished")
-  }
-
-  return (
-    <div style={{ display: "flex", height: "100vh", background: "#0f172a" }}>
-      <Sidebar
-        activeView={activeView}
-        setActiveView={setActiveView}
-        loadResults={loadResults}
-        loadSummary={loadSummary}
-        projectId={projectId}
-        loadFlashcards={loadFlashcards}
-        availableFlashcards={availableFlashcards}
-        previousQuizzes={previousQuizzes}
-        setStarted={setStarted}
-        setFinished={setFinished}
-        setAnswers={setAnswers}
-        loadPreviousQuizzes={loadPreviousQuizzes}
-        loadQuizStats={loadQuizStats}
-        selectedTopics={selectedTopics}
-        setSelectedTopics={setSelectedTopics}
-      />
-
-      <ToolPanel
-        activeView={activeView}
-        setActiveView={setActiveView}
-        projectName={projectName}
-        projects={projects}
-        createProject={createProject}
-        selectProject={selectProject}
-        deleteProject={deleteProject}
-        projectId={projectId}
-        numQuestions={numQuestions}
-        setNumQuestions={setNumQuestions}
-        difficulty={difficulty}
-        setDifficulty={setDifficulty}
-        language={language}
-        setLanguage={setLanguage}
-        timerMinutes={timerMinutes}
-        setTimerMinutes={setTimerMinutes}
-        generateQuiz={generateQuiz}
-        generateFlashcards={generateFlashcards}
-        generatingFlashcards={generatingFlashcards}
-        flashcards={flashcards}
-        openCard={openCard}
-        setOpenCard={setOpenCard}
-        files={files}
-        setFiles={setFiles}
-        documents={documents}
-        topics={topics}
-        loadingTopics={loadingTopics}
-        previousFlashcards={previousFlashcards}
-        topicsOpen={topicsOpen}
-        setTopicsOpen={setTopicsOpen}
-        selectedTopic={selectedTopic}
-        setSelectedTopic={setSelectedTopic}
-        selectedTopics={selectedTopics}
-        setSelectedTopics={setSelectedTopics}
-        availableFlashcards={availableFlashcards}
-        studyCount={studyCount}
-        setStudyCount={setStudyCount}
-        status={status}
-        uploadStatus={uploadStatus}
-        setProjectName={setProjectName}
-        uploadFiles={uploadFiles}
-        loadStudyFlashcards={loadStudyFlashcards}
-        studyMode={studyMode}
-      />
-
-      <Workspace
-        key={quizId}
-        activeView={activeView}
-        setActiveView={setActiveView}
-        quiz={quiz}
-        answers={answers}
-        askQuestion={askQuestion}
-        setAskQuestion={setAskQuestion}
-        askDocuments={askDocuments}
-        chatMessages={chatMessages}
-        asking={asking}
-        selectAnswer={selectAnswer}
-        finished={finished}
-        started={started}
-        submitQuiz={submitQuiz}
-        generatingQuiz={generatingQuiz}
-        expanded={expanded}
-        setExpanded={setExpanded}
-        formatTime={formatTime}
-        answeredCount={Object.keys(answers).length}
-        projectId={projectId}
-        projects={projects}
-        deleteProject={deleteProject}
-        quizId={quizId}
-        previousQuizzes={previousQuizzes}
-        loadQuiz={loadQuiz}
-        flashcards={flashcards}
-        openCard={openCard}
-        setOpenCard={setOpenCard}
-        summaryStats={summaryStats}
-        resultsData={resultsData}
-        calculateScore={calculateScore}
-        uploadLog={uploadLog}
-        uploading={uploading}
-        loadQuizStats={loadQuizStats}
-        loadPreviousQuizzes={loadPreviousQuizzes}
-        status={status}
-        loadingFlashcards={loadingFlashcards}
-        generatingFlashcards={generatingFlashcards}
-        selectedTopic={selectedTopic}
-        setSelectedTopic={setSelectedTopic}
-        documents={documents}
-        selectedTopics={selectedTopics}
-        setSelectedTopics={setSelectedTopics}
-        topics={topics}
-        loadingTopics={loadingTopics}
-        isGenerating={isGenerating}      // Aggiungi questa
-        loaderStep={loaderStep}          // Aggiungi questa
-        loaderType={loaderType}          // Aggiungi questa
-        loaderMessages={loaderMessages}  // Aggiungi questa
-        
-      />
-    </div>
-  )
+if(!token){
+console.error("Missing auth token")
+setGeneratingQuiz(false)
+return
 }
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz_stream`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body:JSON.stringify({
+num_questions:numQuestions,
+difficulty:difficulty,
+language:language,
+topics: selectedTopics
+})
+}
+)
+
+if(!res.ok){
+console.error("Quiz generation failed")
+setGeneratingQuiz(false)
+return
+}
+
+const data = await res.json()
+
+console.log("QUIZ API RESPONSE:", data)
+console.log("QUESTIONS LENGTH:", data.questions?.length)
+
+setQuizId(data.quiz_id)
+
+setQuiz(data.questions || [])
+
+setActiveView("quiz")
+
+setAnswers({})
+setExpanded({})
+setFinished(false)
+setStarted(true)
+setTimeLeft(timerMinutes * 60)
+
+loadPreviousQuizzes(projectId)
+
+setGeneratingQuiz(false)
+
+
+
+}
+
+async function generateFlashcards(){
+
+console.log("GENERATE FLASHCARDS FUNCTION RUNNING")
+
+if(!projectId) return
+
+setGeneratingFlashcards(true)
+
+const { data, error } = await supabase.auth.getSession()
+
+console.log("SESSION:", data)
+console.log("ERROR:", error)
+
+const token = data?.session?.access_token
+
+if(!token){
+  console.error("❌ TOKEN MISSING")
+  setGeneratingFlashcards(false)
+  return
+}
+
+try{
+
+console.log("API URL:", process.env.NEXT_PUBLIC_API_URL);    
+setLoadingFlashcards(true)
+console.log("LOADING FLASHCARDS → TRUE")
+
+const { data: sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+const res = await fetch(
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_flashcards`,
+  {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      topics: selectedTopics,
+      num_cards: 5
+    })
+  }
+)
+
+const data = await res.json()
+
+setLoadingFlashcards(false)
+console.log("LOADING FLASHCARDS → FALSE")
+
+setFlashcards(data.flashcards || [])
+setOpenCard(false)
+setStudyMode("generated")
+setActiveView("flashcards")
+
+}catch(e){
+
+console.error("FLASHCARDS ERROR:",e)
+
+}
+
+setGeneratingFlashcards(false)
+
+}
+
+async function askDocuments(){
+
+if(!projectId) return
+if(!askQuestion.trim()) return
+
+setAsking(true)
+
+try{
+console.log("ASK TOPICS SENT:", selectedTopics)
+const { data: sessionData } = await supabase.auth.getSession()
+const token = sessionData.session?.access_token
+
+const res = await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/ask`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization: `Bearer ${token}`
+},
+body: JSON.stringify({
+project_id: projectId,
+question: askQuestion,
+topics: (selectedTopics || []).map(t =>
+    typeof t === "string" ? t : t.topic
+  )
+})
+}
+)
+
+if(!res.ok){
+setAsking(false)
+return
+}
+
+const data = await res.json()
+
+setChatMessages([
+...chatMessages,
+{role:"user",content:askQuestion},
+{role:"assistant",content:data.answer}
+])
+
+setAskQuestion("")
+
+}catch(e){
+
+console.error("ASK ERROR:",e)
+
+}
+
+setAsking(false)
+
+}
+
+function selectAnswer(i:number,opt:string){
+
+if(finished) return
+
+setAnswers({...answers,[i]:opt})
+
+}
+
+function calculateScore(){
+
+let s=0
+
+quiz.forEach((q,i)=>{
+
+const userAnswer=answers[i]
+const correctRaw=(q.correct??"").toString().trim()
+
+q.options.forEach((opt:string,j:number)=>{
+
+const optTextNorm=opt.toLowerCase()
+const correctTextNorm=correctRaw.toLowerCase()
+const optLetter=String.fromCharCode(65+j)
+
+const correct=
+correctTextNorm===optTextNorm||
+correctRaw===optLetter||
+String(Number(correctRaw))===String(j)
+
+if(correct && userAnswer===opt) s++
+
+})
+
+})
+
+return s
+
+}
+
+async function submitQuiz(){
+
+setStarted(false)
+setFinished(true)
+
+const { data:sessionData }=await supabase.auth.getSession()
+const token=sessionData.session?.access_token
+
+if(!token) return
+
+await fetch(
+`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`,
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+Authorization:`Bearer ${token}`
+},
+body:JSON.stringify({
+quiz_id:quizId,
+score:calculateScore(),
+total_questions:quiz.length
+})
+}
+)
+
+setStatus("Finished")
+
+}
+
+return(
+
+
+
+<div style={{display:"flex",height:"100vh",background:"#0f172a"}}>
+
+
+
+<Sidebar
+activeView={activeView}
+setActiveView={setActiveView}
+loadResults={loadResults}
+loadSummary={loadSummary}
+projectId={projectId}
+loadFlashcards={loadFlashcards}
+availableFlashcards={availableFlashcards}
+previousQuizzes={previousQuizzes}
+setStarted={setStarted}
+setFinished={setFinished}
+setAnswers={setAnswers}
+loadPreviousQuizzes={loadPreviousQuizzes}
+loadQuizStats={loadQuizStats}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+/>
+
+<ToolPanel
+activeView={activeView}
+setActiveView={setActiveView}
+projectName={projectName}
+
+projects={projects}
+
+createProject={createProject}
+selectProject={selectProject}
+deleteProject={deleteProject}
+projectId={projectId}
+
+numQuestions={numQuestions}
+setNumQuestions={setNumQuestions}
+
+difficulty={difficulty}
+setDifficulty={setDifficulty}
+
+language={language}
+setLanguage={setLanguage}
+
+timerMinutes={timerMinutes}
+setTimerMinutes={setTimerMinutes}
+
+generateQuiz={generateQuiz}
+generateFlashcards={generateFlashcards}
+flashcards={flashcards}
+openCard={openCard}
+setOpenCard={setOpenCard}
+
+files={files}
+setFiles={setFiles}
+documents={documents}
+
+topics={topics}
+loadingTopics={loadingTopics}
+previousFlashcards={previousFlashcards}
+topicsOpen={topicsOpen}
+setTopicsOpen={setTopicsOpen}
+selectedTopic={selectedTopic}
+setSelectedTopic={setSelectedTopic}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+
+availableFlashcards={availableFlashcards}
+studyCount={studyCount}
+setStudyCount={setStudyCount}
+
+status={status}
+uploadStatus={uploadStatus}
+setProjectName={setProjectName}
+uploadFiles={uploadFiles}
+loadStudyFlashcards={loadStudyFlashcards}
+studyMode={studyMode}
+
+
+
+/>
+
+<Workspace
+key={quizId}
+activeView={activeView}
+setActiveView={setActiveView}
+quiz={quiz}
+answers={answers}
+askQuestion={askQuestion}
+setAskQuestion={setAskQuestion}
+askDocuments={askDocuments}
+chatMessages={chatMessages}
+asking={asking}
+selectAnswer={selectAnswer}
+finished={finished}
+started={started}
+submitQuiz={submitQuiz}
+generatingQuiz={generatingQuiz}
+expanded={expanded}
+setExpanded={setExpanded}
+formatTime={formatTime}
+answeredCount={Object.keys(answers).length}
+projectId={projectId}
+projects={projects}
+deleteProject={deleteProject}
+quizId={quizId}
+previousQuizzes={previousQuizzes}
+loadQuiz={loadQuiz}
+flashcards={flashcards}
+openCard={openCard}
+setOpenCard={setOpenCard}
+summaryStats={summaryStats}
+resultsData={resultsData}
+calculateScore={calculateScore}
+uploadLog={uploadLog}
+uploading={uploading}
+loadQuizStats={loadQuizStats}
+loadPreviousQuizzes={loadPreviousQuizzes}
+status={status}
+loadingFlashcards={loadingFlashcards}
+generatingFlashcards={generatingFlashcards}
+selectedTopic={selectedTopic}
+setSelectedTopic={setSelectedTopic}
+documents={documents}
+selectedTopics={selectedTopics}
+setSelectedTopics={setSelectedTopics}
+topics={topics}                // <--- AGGIUNGI
+loadingTopics={loadingTopics}
+
+/>
+
+</div>
+
+)
+
+}
+

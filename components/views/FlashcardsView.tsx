@@ -8,28 +8,41 @@ setOpenCard,
 onReview,
 onFlashcardsComplete,
 projectId,
-loadingFlashcards
+loadingFlashcards,
+loaderText
 }) {
 
-  if(openCard === null){
+if(openCard === null){
     return (
-      <div>
+      <div style={{ textAlign: "center", marginTop: 60 }}>
 
-        {loadingFlashcards && (
-          <p style={{ color: "#9ca3af", textAlign: "center" }}>
-            Generating flashcards...
-          </p>
+        {/* 1. MOSTRA IL LOADER SOLO SE STA CARICANDO */}
+        {loadingFlashcards ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 15,
+            padding: "20px"
+          }}>
+            <div style={{ 
+                width: 35, height: 35, 
+                border: "3px solid #374151", 
+                borderTop: "3px solid #22c55e", 
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite" 
+            }} />
+            <p style={{ color: "#22c55e", fontWeight: 600, fontSize: "18px" }}>
+              {loaderText || "Generating flashcards..."}
+            </p>
+          </div>
+        ) : (
+          /* 2. MOSTRA LE ISTRUZIONI SE NON STA CARICANDO */
+          <div style={{ color: "#9ca3af", fontSize: 18 }}>
+            Select how many flashcards you want to revise<br/>
+            and press <b>Start Study</b>
+          </div>
         )}
-
-        <div style={{
-          textAlign:"center",
-          color:"#9ca3af",
-          marginTop:60,
-          fontSize:18
-        }}>
-          Select how many flashcards you want to revise<br/>
-          and press <b>Start Study</b>
-        </div>
 
       </div>
     )

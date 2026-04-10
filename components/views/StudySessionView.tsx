@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
 import FlashcardsView from "./FlashcardsView"
 import ActiveRecallView from "./ActiveRecallView"
+import QuizView from "./QuizView"
 
 const description = {
   color: "#9ca3af",
@@ -75,6 +76,7 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
   const [wrongCount, setWrongCount] = useState<number>(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [recallTopics, setRecallTopics] = useState<string[]>([])
+  
 
   const accuracy = correctCount + wrongCount > 0 ? correctCount / (correctCount + wrongCount) : 0.5
   const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
@@ -124,6 +126,66 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
       }
     }
   }
+
+  useEffect(() => {
+    if (step === 2 && quizData.length === 0) {
+      generateQuiz();
+    }
+  }, [step]);
+
+  const [quizData, setQuizData] = useState<any[]>([])
+const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: string }>({})
+const [quizFinished, setQuizFinished] = useState(false)
+const [quizStarted, setQuizStarted] = useState(false)
+
+async function generateQuiz() {
+  setLoading(true);
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+
+    // 1. L'URL deve essere /generate_quiz (come nel backend) e non /quiz
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}` 
+      },
+      // 2. Il tuo backend aspetta un oggetto QuizRequest (num_questions, difficulty, language)
+      body: JSON.stringify({
+        num_questions: 15,
+        difficulty: "medium",
+        language: "english" // o "italian"
+      })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      console.error("Server Error:", errorData);
+      return;
+    }
+
+    const data = await res.json();
+    console.log("Quiz Data Received:", data);
+
+    // 3. Il tuo backend restituisce {"quiz": [...]}. Usiamo data.quiz
+    const questions = data.quiz || [];
+    
+    setQuizData(questions);
+    setQuizStarted(questions.length > 0);
+  } catch (e) {
+    console.error("Quiz Generation Error:", e);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Trigger per caricare il quiz allo step 2
+useEffect(() => {
+  if (step === 2 && quizData.length === 0) {
+    generateQuiz()
+  }
+}, [step])
 
   useEffect(() => {
     async function loadSession() {
@@ -179,18 +241,20 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
   }
 
   if (loading) {
-    return (
-      <div style={loaderContainer}>
-        <div style={spinner} />
-        <div style={loaderTitle}>
-            {selectedTopic ? `Generating study sesion based on the topic: ${selectedTopic}` : "Preparing your AI study session"}
-        </div>
-        <div style={loaderSubtitle}>
-            {selectedTopic ? "Filtering materials..." : "Generating flashcards..."}
-        </div>
+  return (
+    <div style={loaderContainer}>
+      <div style={spinner} />
+      <div style={loaderTitle}>
+        {step === 0 && (selectedTopic ? `Generating study session for: ${selectedTopic}` : "Preparing flashcards...")}
+        {step === 1 && "Analyzing your weak points..."}
+        {step === 2 && "Generating final Quiz..."}
       </div>
-    )
-  }
+      <div style={loaderSubtitle}>
+        {step === 2 ? "Creating custom questions based on your performance..." : "Please wait a moment."}
+      </div>
+    </div>
+  )
+}
 
   return (
     <div>
@@ -242,10 +306,28 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
         )}
 
         {step === 2 && (
-          <div style={{ color: "white" }}>
-            Quiz phase coming next
-            <div><button onClick={handleQuizComplete} style={button}>Complete Quiz Phase</button></div>
-          </div>
+          <QuizView 
+            quiz={quizData}
+            answers={quizAnswers}
+            started={quizStarted}
+            finished={quizFinished}
+            projectId={projectId}
+            selectAnswer={(idx: number, val: string) => setQuizAnswers(prev => ({ ...prev, [idx]: val }))}
+            submitQuiz={() => setQuizFinished(true)}
+            calculateScore={() => {
+                let score = 0;
+                quizData.forEach((q, i) => {
+                    if (quizAnswers[i] === q.answer) score++;
+                });
+                return score;
+            }}
+            // --- AGGIUNGI QUESTE RIGHE PER EVITARE L'ERRORE ---
+            formatTime={(s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`}
+            answeredCount={Object.keys(quizAnswers).length}
+            generatingQuiz={loading}
+            setExpanded={() => {}} // Se non lo usi, passa una funzione vuota
+            expanded={true}
+          />
         )}
 
         {step === 3 && (

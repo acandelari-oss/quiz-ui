@@ -63,6 +63,10 @@ generatingFlashcards,
 documents,
 topics,
 loadingTopics,
+isGenerating,
+loaderStep,
+loaderType,
+loaderMessages,
 
 
 
@@ -72,7 +76,7 @@ const quizList = Array.isArray(quiz) ? quiz : []
 
 
 
-const [loaderStep,setLoaderStep] = useState(0)
+
 const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
 const [openProjects, setOpenProjects] = useState<{[key:string]: boolean}>({})
 const [quizStats, setQuizStats] = useState<{[key:string]: any}>({})
@@ -88,37 +92,24 @@ const chartData = previous.map((q:any, index:number) => {
   }
 })
 
-const loaderMessages = [
-"Analyzing documents",
-"Creating questions",
-"Finalizing quiz"
-]
+const LOADER_TEXTS = {
+  quiz: [
+    "Analyzing documents...",
+    "Creating challenging questions...",
+    "Generating options...",
+    "Finalizing your quiz!"
+  ],
+  flashcards: [
+    "Extracting key concepts...",
+    "Summarizing definitions...",
+    "Creating front & back cards...",
+    "Organizing your deck!"
+  ]
+};
 
-useEffect(()=>{
 
-if(!generatingQuiz) return
 
-setLoaderStep(0)
 
-const steps = [1,2,3]
-let i = 0
-
-const interval = setInterval(()=>{
-
-i++
-
-if(i >= steps.length){
-clearInterval(interval)
-return
-}
-
-setLoaderStep(steps[i])
-
-},2000)
-
-return ()=>clearInterval(interval)
-
-},[generatingQuiz])
 
 useEffect(()=>{
 
@@ -222,61 +213,66 @@ return (
  generatingFlashcards ? (
 
   <div style={loaderContainer}>
-      {status === "Project loaded successfully" ? (
-        <div style={{
-          width:40,
-          height:40,
-          borderRadius:"50%",
-          background:"#22c55e",
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"center",
-          fontSize:20,
-          color:"white",
-          animation:"pop 0.3s ease"
-        }}>
-          ✔
-        </div>
-      ) : (
-        <div style={spinner}></div>
-      )}
+  {/* 1. SPINNER O CHECK DI SUCCESSO */}
+  {status === "Project loaded successfully" ? (
+    <div style={{
+      width: 40,
+      height: 40,
+      borderRadius: "50%",
+      background: "#22c55e",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 20,
+      color: "white",
+      animation: "pop 0.3s ease"
+    }}>
+      ✔
+    </div>
+  ) : (
+    <div style={spinner}></div>
+  )}
 
-      <div
-        style={{
-          ...loaderTitle,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          opacity: status === "Project loaded successfully" ? 1 : 0.9,
-          transform: status === "Project loaded successfully"
-            ? "scale(1)"
-            : "scale(0.98)",
-          transition: "all 0.3s ease"
-        }}
-      >
-        {!uploading && status === "Project loaded successfully" && (
-          <span style={{
-            color: "#22c55e",
-            fontSize: 22,
-            animation: "pop 0.3s ease"
-          }}>
-            ✔
-          </span>
-        )}
+  {/* 2. TITOLO DINAMICO (Il messaggio principale) */}
+  <div
+    style={{
+      ...loaderTitle,
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      opacity: status === "Project loaded successfully" ? 1 : 0.9,
+      transform: status === "Project loaded successfully"
+        ? "scale(1)"
+        : "scale(0.98)",
+      transition: "all 0.3s ease"
+    }}
+  >
+    {!uploading && status === "Project loaded successfully" && (
+      <span style={{
+        color: "#22c55e",
+        fontSize: 22,
+        animation: "pop 0.3s ease"
+      }}>
+        ✔
+      </span>
+    )}
 
-        {uploading
-          ? (uploadLog || "Uploading document...")
-          : generatingFlashcards
-            ? "Generating flashcards..."
-            : status}
-      </div>
+    {uploading
+      ? (uploadLog || "Uploading document...")
+      : generatingFlashcards || generatingQuiz // <-- Controllo se sta generando qualcosa
+        ? (loaderMessages ? loaderMessages[loaderType][loaderStep] : "Processing...") 
+        : status}
+  </div>
 
+  {/* 3. SOTTOTITOLO DINAMICO */}
   <div style={loaderSubtitle}>
     {uploading
       ? "OCR files may take longer to process"
-      : "Please wait while we prepare your project"}
+      : (generatingFlashcards || generatingQuiz)
+        ? "AI is analyzing your documents to create the best content" // Messaggio durante la generazione
+        : "Please wait while we prepare your project"}
   </div>
-  </div>
+</div>
 
 ) : !projectId ? (
 
@@ -675,7 +671,7 @@ return (
               marginBottom: 20
             }}></div>
 
-            {/* 2. DEFINIZIONE DELL'ANIMAZIONE (Necessaria per far girare lo stile sopra) */}
+            {/* FIX: Uso dei backtick per evitare l'errore di parsing */}
             <style>{`
               @keyframes spin {
                 from { transform: rotate(0deg); }
@@ -686,9 +682,12 @@ return (
             <p style={{ 
               color: "#9ca3af", 
               fontWeight: 500,
-              fontSize: "14px" 
+              fontSize: "14px",
+              textAlign: "center"
             }}>
-              Generating your {selectedTopic ? `"${selectedTopic}"` : "general"} quiz...
+              {loaderMessages 
+                ? loaderMessages[loaderType][loaderStep] 
+                : `Generating your ${selectedTopic ? `"${selectedTopic}"` : "general"} quiz...`}
             </p>
           </div>
         ) : (

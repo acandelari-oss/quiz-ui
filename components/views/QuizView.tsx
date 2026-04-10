@@ -14,45 +14,36 @@ export default function QuizView({
   answeredCount,
   projectId,
   quizId,
-  calculateScore
+  calculateScore,
+  loaderText
   
 }: any) {
 
   const [chatOpen, setChatOpen] = useState<{ [key: number]: boolean }>({})
   const [chatMessages, setChatMessages] = useState<{ [key: number]: any[] }>({})
   const [chatInput, setChatInput] = useState<{ [key: number]: string }>({})
+  const [isGlobal, setIsGlobal] = useState<{ [key: number]: boolean }>({})
 
-  async function askQuestionChat(i:number,q:any){
-  if(!projectId){
-  console.log("Missing projectId")
-  console.log("QUIZ VIEW STATE", {
-  started,
-  finished,
-  answers
-})
-  return
-  }
+  async function askQuestionChat(i: number, q: any) {
+  if (!projectId) return;
 
-  const input = chatInput[i] || ""
+  const input = chatInput[i] || "";
+  if (!input.trim()) return;
 
-  if(!input.trim()) return
+  // 1. Definiamo la domanda da inviare al server
+  // Se isGlobal[i] è attivo, non forziamo "ONLY study material" nel prompt
+  const basePrompt = isGlobal[i] 
+    ? `Explain this quiz question. Use the study material and your general knowledge.`
+    : `Explain this quiz question using ONLY the study material.`;
 
-  console.log("ASK PAYLOAD",{
-  project_id: projectId,
-  question: input
-  })
-
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/ask`,
-    {
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json"
-      },
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         project_id: projectId,
         question: `
-Explain this quiz question using ONLY the study material.
+${basePrompt}
 
 Question:
 ${q.question}
@@ -65,52 +56,61 @@ ${answers[i] || "No answer selected"}
 
 Student follow-up question:
 ${input}
-`
+`,
+        history: chatMessages[i] || [],
+        expand_search: isGlobal[i] || false // <--- Questo attiva la logica nel tuo main.py
       })
-    }
-  )
+    });
 
-  const data = await res.json()
+    const data = await res.json();
 
-  setChatMessages({
-    ...chatMessages,
-    [i]:[
-      ...(chatMessages[i] || []),
-      {role:"user",content:input},
-      {role:"assistant",content:data.answer}
-    ]
-  })
+    // 2. Aggiorniamo i messaggi della chat
+    setChatMessages({
+      ...chatMessages,
+      [i]: [
+        ...(chatMessages[i] || []),
+        { role: "user", content: input },
+        { role: "assistant", content: data.answer }
+      ]
+    });
 
-  setChatInput({
-    ...chatInput,
-    [i]:""
-  })
+    // 3. Puliamo l'input
+    setChatInput({
+      ...chatInput,
+      [i]: ""
+    });
 
+  } catch (error) {
+    console.error("Chat Error:", error);
+  }
 }
   return (
     <div style={quizBox}>
 
       {generatingQuiz && (
-        <div
-          style={{
+        <div style={{
             display: "flex",
+            flexDirection: "column", // Cambiato a column per ospitare meglio il testo
             alignItems: "center",
-            gap: 10,
-            marginBottom: 20,
-            fontWeight: 600
-          }}
-        >
-          <div
-            style={{
-              width: 18,
-              height: 18,
-              border: "3px solid #e5e7eb",
+            justifyContent: "center",
+            gap: 12,
+            marginBottom: 30,
+            padding: "20px",
+            background: "rgba(47, 164, 169, 0.05)",
+            borderRadius: "12px",
+            border: "1px dashed #2FA4A9"
+        }}>
+          <div style={{
+              width: 24,
+              height: 24,
+              border: "3px solid rgba(229, 231, 235, 0.2)",
               borderTop: "3px solid #2FA4A9",
               borderRadius: "50%",
               animation: "spin 1s linear infinite"
-            }}
-          />
-          Generating quiz...
+          }} />
+          <div style={{ color: "#2FA4A9", fontWeight: 600, fontSize: "16px" }}>
+            {loaderText || "Generating quiz..."} {/* <--- Messaggio dinamico */}
+          </div>
         </div>
       )}
 
@@ -285,18 +285,74 @@ ${input}
                       border: "1px solid #374151"
                     }}
                   >
+                    {/* Lista Messaggi */}
                     {(chatMessages[i] || []).map((m: any, k: number) => (
                       <div
                         key={k}
                         style={{
-                          marginBottom: 6,
+                          marginBottom: 10,
                           color: m.role === "user" ? "#93c5fd" : "#d1d5db",
-                          whiteSpace: "pre-wrap"
+                          whiteSpace: "pre-wrap",
+                          fontSize: "14px",
+                          borderLeft: m.role === "assistant" ? "2px solid #374151" : "none",
+                          paddingLeft: m.role === "assistant" ? 8 : 0
                         }}
                       >
+                        <strong>{m.role === "user" ? "You: " : "Tutor: "}</strong>
                         {m.content}
                       </div>
                     ))}
+
+                    {/* --- SEZIONE CONTROLLO MODALITÀ RICERCA --- */}
+                    <div style={{ 
+                      marginBottom: '15px', 
+                      marginTop: '10px', 
+                      padding: '10px', 
+                      background: 'rgba(255, 255, 255, 0.03)', 
+                      borderRadius: '8px',
+                      border: '1px solid #374151'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#22c55e' }}>
+                            Search Mode: {isGlobal[i] ? "Global AI Knowledge" : "Strict Document Search"}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                            {isGlobal[i] 
+                              ? "The AI uses its own knowledge to expand on the topics." 
+                              : "The AI answers using ONLY your uploaded PDF files."}
+                          </span>
+                        </div>
+
+                        {/* Toggle Switch */}
+                        <div 
+                          onClick={() => setIsGlobal({ ...isGlobal, [i]: !isGlobal[i] })}
+                          style={{
+                            width: '44px',
+                            height: '22px',
+                            backgroundColor: isGlobal[i] ? '#10b981' : '#4b5563',
+                            borderRadius: '20px',
+                            position: 'relative',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.3s',
+                            flexShrink: 0
+                          }}
+                        >
+                          <div style={{
+                            width: '18px',
+                            height: '18px',
+                            backgroundColor: 'white',
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            top: '2px',
+                            left: isGlobal[i] ? '24px' : '2px',
+                            transition: 'left 0.3s',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }} />
+                        </div>
+                      </div>
+                    </div>
+                    {/* --- FINE SEZIONE --- */}
 
                     <input
                       value={chatInput[i] || ""}
@@ -306,26 +362,26 @@ ${input}
                           [i]: e.target.value
                         })
                       }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") askQuestionChat(i, q);
+                      }}
                       placeholder="Ask about this question..."
                       style={chatInputStyle}
                     />
 
                     <button
-                    onClick={()=>askQuestionChat(i,q)}
-                    style={chatAskButton}
+                      onClick={() => askQuestionChat(i, q)}
+                      style={chatAskButton}
                     >
-                    Ask
+                      Ask
                     </button>
-                    
                   </div>
                 )}
               </>
             )}
-
           </div>
-        )
+        ) // <--- MANCAVA QUESTO (chiude il return del map)
       })}
-
       {started && !finished && (
         <button
           onClick={submitQuiz}
@@ -340,9 +396,10 @@ ${input}
           <h2>Score: {calculateScore()} / {quiz.length}</h2>
         </div>
       )}
-    </div>
-  )
-}
+      
+    </div> // Chiude il contenitore principale
+  );
+} // Chiude la funzione QuizView
 
 const quizBox = {
   background: "#111827",

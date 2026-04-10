@@ -9,6 +9,8 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
   const [showAnswer, setShowAnswer] = useState(false)
   const [aiAnswer, setAiAnswer] = useState("")
   const [input, setInput] = useState("")
+  const [currentQuestion, setCurrentQuestion] = useState("")
+  const [answerHistory, setAnswerHistory] = useState<string[]>([])
   const maxQuestions = 5
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
@@ -19,11 +21,23 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
     ? selectedTopic.topic 
     : (typeof selectedTopic === 'string' ? selectedTopic : null);
 
+  
+
+  function ensureString(value: any) {
+    if (typeof value === "string") return value
+    if (value == null) return ""
+    return String(value)
+  }
+
   // UNICO EFFECT PER GESTIRE IL CARICAMENTO
   useEffect(() => {
     // Quando entriamo o cambiamo topic, puliamo tutto
     setMessages([]);
     setQuestionCount(0);
+    setAnswerHistory([]);
+    setInput("");
+    setAiAnswer("");
+    setShowAnswer(false);
     
     // Partiamo solo se abbiamo un progetto
     if (projectId) {
@@ -55,8 +69,11 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
 
       const data = await res.json();
       if (data.question) {
-        setMessages(prev => [...prev, { role: "assistant", content: String(data.question) }]);
+        const questionText = String(data.question)
+
+        setMessages(prev => [...prev, { role: "assistant", content: questionText }]);
         setQuestionCount(prev => prev + 1);
+        setCurrentQuestion(questionText)
       }
     } catch (e) {
       console.error(e);
@@ -69,8 +86,7 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
   async function submitAnswer() {
     if (!input.trim() || loading) return
     const studentAnswer = input
-    const lastMsg = messages[messages.length - 1]
-    const currentQ = lastMsg?.role === "assistant" ? lastMsg.content : ""
+    const currentQ = currentQuestion
 
     setMessages(prev => [...prev, { role: "user", content: studentAnswer }])
     setInput("")
@@ -97,22 +113,61 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
   }
 
   async function fetchAnswer() {
-    const lastQ = [...messages].reverse().find(m => m.role === "assistant")?.content
-    if (!lastQ) return
-    setLoading(true)
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: projectId, question: lastQ })
-      })
-      const data = await res.json()
-      setAiAnswer(ensureString(data.answer))
-      setShowAnswer(true)
-    } finally {
-      setLoading(false)
-    }
+  const lastQ = currentQuestion
+
+  if (!lastQ) {
+    setAiAnswer("No question found.")
+    setShowAnswer(true)
+    return
   }
+
+  setLoading(true)
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession()
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionData.session?.access_token}`
+      },
+      body: JSON.stringify({
+        project_id: projectId,
+        question: lastQ,
+        topics: topicName ? [topicName] : [],
+        history: messages.slice(-6)
+      })
+    })
+
+    if (!res.ok) {
+      console.error("SHOW ANSWER ERROR:", res.status)
+      setAiAnswer("Could not load the correct answer.")
+      setShowAnswer(true)
+      return
+    }
+
+    const data = await res.json()
+
+    const answerText = ensureString(data.answer)
+
+    setAiAnswer(answerText)
+    setShowAnswer(true)
+
+    // 👇 AGGIUNGI QUESTO BLOCCO
+    setMessages(prev => [
+      ...prev,
+      { role: "assistant", content: `Correct answer:\n${answerText}` }
+    ])
+
+  } catch (e) {
+    console.error("SHOW ANSWER ERROR:", e)
+    setAiAnswer("Could not load the correct answer.")
+    setShowAnswer(true)
+  } finally {
+    setLoading(false)
+  }
+}
 
   function startRecording() {
     const SpeechRecognition =
@@ -179,15 +234,10 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
             <strong>{m.role === "assistant" ? "AI:" : m.role === "user" ? "Tu:" : "Feedback:"}</strong>
             <p>{m.content}</p>
             
-            {m.role === "assistant" && i === messages.length - 1 && showAnswer && (
-              <div style={{ marginTop: 10, padding: 10, background: "#000", borderRadius: 5, border: "1px solid #2FA4A9" }}>
-                <strong>Risposta Corretta:</strong>
-                <p>{aiAnswer}</p>
-              </div>
-            )}
+            
           </div>
         ))}
-        {loading && <p>Caricamento...</p>}
+        {loading && <p>Thinking...</p>}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -195,7 +245,7 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
           value={input} 
           onChange={(e) => setInput(e.target.value)}
           style={{ background: "#111827", color: "white", padding: 10, borderRadius: 8, border: "1px solid #374151" }}
-          placeholder="Scrivi la tua risposta..."
+          placeholder="Write your answer..."
         />
         <div style={{ display: "flex", gap: 10 }}>
 
@@ -225,10 +275,10 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
             flex: 1 
           }}
         >
-          Invia Risposta
+          Submit Answer
         </button>
 
-        {/* VEDI RISPOSTA */}
+        {/* SHOW ANSWER */}
         <button 
           onClick={fetchAnswer} 
           style={{ 
@@ -238,10 +288,10 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
             borderRadius: 5 
           }}
         >
-          Vedi Risposta
+          Show correct answer
         </button>
 
-        {/* PROSSIMA */}
+        {/* NEXT */}
         {questionCount < maxQuestions && (
           <button 
             onClick={generateQuestion} 
@@ -252,7 +302,7 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
               borderRadius: 5 
             }}
           >
-            Prossima
+            Next question
           </button>
         )}
 
