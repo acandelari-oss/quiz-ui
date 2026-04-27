@@ -508,7 +508,6 @@ return (
         askDocuments={askDocuments}
         asking={asking}
         chatMessages={chatMessages}
-        selectedTopic={selectedTopic}
         selectedTopics={selectedTopics} 
       />
     )}
@@ -517,7 +516,6 @@ return (
     {activeView === "active_recall" && (
       <ActiveRecallView 
         projectId={projectId} 
-        selectedTopic={selectedTopic} 
         selectedTopics={selectedTopics}
       />
     )}
