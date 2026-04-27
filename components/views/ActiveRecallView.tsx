@@ -104,7 +104,7 @@ export default function ActiveRecallView({
   
 
     // Definiamo l'URL qui internamente per sicurezza
-    const apiUrl = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
     // RECUPERO TOPIC: Usiamo la prop topicList
     // Se non vedi i 3 topic nel log, scrivi qui: const rawTopics = topicList;
