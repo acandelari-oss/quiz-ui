@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react"
 import { supabase } from "../../lib/supabase"
+import { useRef } from "react"
 
-export default function ActiveRecallView({ projectId, selectedTopic }: { projectId: string, selectedTopic?: any }) {
+export default function ActiveRecallView({ 
+  projectId, 
+  selectedTopics 
+}: { 
+  projectId: string, 
+  selectedTopics: any[] 
+}) {
   const [messages, setMessages] = useState<any[]>([])
   const [sessionStarted, setSessionStarted] = useState(false)
   const [questionCount, setQuestionCount] = useState(0)
@@ -14,13 +21,29 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
   const maxQuestions = 5
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+  const [topicIndex, setTopicIndex] = useState(0)
+  
+  const [questionLoaded, setQuestionLoaded] = useState(false)
 
-  // DEFINIZIONE UNICA DI topicName (Riga 25)
-  // Questo risolve l'errore ReferenceError a riga 115
-  const topicName = (selectedTopic && typeof selectedTopic === 'object') 
-    ? selectedTopic.topic 
-    : (typeof selectedTopic === 'string' ? selectedTopic : null);
+  const topicsToUse =
+  selectedTopics && selectedTopics.length > 0
+    ? selectedTopics
+    : selectedTopic
+    ? [selectedTopic]
+    : []
 
+  const topicList = topicsToUse;
+
+  const normalizedTopics = topicList.map(t => {
+    const value = typeof t === 'object' ? t.topic : t;
+    return String(value).replace(/\s+/g, " ").trim();
+  });
+
+  // Prendiamo il topic corrente (solo per debug)
+  const currentTopicRaw = normalizedTopics[questionCount % (normalizedTopics.length || 1)];
+  const currentTopic = currentTopicRaw;
+
+  console.log("🚀 CURRENT TOPIC:", currentTopic);
   
 
   function ensureString(value: any) {
@@ -30,59 +53,103 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
   }
 
   // UNICO EFFECT PER GESTIRE IL CARICAMENTO
-  useEffect(() => {
-    // Quando entriamo o cambiamo topic, puliamo tutto
-    setMessages([]);
-    setQuestionCount(0);
-    setAnswerHistory([]);
-    setInput("");
-    setAiAnswer("");
-    setShowAnswer(false);
-    
-    // Partiamo solo se abbiamo un progetto
-    if (projectId) {
-      const timer = setTimeout(() => {
-        generateQuestion();
-      }, 300);
-      return () => clearTimeout(timer);
+  const hasFetchedRef = useRef(false);
+
+    const handleNext = () => {
+    if (loading) return;
+
+    if (questionCount >= maxQuestions) {
+      console.log("🛑 MAX QUESTIONS REACHED");
+      return;
     }
-  }, [selectedTopic, projectId]); // Ascolta il cambio topic
+
+    generateQuestion();
+  };
+
+  useEffect(() => {
+      hasFetchedRef.current = false;
+    }, [currentTopic])
+
+    useEffect(() => {
+    if (!projectId || !currentTopic) return;
+
+    console.log("🚀 FIRST QUESTION");
+
+    generateQuestion();
+
+    // SOLO UNA VOLTA
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+    // ActiveRecallView.tsx
+
+  
 
   async function generateQuestion() {
-    if (loading || questionCount >= maxQuestions) return;
+    if (loading) return;
+
+    if (questionCount >= maxQuestions) {
+      console.log("🛑 STOP");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      // LOG DI VERIFICA: Aprilo con F12 nel browser
-      console.log("STO INVIANDO QUESTO TOPIC:", topicName);
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/active_recall_question`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionData.session?.access_token}`
-        },
-        body: JSON.stringify({ topic: topicName || null }) 
-      });
-
-      const data = await res.json();
-      if (data.question) {
-        const questionText = String(data.question)
-
-        setMessages(prev => [...prev, { role: "assistant", content: questionText }]);
-        setQuestionCount(prev => prev + 1);
-        setCurrentQuestion(questionText)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error("No session found");
+        return;
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-      setShowAnswer(false);
-    }
-  }
+  
 
+    // Definiamo l'URL qui internamente per sicurezza
+    const apiUrl = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+
+    // RECUPERO TOPIC: Usiamo la prop topicList
+    // Se non vedi i 3 topic nel log, scrivi qui: const rawTopics = topicList;
+    const rawTopics = normalizedTopics;  // usa quello già definito sopra
+
+    // NON ridefinire normalizedTopics
+    const cleanTopics = rawTopics.filter(t => t && String(t).trim() !== "");
+
+    // LOG FONDAMENTALE: Se qui vedi solo un elemento, la rotazione fallirà sempre
+    console.log("DEBUG TOPICS:", cleanTopics);
+
+    console.log("📤 INVIO REALE AL BACKEND:", cleanTopics, "Indice:", questionCount);
+
+    const res = await fetch(`${apiUrl}/projects/${projectId}/active_recall_question`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ 
+        topics: rawTopics,
+        index: questionCount 
+      })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Server error: ${res.status} - ${errorText}`);
+    }
+
+    const data = await res.json();
+    if (data && data.question) {
+      setMessages(prev => [...prev, { role: "assistant", content: String(data.question),  topic: currentTopic }]);
+      setCurrentQuestion(String(data.question));
+      setQuestionCount(prev => prev + 1);
+    }
+  } catch (e) {
+    console.error("❌ Errore Fetch:", e);
+    // Opzionale: mostra un messaggio all'utente nella chat
+  } finally {
+    setLoading(false);
+    setShowAnswer(false);
+    setInput("");
+  }
+}
   async function submitAnswer() {
     if (!input.trim() || loading) return
     const studentAnswer = input
@@ -216,10 +283,40 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", color: "white", padding: 20 }}>
-      <h3>Memory Check Trainer</h3>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 10
+      }}>
+        <h3 style={{ margin: 0 }}>Memory Check Trainer</h3>
+
+        {(selectedTopics && selectedTopics.length > 0) && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            background: "#f59e0b",
+            color: "white",
+            padding: "6px 14px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: "bold",
+            boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)"
+          }}>
+            <span style={{ fontSize: "16px" }}>🧠</span>
+
+            {selectedTopics.length > 1
+              ? `MACRO TOPIC: ${selectedTopics[0].split(" ")[0].toUpperCase()} (${selectedTopics.length})`
+              : `SELECTED TOPIC: ${selectedTopics[0].toUpperCase()}`
+            }
+
+          </div>
+        )}
+      </div>
       
       {/* CORREZIONE QUI: Usiamo topicName invece di selectedTopic */}
-      {topicName && <p style={{ color: "#2FA4A9" }}>Focus: {topicName}</p>}
+      
       
       <div style={{ flex: 1, overflowY: "auto", marginBottom: 20 }}>
         {messages.map((m, i) => (
@@ -231,10 +328,27 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
             maxWidth: "85%",
             marginLeft: m.role === "user" ? "auto" : "0"
           }}>
-            <strong>{m.role === "assistant" ? "AI:" : m.role === "user" ? "Tu:" : "Feedback:"}</strong>
+            <strong>
+              {m.role === "assistant"
+                ? "AI:"
+                : m.role === "user"
+                ? "Tu:"
+                : "Feedback:"}
+            </strong>
+
+            {/* 🔥 NUOVO: focus per ogni domanda */}
+            {m.role === "assistant" && m.topic && (
+              <div style={{
+                fontSize: "12px",
+                color: "#2FA4A9",
+                marginTop: 5,
+                marginBottom: 5
+              }}>
+                🧠 Focus: {m.topic}
+              </div>
+            )}
+
             <p>{m.content}</p>
-            
-            
           </div>
         ))}
         {loading && <p>Thinking...</p>}
@@ -294,7 +408,7 @@ export default function ActiveRecallView({ projectId, selectedTopic }: { project
         {/* NEXT */}
         {questionCount < maxQuestions && (
           <button 
-            onClick={generateQuestion} 
+            onClick={handleNext}
             style={{ 
               background: "#374151", 
               color: "white", 

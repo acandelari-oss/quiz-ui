@@ -7,9 +7,17 @@ export default function TopicsView({
   setSelectedTopics,
   previousFlashcards,
   setSelectedTopic,
-  setActiveView
+  setActiveView,
+  summaryStats,
+  resultsData
 }: any) {
   const topicCounts: { [key: string]: number } = {};
+  function normalizeTopic(t?: string) {
+  return (t || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  }
   if (Array.isArray(previousFlashcards)) {
     previousFlashcards.forEach((f) => {
       const t = f.topic?.trim().toLowerCase();
@@ -62,16 +70,78 @@ export default function TopicsView({
                 }, {})
               ).map(([category, categoryTopics]: [string, any]) => (
                 <div key={category} style={{ marginBottom: "10px" }}>
-                  <h4 style={{ 
-                    color: "#60a5fa", 
-                    fontSize: "16px", 
-                    textTransform: "uppercase", 
+                  <div style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center",
                     borderBottom: "1px solid #374151",
                     paddingBottom: "4px",
                     marginBottom: "10px"
                   }}>
-                    {category}
-                  </h4>
+
+                    <h4 style={{ 
+                      color: "#60a5fa", 
+                      fontSize: "16px", 
+                      textTransform: "uppercase"
+                    }}>
+                      {category}
+                    </h4>
+
+                    {/* 🔥 BOTTONI MACRO */}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      
+                      <button
+                        onClick={() => {
+                          setSelectedTopics(categoryTopics)
+                          setSelectedTopic(null)
+                          setActiveView("quiz")
+                        }}
+                        style={macroBtn("#2563eb")}
+                      >
+                        Quiz
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const topics = categoryTopics.map((t: any) => t.topic)
+
+                          console.log("🧠 MEMORY TOPICS:", topics)   // 👈 AGGIUNGI QUESTO
+
+                          setSelectedTopics(topics)
+                          setSelectedTopic(null)
+                          setActiveView("active_recall")
+                        }}
+                        style={macroBtn("#f4970c")}
+                      >
+                        Memory
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const topics = categoryTopics.map((t: any) => t.topic)
+                          setSelectedTopics(topics)
+                          setSelectedTopic(null)
+                          setActiveView("ask")
+                        }}
+                        style={macroBtn("#059669")}
+                      >
+                        Ask
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const topics = categoryTopics.map((t: any) => t.topic)
+                          setSelectedTopics(topics)
+                          setActiveView("study_session")
+                        }}
+                        style={macroBtn("#8b5cf6")}
+                      >
+                        Study
+                      </button>
+
+                    </div>
+
+                  </div>
 
                   {categoryTopics.map((t: any) => {
                     const value = t.topic;
@@ -94,10 +164,42 @@ export default function TopicsView({
                             style={{ marginTop: "4px", cursor: "pointer" }}
                           />
                           <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ color: "white", fontSize: "14px", fontWeight: 500 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+                              {/* --- QUESTO È LO SPAN MODIFICATO PER I COLORI --- */}
+                              <span style={{ 
+                                
+                                fontSize: "14px", 
+                                fontWeight: 500,
+                                color: (() => {
+
+                                  console.log("🔥 resultsData RAW:", resultsData)
+                                  
+                                  const stats = Object.entries(resultsData || {}).find(
+                                    ([key]) => {
+                                      const cleanKey = normalizeTopic(key)
+                                      const cleanValue = normalizeTopic(value)
+
+                                      return cleanKey === cleanValue
+                                    }
+                                  )?.[1];
+                                  console.log("TOPIC:", value, "→ stats:", stats);
+
+                                  if (!stats || stats.total === 0) return "white";
+
+                                  const percentage = (stats.correct / stats.total) * 100;
+
+                                  if (percentage >= 80) return "#22c55e";
+                                  if (percentage >= 50) return "#eab308";
+                                  return "#ef4444";
+                                  console.log("TOPIC:", value)
+                                  console.log("RESULTS DATA:", resultsData)
+                                })()
+                              }}>
                                 {value}
                               </span>
+                              
+                              {/* --- FINE MODIFICA --- */}
+
                               {count > 0 && (
                                 <span style={{ fontSize: 10, color: "#60a5fa", background: "#1e3a8a", padding: "1px 6px", borderRadius: 10 }}>
                                   {count} cards
@@ -112,26 +214,7 @@ export default function TopicsView({
                               </p>
                             )}
                             
-                            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                              <button
-                                onClick={() => { setSelectedTopic(value); setActiveView("quiz"); }}
-                                style={{ padding: "4px 10px", fontSize: "11px", background: "#2563eb", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                              >
-                                Quiz
-                              </button>
-                              <button
-                                onClick={() => { setSelectedTopic(value); setActiveView("ask"); }}
-                                style={{ padding: "4px 10px", fontSize: "11px", background: "#059669", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                              >
-                                Ask
-                              </button>
-                              <button
-                                onClick={() => { setSelectedTopic(value); setActiveView("study_session"); }}
-                                style={{ padding: "4px 10px", fontSize: "11px", background: "#8b5cf6", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
-                              >
-                                Study
-                              </button>
-                            </div>
+                            
                           </div>
                         </div>
                       </div>
@@ -158,3 +241,13 @@ export default function TopicsView({
 const box = {
   marginBottom: 20
 };
+
+const macroBtn = (color: string) => ({
+  padding: "4px 10px",
+  fontSize: "11px",
+  background: color,
+  color: "white",
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer"
+})

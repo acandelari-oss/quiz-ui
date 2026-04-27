@@ -336,14 +336,15 @@ uploadStatus
 
               <div style={{ maxHeight: 200, overflowY: "auto" }}>
                 {topics.map((t: any, i: number) => {
-                  const isSelected = selectedTopics?.some((st: any) => st.id === t.id)
+                  const value = t.topic
+                  const isSelected = selectedTopics?.includes(value)
 
                   return (
                     <div
                       key={i}
                       onClick={() => {
-                        setSelectedTopics([t])
-                        setSelectedTopic(t.topic || t)
+                          setSelectedTopics([value])
+                          setSelectedTopic(value)
                       }}
                       style={{
                         display: "flex",
@@ -464,7 +465,9 @@ uploadStatus
             }}>
               <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>TARGET TOPIC</div>
               <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                {selectedTopic}
+                {typeof selectedTopic === "object"
+                ? selectedTopic.topic
+                : selectedTopic}
                 <button onClick={() => setSelectedTopic(null)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 16 }}>✕</button>
               </div>
             </div>
@@ -506,7 +509,7 @@ uploadStatus
               color: "#e5e7eb"
             }}>
               <b>Selected topic:</b>
-              <div style={{ color: "#22c55e", marginTop: 4 }}>• {selectedTopic}</div>
+              <div style={{ color: "#22c55e", marginTop: 4 }}>• {topicLabel}</div>
             </div>
           )}
         </>
@@ -530,8 +533,27 @@ uploadStatus
             }}>
               <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>TARGET TOPIC</div>
               <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                {selectedTopic}
-                <button onClick={() => setSelectedTopic(null)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 16 }}>✕</button>
+                {selectedTopics && selectedTopics.length > 1
+                  ? `${selectedTopics[0]?.topic?.split(" ")[0]} (${selectedTopics.length} topics)`
+                  : (selectedTopics?.[0]?.topic ||
+                    (typeof selectedTopic === "object"
+                        ? selectedTopic?.topic
+                        : selectedTopic))}
+                <button
+                  onClick={() => {
+                    setSelectedTopic(null)
+                    setSelectedTopics([])
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#9ca3af",
+                    cursor: "pointer",
+                    fontSize: 16
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             </div>
           )}

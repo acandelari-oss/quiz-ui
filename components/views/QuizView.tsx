@@ -244,12 +244,22 @@ ${input}
                     style={{
                       marginTop: 8,
                       fontSize: 12,
-                      color: "#6b7280"
+                      color: "#6b7280",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "4px"
                     }}
                   >
-                    Source: {q.source_document} – page {q.source_page}
+                    <div>
+                      Source: {q.source_document} – page {q.source_page}
+                    </div>
+                    {/* AGGIUNGI QUESTO: */}
+                    <div style={{ color: "#3b82f6", fontWeight: "bold" }}>
+                      Tag Topic: <span style={{ textTransform: "uppercase" }}>{q.topic}</span>
+                    </div>
                   </div>
                 )}
+                
               </div>
             )}
 

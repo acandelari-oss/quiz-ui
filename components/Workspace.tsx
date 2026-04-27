@@ -85,6 +85,9 @@ const [statsLoaded, setStatsLoaded] = useState(false)
 const previous = Array.isArray(previousQuizzes) ? previousQuizzes : []
 const chartData = previous.map((q:any, index:number) => {
   const stats = quizStats?.[q.id]
+  console.log("QUIZ ID:", q.id)
+  console.log("QUIZ STATS:", quizStats)
+  console.log("STATS FOR THIS QUIZ:", quizStats[q.id])
 
   return {
     name: `Q${index + 1}`, 
@@ -172,11 +175,11 @@ useEffect(() => {
     if(activeView !== "previous_quizzes") return
     if(!projectId) return
     if(!loadQuizStats) return
-    if(statsLoaded) return   // 🔥 BLOCCO CORRETTO
+    if(statsLoaded) return
 
     const data = await loadQuizStats(projectId)
 
-    console.log("STATS RESPONSE:", data)
+    console.log("RAW STATS DATA:", data) 
 
     const map = {}
 
@@ -200,6 +203,7 @@ useEffect(() => {
 
 
 console.log("WORKSPACE LOG:", uploadLog)
+console.log("WORKSPACE resultsData:", resultsData);
 return (
 
 
@@ -491,6 +495,8 @@ return (
           // Funzioni per far funzionare i bottoni dentro TopicsView
           setSelectedTopic={setSelectedTopic}
           setActiveView={setActiveView}
+          summaryStats={summaryStats}
+          resultsData={resultsData} 
         />
       </div>
     )}
@@ -503,6 +509,7 @@ return (
         asking={asking}
         chatMessages={chatMessages}
         selectedTopic={selectedTopic}
+        selectedTopics={selectedTopics} 
       />
     )}
 
@@ -511,6 +518,7 @@ return (
       <ActiveRecallView 
         projectId={projectId} 
         selectedTopic={selectedTopic} 
+        selectedTopics={selectedTopics}
       />
     )}
 
@@ -618,7 +626,8 @@ return (
       projectId ? (
         <StudySessionView 
           projectId={projectId} 
-          selectedTopic={selectedTopic} // <--- Fondamentale per filtrare i materiali
+          selectedTopics={selectedTopics}  // 🔥 FIX
+// <--- Fondamentale per filtrare i materiali
         />
       ) : (
         <div style={{
@@ -687,7 +696,11 @@ return (
             }}>
               {loaderMessages 
                 ? loaderMessages[loaderType][loaderStep] 
-                : `Generating your ${selectedTopic ? `"${selectedTopic}"` : "general"} quiz...`}
+                : `Generating your ${
+                    selectedTopics && selectedTopics.length > 1
+                      ? `${selectedTopics[0].split(" ")[0]} (${selectedTopics.length} topics)`
+                      : selectedTopics?.[0] || selectedTopic || "general"
+                  } quiz...`}
             </p>
           </div>
         ) : (
@@ -762,7 +775,7 @@ return (
             const stats = quizStats?.[q.id]
 
             
-
+            
             return (
               <div
                 key={q.id}
@@ -783,6 +796,9 @@ return (
                   <div style={{ fontWeight: 600 }}>
                      Quiz Q{index + 1}
                   </div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>
+                    {new Date(q.created_at).toLocaleDateString()}
+                  </div>
 
                   <div style={{ fontSize: 12, color: "#9ca3af" }}>
                     {q.num_questions} questions
@@ -790,15 +806,56 @@ return (
 
                   {stats && (
                     <div style={{
-                      fontSize: 12,
-                      color: "#9ca3af",
-                      marginTop: 4
+                      fontSize: 14,
+                      marginTop: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap"
                     }}>
-                      Attempts: {stats.attempts} · 
-                      Best: {stats.best_score}% · 
-                      Last: {stats.last_score}%
+                      
+                      <span style={{ color: "#9ca3af" }}>
+                        Attempts: {stats.attempts}
+                      </span>
+
+                      <span>·</span>
+
+                      <span style={{
+                        color: stats.best_score > 70 ? "#22c55e" :
+                              stats.best_score > 40 ? "#f59e0b" :
+                              "#ef4444",
+                        fontWeight: 600
+                      }}>
+                        Best: {stats.best_score}%
+                      </span>
+
+                      <span>·</span>
+
+                      <span style={{
+                        color: stats.last_score > 70 ? "#22c55e" :
+                              stats.last_score > 40 ? "#f59e0b" :
+                              "#ef4444",
+                        fontWeight: 600
+                      }}>
+                        Last: {stats.last_score}%
+                      </span>
+
+                      {stats.attempts > 1 && (
+                        <>
+                          <span>·</span>
+                          <span style={{
+                            color: stats.last_score >= stats.best_score ? "#22c55e" : "#ef4444",
+                            fontWeight: 600
+                          }}>
+                            {stats.last_score >= stats.best_score ? "↑ Improving" : "↓ Needs review"}
+                          </span>
+                        </>
+                      )}
+
                     </div>
                   )}
+                  
+                  
                 </div>
 
                 <button
@@ -810,8 +867,11 @@ return (
                     borderRadius: 6,
                     padding: "6px 10px",
                     cursor: "pointer",
-                    fontWeight: 600
+                    fontWeight: 600,
+                    transition: "0.2s"
                   }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
+                  onMouseLeave={e => e.currentTarget.style.opacity = "1"}
                 >
                   Retake
                 </button>

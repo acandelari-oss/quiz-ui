@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import FlashcardsView from "./FlashcardsView"
 import ActiveRecallView from "./ActiveRecallView"
@@ -66,7 +66,12 @@ const loaderSubtitle = {
   color: "#9ca3af"
 }
 
-export default function StudySessionView({ projectId, selectedTopic }: { projectId: string, selectedTopic?: string | null }) {
+export default function StudySessionView({ projectId, selectedTopics }: { projectId: string, selectedTopics?: string[] | null }) {
+  const normalizedSelectedTopics = (selectedTopics || []).map(t =>
+    String(t).replace(/\s+/g, " ").trim()
+  );
+
+console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
   const [step, setStep] = useState(0)
   const [openCard, setOpenCard] = useState<number | null>(0)
   const [flashcards, setFlashcards] = useState<any[]>([])
@@ -76,16 +81,41 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
   const [wrongCount, setWrongCount] = useState<number>(0)
   const [sessionVersion, setSessionVersion] = useState(0)
   const [recallTopics, setRecallTopics] = useState<string[]>([])
+  const [reviewedIds, setReviewedIds] = useState<Set<number>>(new Set())
+  const [reviewedCount, setReviewedCount] = useState(0)
   
-
+  const [sessionLoaded, setSessionLoaded] = useState(false)
   const accuracy = correctCount + wrongCount > 0 ? correctCount / (correctCount + wrongCount) : 0.5
   const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
 
+  useEffect(() => {
+  setSessionLoaded(false)
+}, [projectId, normalizedSelectedTopics])
+
+  useEffect(() => {
+    const handler = () => {
+      console.log("➡️ Moving to Quiz")
+      setStep(2)
+    }
+
+    window.addEventListener("recallComplete", handler)
+
+    return () => window.removeEventListener("recallComplete", handler)
+  }, [])
+
   function handleFlashcardsComplete() {
-    if (accuracy < 0.5) {
-      alert("Let's review a bit more before moving on 💪")
+    if (flashcards.length === 0) return
+
+    // 🔥 controllo reale
+    if (reviewedCount < flashcards.length) {
+      console.log("⛔ NOT FINISHED FLASHCARDS")
       return
     }
+    console.log("📊 CHECK:", reviewedCount, flashcards.length)
+    console.log("✅ FLASHCARDS COMPLETATE")
+
+   
+
     setStep(1)
   }
 
@@ -98,6 +128,23 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
   }
 
   async function handleReview(flashcardId: number, difficulty: number, isCorrect: boolean) {
+
+    // 🔥 BLOCCO DUPLICATI
+    setReviewedIds(prev => {
+      if (prev.has(flashcardId)) {
+        console.warn("⛔ DUPLICATE BLOCKED:", flashcardId)
+        return prev
+      }
+
+      const newSet = new Set(prev)
+      newSet.add(flashcardId)
+
+      // 🔥 aggiorna count FUORI dal set (ma in sync)
+      setReviewedCount(newSet.size)
+
+      return newSet
+    })
+    
     const { data } = await supabase.auth.getSession()
     const token = data.session?.access_token
 
@@ -116,9 +163,16 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
 
     if (!isCorrect) {
       setWrongCount(prev => prev + 1)
-      setWeakTopics(prev => [...prev, `Flashcard ${flashcardId}`])
-      generateRecoveryFlashcards(flashcardId, flashcards.find(f => f.id === flashcardId)?.question)
-    } else {
+
+      const card = flashcards.find(f => f.id === flashcardId)
+
+      if (card?.topic) {
+        setWeakTopics(prev => [...prev, card.topic])
+      }
+
+      // ❌ NIENTE recovery durante la sessione
+    }
+ else {
       if (difficulty <= 1) {
         setWrongCount(prev => prev + 1)
       } else {
@@ -126,9 +180,11 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
       }
     }
   }
+  const hasGeneratedQuiz = useRef(false);
 
   useEffect(() => {
-    if (step === 2 && quizData.length === 0) {
+    if (step === 2 && quizData.length === 0 && !hasGeneratedQuiz.current) {
+      hasGeneratedQuiz.current = true;
       generateQuiz();
     }
   }, [step]);
@@ -137,6 +193,8 @@ export default function StudySessionView({ projectId, selectedTopic }: { project
 const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: string }>({})
 const [quizFinished, setQuizFinished] = useState(false)
 const [quizStarted, setQuizStarted] = useState(false)
+
+
 
 async function generateQuiz() {
   setLoading(true);
@@ -155,24 +213,24 @@ async function generateQuiz() {
       body: JSON.stringify({
         num_questions: 15,
         difficulty: "medium",
-        language: "english" // o "italian"
+        topics: normalizedSelectedTopics || [],
+        language: "english"
       })
-    });
+      });
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      console.error("Server Error:", errorData);
-      return;
-    }
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error("Server Error:", errorData);
+        return;
+      }
 
-    const data = await res.json();
-    console.log("Quiz Data Received:", data);
+      const data = await res.json();
+      console.log("Quiz Data Received:", data);
 
-    // 3. Il tuo backend restituisce {"quiz": [...]}. Usiamo data.quiz
-    const questions = data.quiz || [];
-    
-    setQuizData(questions);
-    setQuizStarted(questions.length > 0);
+      const questions = data.questions || data.quiz || [];
+
+      setQuizData(questions);
+      setQuizStarted(questions.length > 0);
   } catch (e) {
     console.error("Quiz Generation Error:", e);
   } finally {
@@ -181,71 +239,61 @@ async function generateQuiz() {
 }
 
 // Trigger per caricare il quiz allo step 2
-useEffect(() => {
-  if (step === 2 && quizData.length === 0) {
-    generateQuiz()
-  }
-}, [step])
+
 
   useEffect(() => {
-    async function loadSession() {
-      setLoading(true)
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token
+  if (sessionLoaded) return;
 
-      let url = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`
-      if (selectedTopic) {
-        url += `?topic=${encodeURIComponent(selectedTopic)}`
-      }
+  async function loadSession() {
+    setLoading(true)
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
 
-      if (!res.ok) {
-        setLoading(false)
-        return
-      }
+    let url = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`
 
-      const session = await res.json()
-      setFlashcards(session.flashcards || [])
-      setRecallTopics(session.recall_topics || [])
+    const query = normalizedSelectedTopics.join(",")
+
+    if (query.length > 0) {
+      url += `?topics=${encodeURIComponent(query)}`
+    }
+
+    console.log("🎯 STUDY SESSION TOPICS:", normalizedSelectedTopics)
+    console.log("🚀 FINAL URL:", url)
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    if (!res.ok) {
       setLoading(false)
+      return
     }
-    loadSession()
-  }, [projectId, sessionVersion, selectedTopic])
 
-  async function generateRecoveryFlashcards(flashcardId: number, question?: string) {
-    try {
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.access_token
+    const session = await res.json()
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/generate_recovery_flashcards`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          question: question
-        })
-      })
-
-      if (!res.ok) return
-      const result = await res.json()
-      setFlashcards(prev => [...prev, ...(result.flashcards || [])])
-    } catch (e) {
-      console.error("Recovery error:", e)
-    }
+    setFlashcards(session.flashcards || [])
+    setRecallTopics(session.recall_topics || [])
+    setLoading(false)
+    setSessionLoaded(true) // 🔥 blocca loop
   }
+
+  loadSession()
+
+}, [projectId, sessionVersion])
+
+  
 
   if (loading) {
   return (
     <div style={loaderContainer}>
       <div style={spinner} />
       <div style={loaderTitle}>
-        {step === 0 && (selectedTopic ? `Generating study session for: ${selectedTopic}` : "Preparing flashcards...")}
+        {step === 0 && (
+          selectedTopics && selectedTopics.length > 0
+            ? `Generating study session for: ${selectedTopics.join(", ")}`
+            : "Preparing flashcards..."
+        )}
         {step === 1 && "Analyzing your weak points..."}
         {step === 2 && "Generating final Quiz..."}
       </div>
@@ -268,11 +316,11 @@ useEffect(() => {
       </div>
 
       <div>
-        {selectedTopic && (
+        {selectedTopics && selectedTopics.length > 0 && (
           <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid #8b5cf6", padding: "15px", borderRadius: "10px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div style={{ fontSize: "10px", color: "#8b5cf6", fontWeight: "bold", letterSpacing: "1px" }}>FOCUS STUDY ACTIVE</div>
-              <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}</div>
+              <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{selectedTopics.join(", ")}</div>
             </div>
             <span style={{ fontSize: "24px" }}>📚</span>
           </div>
@@ -298,12 +346,21 @@ useEffect(() => {
         )}
 
         {step === 1 && (
-          <ActiveRecallView 
-            projectId={projectId} 
-            selectedTopic={selectedTopic} // <--- AGGIUNGI QUESTA RIGA
-            onComplete={handleRecallComplete} 
-          />
+          <>
+            {console.log("🧠 STUDY SESSION selectedTopics:", selectedTopics)}
+            {console.log("🧪 ORIGINAL:", selectedTopics)}
+            {console.log("🧼 NORMALIZED:", normalizedSelectedTopics)};
+
+
+            <ActiveRecallView 
+              projectId={projectId} 
+              selectedTopics={normalizedSelectedTopics}
+              onComplete={handleRecallComplete} 
+            />
+          </>
         )}
+
+        
 
         {step === 2 && (
           <QuizView 
@@ -317,7 +374,14 @@ useEffect(() => {
             calculateScore={() => {
                 let score = 0;
                 quizData.forEach((q, i) => {
-                    if (quizAnswers[i] === q.answer) score++;
+                    const correctRaw = q.correct_answer ?? q.correct;
+
+                    if (typeof correctRaw === "number") {
+                        if (q.options?.[correctRaw] === quizAnswers[i]) score++;
+                        return;
+                    }
+
+                    if (quizAnswers[i] === correctRaw) score++;
                 });
                 return score;
             }}
@@ -356,8 +420,10 @@ useEffect(() => {
         {step < 3 && (
           <button
             onClick={() => {
-              if (accuracy > 0.8 && step === 0) { setStep(2); return; }
-              setStep(step + 1); setOpenCard(0);
+              console.log("➡️ MANUAL NEXT")
+
+              setStep(step + 1)
+              setOpenCard(0)
             }}
             style={button}
           >

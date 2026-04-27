@@ -146,27 +146,26 @@ if(openCard === null){
 
   async function reviewAndNext(id: number, isCorrect: boolean, difficulty: number) {
 
- 
+    await reviewCard(id, isCorrect, difficulty)
 
-  await reviewCard(id, isCorrect, difficulty)
-
-  setOpenCard(false)
-
-  if (currentIndex < flashcards.length - 1) {
-
-    setCurrentIndex(currentIndex + 1)
-
-  } else {
-
-    setCurrentIndex(flashcards.length)
-
-    if(onFlashcardsComplete){
-      onFlashcardsComplete()
+    if (onReview) {
+      await onReview(id, difficulty, isCorrect)
     }
 
-  }
+    setOpenCard(false)
 
-}
+    if (currentIndex < flashcards.length - 1) {
+      setCurrentIndex(currentIndex + 1)
+    } else {
+      console.log("📍 LAST CARD UI")
+
+      // 🔥 NON chiamare subito complete
+      // lascia decidere StudySessionView
+      if (onReview) {
+        onReview(id, difficulty, isCorrect)
+      }
+    }
+  }
 
   return (
 

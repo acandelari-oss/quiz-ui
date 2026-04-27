@@ -36,11 +36,14 @@ export default function AskView({
   askDocuments,
   asking,
   chatMessages,
-  selectedTopic // 1. Recurperiamo il topic dal padre
+  selectedTopic, // 1. Recurperiamo il topic dal padre
+  selectedTopics
 }) {
   const messages = chatMessages || []
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+
+  console.log("🧠 ASK RECEIVED TOPICS:", selectedTopics)
 
   function startRecording() {
     const SpeechRecognition =
@@ -99,13 +102,13 @@ function toggleRecording() {
       }}>
         <h3 style={{ margin: 0 }}>Ask your documents</h3>
         
-        {selectedTopic && (
+        {(selectedTopics && selectedTopics.length > 0) && (
           <div style={{
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            background: "#22c55e", // Verde pieno
-            color: "white",        // Testo bianco per contrasto
+            background: "#22c55e",
+            color: "white",
             padding: "6px 14px",
             borderRadius: "20px",
             fontSize: "13px",
@@ -114,7 +117,12 @@ function toggleRecording() {
             animation: "fadeIn 0.3s ease-out"
           }}>
             <span style={{ fontSize: "16px" }}>🎯</span>
-            SELECTED TOPIC: {typeof selectedTopic === 'object' ? selectedTopic.value.toUpperCase() : selectedTopic.toUpperCase()}
+
+            {selectedTopics.length > 1
+              ? `MACRO TOPIC: ${selectedTopics[0].split(" ")[0].toUpperCase()} (${selectedTopics.length})`
+              : `SELECTED TOPIC: ${selectedTopics[0].toUpperCase()}`
+            }
+
           </div>
         )}
       </div>
@@ -181,7 +189,13 @@ function toggleRecording() {
                 if (askQuestion.trim()) askDocuments(selectedTopic)
               }
             }}
-            placeholder={selectedTopic ? `Ask about ${selectedTopic}...` : "Ask something about your documents..."}
+            placeholder={
+              selectedTopics && selectedTopics.length > 1
+                ? `Ask about ${selectedTopics[0].split(" ")[0]} (${selectedTopics.length} topics)...`
+                : selectedTopics?.[0]
+                ? `Ask about ${selectedTopics[0]}...`
+                : "Ask something about your documents..."
+            }
             style={{
               width: "100%",
               minHeight: 80,
