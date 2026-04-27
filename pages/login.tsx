@@ -61,13 +61,13 @@ export default function LoginPage() {
       justifyContent: "center",
       alignItems: "center",
       height: "100vh",
-      background: "linear-gradient(#ffffff,#88bcbf,#203a43,#2c5364)",
+      background:"#0f172a",
     }}>
 
       {/* LOGO */}
       <div style={{ marginBottom: 30 }}>
         <Image
-          src="/logo.png"
+          src="/logoSF.png"
           width={220}
           height={140}
           alt="StudyQuiz Logo"
