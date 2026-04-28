@@ -70,8 +70,10 @@ loaderMessages,
 
 
 
-}) {
 
+
+}) {
+console.log("🧠 ACTIVE VIEW:", activeView)
 const quizList = Array.isArray(quiz) ? quiz : []
 
 
@@ -200,6 +202,8 @@ useEffect(() => {
   loadStats()
 
 }, [activeView, projectId])
+
+
 
 
 console.log("WORKSPACE LOG:", uploadLog)
@@ -363,6 +367,8 @@ return (
     {activeView === "manage_projects" && (
       <div style={{padding:40}}>
         <h2>Manage Projects</h2>
+
+        
 
         {projects?.map((p:any)=>{
 

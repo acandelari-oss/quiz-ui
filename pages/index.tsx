@@ -11,19 +11,54 @@ export default function Home() {
 
 const router = useRouter()
 
-useEffect(()=>{
-async function checkSession(){
-const { data } = await supabase.auth.getSession()
-if(!data.session){
-router.push("/login")
-}
-}
-checkSession()
-},[])
+
 
 const [projectId,setProjectId]=useState("")
 const [projectName,setProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
+
+useEffect(() => {
+  const {
+    data: { subscription }
+  } = supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log("🔐 AUTH EVENT:", event)
+
+    if (!session) {
+      console.log("❌ No session → redirect login")
+      router.push("/login")
+      return
+    }
+
+    console.log("✅ Session ready → loading projects")
+
+    const token = session.access_token
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/projects`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (!res.ok) {
+      console.log("❌ FETCH FAILED")
+      setProjects([])
+      return
+    }
+
+    const data = await res.json()
+    const list = Array.isArray(data) ? data : data.projects || []
+
+    console.log("📦 PROJECTS:", list)
+
+    setProjects(list)
+  })
+
+  return () => subscription.unsubscribe()
+}, [])
+
 const [files,setFiles]=useState<FileList|null>(null)
 const [documents,setDocuments]=useState<any[]>([])
 const [topics,setTopics]=useState<any[]>([])
@@ -140,17 +175,16 @@ useEffect(() => {
 
 }, [activeView, projectId])
 
-useEffect(()=>{
+useEffect(() => {
+  async function init() {
+    const { data } = await supabase.auth.getSession()
+    if (!data.session) return
 
-async function init(){
+    await loadProjects()
+  }
 
-await loadProjects()
-
-}
-
-init()
-
-},[])
+  init()
+}, [])
 
 // Se l'utente seleziona un topic tramite checkbox, 
 // impostiamo automaticamente l'ultimo selezionato come 'selectedTopic'

@@ -54,7 +54,13 @@ export default function Sidebar({
         Load project
       </div>
 
-      <div style={menuItem} onClick={() => setActiveView("manage_projects")}>
+      <div
+        style={menuItem}
+        onClick={() => {
+          console.log("🔥 CLICK MANAGE PROJECTS")
+          setActiveView("manage_projects")
+        }}
+      >
         Manage projects
       </div>
 
