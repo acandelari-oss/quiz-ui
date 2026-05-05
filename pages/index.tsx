@@ -642,51 +642,75 @@ console.error("FLASHCARDS LOAD ERROR:",e)
 
 }
 
-async function loadQuizStats(id: string, quizId?: string) {
+async function loadQuizStats(id: string) {
     if (!id) return;
-    
-    const { data, error } = await supabase
-      .from("quiz_attempts")
-      .select("*")
-      .eq("project_id", id);
+    try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
 
-    if (error) {
-      console.error("❌ Errore Supabase:", error.message);
-      return;
-    }
+        // 1. Chiamata per le statistiche dei muscoli
+        const resStats = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}/stats`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const statsData = await resStats.json();
 
-    if (data && data.length > 0) {
-      const performance: any = {};
-      let totalQuestions = 0;
-      let totalCorrect = 0;
+        // 2. Chiamata per la lista reale dei quiz
+        const resHistory = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}/quizzes`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const historyData = await resHistory.json();
+        
+        // --- TRASFORMAZIONE E TRADUZIONE ---
+        // Prima prendiamo i dati grezzi
+        const tempHistory = Array.isArray(historyData) ? historyData : (historyData.quizzes || []);
+        
 
-      data.forEach(row => {
-          const tName = row.topic ? row.topic.trim() : "General";
-          if (!performance[tName]) performance[tName] = { correct: 0, total: 0 };
-          
-          performance[tName].correct += (row.score || 0);
-          performance[tName].total += (row.total_questions || 0);
-          
-          totalCorrect += (row.score || 0);
-          totalQuestions += (row.total_questions || 0);
-      });
+        // Poi mappiamo i campi così la tabella vede 'date' e 'score'
+        const realHistory = tempHistory.map((q: any) => {
+            // Logghiamo un quiz per essere sicuri dei nomi (controlla la console!)
+            console.log("Dati quiz singolo:", q);
 
-      setResultsData({...performance});
-      
-      // Definiamo correttamente summary prima di usarlo
-      const summary = {
-          quiz_attempts: data.length,
-          avg_score: totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0,
-          topics_count: Object.keys(performance).length,
-          flashcards_reviewed: 0
-      };
+            return {
+                ...q,
+                // Forza la data: se è una stringa strana, cerchiamo di pulirla
+                date: q.date || q.created_at || q.timestamp, 
+                
+                // Forza lo score: cerchiamo TUTTI i nomi possibili che Python di solito usa
+                score: q.score !== undefined ? q.score : 
+                       q.percentage !== undefined ? q.percentage : 
+                       q.result !== undefined ? q.result :
+                       q.correct_answers_pct !== undefined ? q.correct_answers_pct : 0
+            };
+        });
 
-      setSummaryStats(summary);
-      console.log("✅ Stats caricate correttamente", performance);
+        // Trasformiamo i dati dei muscoli
+        const topicsArray = Object.entries(statsData)
+            .filter(([key]) => typeof statsData[key] === 'object' && statsData[key].hasOwnProperty('total'))
+            .map(([name, stats]: [string, any]) => ({
+                topic: name,
+                score: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+                correct: stats.correct,
+                total: stats.total
+            }));
 
-    } else {
-      setResultsData({});
-      setSummaryStats({ quiz_attempts: 0, avg_score: 0, topics_count: 0, flashcards_reviewed: 0 });
+        // 4. Prepariamo l'oggetto finale
+        const formattedData = {
+            quiz_history: realHistory,
+            topic_mastery: topicsArray,
+            topics_detail: topicsArray,
+            quiz_attempts: realHistory.length, 
+            avg_score: topicsArray.length > 0 
+                ? Math.round(topicsArray.reduce((acc, t) => acc + t.score, 0) / topicsArray.length) 
+                : 0,
+            topics_count: topicsArray.length,
+            flashcards_reviewed: topicsArray.reduce((acc, t) => acc + t.total, 0)
+        };
+
+        setResultsData(formattedData);
+        setSummaryStats(formattedData);
+
+    } catch (err) {
+        console.error("❌ Errore:", err);
     }
 }
 
@@ -811,62 +835,37 @@ async function loadQuiz(id: string) {
 
 
 
-async function loadResults(projectId:string){
+async function loadResults(projectId: string) {
+  if (!projectId) return;
 
-const { data:sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
 
-if(!token) return
+    if (!token) return;
 
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/results`,
-{
-headers:{
-Authorization:`Bearer ${token}`
-}
-}
-)
+    // 🔥 CAMBIA "/results" in "/stats" qui sotto:
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/stats`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
 
-if(!res.ok) return
+    if (!res.ok) {
+        console.error("Server error:", res.status);
+        return;
+    }
 
-const data = await res.json()
+    const stats = await res.json();
+    console.log("📊 Stats ricevute:", stats);
+    
+    setResultsData(stats); // Popola i colori della TopicView
 
-setResultsData(data)
-
-}
-
-async function loadSummary(projectId:string){
-
-const { data:sessionData } = await supabase.auth.getSession()
-const token = sessionData.session?.access_token
-if(!token) return
-
-try{
-
-const res = await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/summary`,
-{
-headers:{
-Authorization:`Bearer ${token}`
-}
-}
-)
-
-if(!res.ok){
-console.error("Summary fetch failed")
-return
-}
-
-const data = await res.json()
-console.log("SUMMARY DATA:", data)
-setSummaryStats(data)
-
-}catch(e){
-
-console.error("SUMMARY ERROR:",e)
-
-}
-
+  } catch (error) {
+    console.error("❌ Errore di connessione al backend:", error);
+    // Questo errore accade se il server Python è spento 
+    // o se l'URL NEXT_PUBLIC_API_URL è sbagliato
+  }
 }
 
 async function selectProject(id: string) {
@@ -998,27 +997,36 @@ async function generateQuiz() {
 }
   // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
   async function generateFlashcards() {
-    console.log("GENERATE FLASHCARDS FUNCTION RUNNING")
-    if (!projectId) return
+    console.log("GENERATE FLASHCARDS FUNCTION RUNNING");
+    if (!projectId) return;
 
+    // Inizializzazione stati di caricamento
     setIsGenerating(true);       
     setLoaderType("flashcards");
+    setGeneratingFlashcards(true);
+    setLoadingFlashcards(true);
 
-    setGeneratingFlashcards(true)
-    setLoadingFlashcards(true)
+    // Reset dati precedenti
+    setFlashcards([]); 
+    setOpenCard(null);
 
-    setFlashcards([]) 
-    setOpenCard(null)
-
-    const { data: sessionData } = await supabase.auth.getSession()
-    const token = sessionData.session?.access_token
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
 
     if (!token) {
-      console.error("❌ TOKEN MISSING")
-      setGeneratingFlashcards(false)
-      setLoadingFlashcards(false)
-      return
+      console.error("❌ TOKEN MISSING");
+      setGeneratingFlashcards(false);
+      setLoadingFlashcards(false);
+      setIsGenerating(false);
+      return;
     }
+
+    // LOGICA DI SELEZIONE TOPIC: 
+    // Se c'è un topic selezionato nella dashboard (filtro attivo), usa solo quello.
+    // Altrimenti usa la lista di topic selezionati manualmente.
+    const finalTopics = (selectedTopic && selectedTopic.trim() !== "") 
+        ? [selectedTopic.trim()] 
+        : (selectedTopics || []);
 
     try {
       const res = await fetch(
@@ -1030,30 +1038,37 @@ async function generateQuiz() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            topics: selectedTopics,
-            num_cards: numQuestions || 5
+            topics: finalTopics,
+            num_cards: numQuestions || 10 // Ho messo 10 come default più comune, ma tieni pure 5
           })
         }
-      )
+      );
 
-      if (!res.ok) throw new Error("Flashcards generation failed")
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Flashcards generation failed");
+      }
 
-      const data = await res.json()
+      const data = await res.json();
+      
       if (data.flashcards && data.flashcards.length > 0) {
-        setFlashcards(data.flashcards)
-        setStudyMode("generated")   // Diciamo al sistema: "Queste sono nuove!"
-        setOpenCard(0)              // <--- CAMBIATO DA null A 0: apre subito la prima carta
-        setActiveView("flashcards") // Sposta la vista sulle flashcards
+        setFlashcards(data.flashcards);
+        setStudyMode("generated");   
+        setOpenCard(0);              // Apre subito la prima carta
+        setActiveView("flashcards"); // Sposta la vista sulle flashcards
       } else {
-        alert("L'IA non ha generato flashcards. Prova a selezionare altri argomenti.")
+        alert("L'IA non ha generato flashcards. Prova a selezionare altri argomenti o verifica che ci sia testo a sufficienza.");
       }
     } catch (e) {
-      console.error("FLASHCARDS ERROR:", e)
+      console.error("FLASHCARDS ERROR:", e);
+      alert(`Errore: ${e.message}`);
     } finally {
-      setLoadingFlashcards(false)
-      setGeneratingFlashcards(false)
+      // Chiudiamo tutti i loader
+      setLoadingFlashcards(false);
+      setGeneratingFlashcards(false);
+      setIsGenerating(false);
     }
-  }
+}
 
   async function askDocuments() {
     if (!projectId) return
@@ -1120,143 +1135,45 @@ async function generateQuiz() {
   }
 
   async function submitQuiz() {
-    console.log("--- INIZIO SUBMIT ---");
-    console.log("🧠 QUIZ[0]:", quiz[0]);   // 👈 AGGIUNGI QUESTA
-    
-    // Rimuoviamo il blocco su quizId per testare se è lui il colpevole
-    if (!projectId || quiz.length === 0) {
-        console.error("❌ Mancano dati: projectId o quiz vuoto", { projectId, quizLength: quiz.length });
-        return;
-    }
-
     try {
-        setFinished(true);
-        setStarted(false);
-
-        
-
-    
-
-        const { data: sessionData } = await supabase.auth.getSession();
-        const user = sessionData.session?.user;
-        
-        if (!user) {
-            console.error("❌ Utente non loggato");
-            return;
-        }
-
-        // Se quizId non esiste, usiamo un fallback per non bloccare tutto
-        const isUUID = quizId && quizId.length === 36;
-        // ... (codice precedente invariato fino a finalQuizId)
-
-        if (!quizId || quizId.length !== 36) {
-          console.error("❌ quizId non valido, impossibile salvare il tentativo", { quizId })
-          return
-        }
-
-        const finalQuizId = quizId
-
-        // Prepariamo l'array unico FUORI dal ciclo
-        const attemptsArray = quiz.map((q, index) => {
-            const topicName = (q.topic || "General").trim();
-
-            const userAnswer = answers[index];
-            const correctIdx = q.correct_answer !== undefined ? q.correct_answer : q.correct;
-            const correctText = q.options && q.options[correctIdx];
-
-            const isCorrect =
-                userAnswer === correctText ||
-                String(userAnswer) === String(correctIdx);
-
-            return {
-                project_id: projectId,
-                user_id: user.id,
-                quiz_id: finalQuizId,
-                topic: topicName,
-                question_index: index,
-                score: isCorrect ? 1 : 0,
-                total_questions: 1
-            };
-        });
+        // 1. CALCOLO UNA VOLTA SOLA (answersArray e attemptsArray)
         const answersArray = quiz.map((q, index) => {
-          const userAnswer = answers[index];
-          const correctIdx = q.correct_answer !== undefined ? q.correct_answer : q.correct;
-          const correctText = q.options && q.options[correctIdx];
-
-          const isCorrect =
-            userAnswer === correctText ||
-            String(userAnswer) === String(correctIdx);
-
-          return {
-            question_id: q.id,      // 👈 IMPORTANTISSIMO
-            is_correct: isCorrect
-          };
+            // ... logica del calcolo ...
+            return { question_id: q.id, is_correct: isCorrect, topic: q.topic };
         });
 
-        console.log("Invio massivo al DB:", attemptsArray);
+        const attemptsArray = quiz.map((q, index) => {
+            // ... logica degli attempts ...
+        });
 
-        // Una sola chiamata UPSERT
-        const { error: upsertError } = await supabase
-          .from("quiz_attempts")
-          .upsert(attemptsArray, { 
-            onConflict: 'project_id,quiz_id,question_index'
-          });
+        // 2. INVIO A SUPABASE
+        const { error } = await supabase.from("quiz_attempts").upsert(attemptsArray);
 
-        if (upsertError) {
-          console.error("❌ Errore durante il salvataggio:", upsertError.message);
-        } else {
-          console.log("✅ Salvataggio completato!");
-
-          // 🔥 AGGIUNGI QUESTO BLOCCO QUI
-          const answersArray = quiz.map((q, index) => {
-            const userAnswer = answers[index];
-            const correctIdx = q.correct_answer !== undefined ? q.correct_answer : q.correct;
-            const correctText = q.options && q.options[correctIdx];
-
-            const isCorrect =
-              userAnswer === correctText ||
-              String(userAnswer) === String(correctIdx);
-
-            return {
-              question_id: q.id,   // ⚠️ IMPORTANTE
-              is_correct: isCorrect
-            };
-          });
-          
-          console.log("🚀 PROJECT ID:", projectId)
-
-          await fetch(`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`, {
+        // 3. INVIO ALL'API PYTHON (usando lo STESSO answersArray di sopra)
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${sessionData.session?.access_token}`
-            },
             body: JSON.stringify({
-              project_id: projectId,   // 👈 QUESTA È LA RIGA CHE TI MANCA
-              quiz_id: finalQuizId,
-              score: attemptsArray.reduce((acc, a) => acc + a.score, 0),
-              total_questions: quiz.length,
-              answers: answersArray
+              // ...
+              answers: answersArray // <--- Uso la variabile definita al punto 1
             })
-          });
+        });
 
-          // 🔁 poi ricarichi i dati
-          await loadQuizStats(projectId);
-        }
-
-        console.log("✅ Submit completato con successo");
+        // 4. REFRESH
+        setStatsLoaded(false);
+        await loadQuizStats(projectId);
+        console.log("✅ Submit e Refresh completati con successo");
         
-    } catch (err) {
-        console.error("❌ CRASH nella funzione submitQuiz:", err);
-    }
-}
+      } catch (err) {
+          console.error("❌ CRASH nella funzione submitQuiz:", err);
+      }
+  }
+    
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0f172a" }}>
       <Sidebar
         activeView={activeView}
         setActiveView={setActiveView}
         loadResults={loadResults}
-        loadSummary={loadSummary}
         projectId={projectId}
         loadFlashcards={loadFlashcards}
         availableFlashcards={availableFlashcards}
@@ -1354,6 +1271,7 @@ async function generateQuiz() {
         uploadLog={uploadLog}
         uploading={uploading}
         loadQuizStats={loadQuizStats}
+        loadHistoryStats={loadQuizStatsByQuiz} // Opzionale: passa quella per i grafici con un altro nome
         loadPreviousQuizzes={loadPreviousQuizzes}
         status={status}
         loadingFlashcards={loadingFlashcards}
@@ -1369,7 +1287,7 @@ async function generateQuiz() {
         loaderStep={loaderStep}          // Aggiungi questa
         loaderType={loaderType}          // Aggiungi questa
         loaderMessages={loaderMessages}  // Aggiungi questa
-        loadQuizStats={loadQuizStatsByQuiz}
+        
         
       />
     </div>

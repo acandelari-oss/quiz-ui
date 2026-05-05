@@ -1,4 +1,7 @@
 import Image from "next/image";
+import { useTranslation } from 'react-i18next';
+import React, { useState, useEffect } from 'react';
+
 import {
   Folder,
   Brain,
@@ -25,8 +28,28 @@ export default function Sidebar({
   loadPreviousQuizzes,
   loadQuizStats
 }: any) {
+   // Dentro il componente Sidebar
+        const [mounted, setMounted] = useState(false);
+        const { t: translate } = useTranslation();
+        const { i18n, t } = useTranslation();
+
+        const changeLanguage = (lng: string) => {
+          i18n.changeLanguage(lng);
+          // Opzionale: salva la preferenza nel DB qui quando saremo pronti
+        };
+  // Questo useEffect gira SOLO sul client dopo il primo render
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Se non è ancora montato, restituisci un placeholder o null 
+  // per evitare che il server mandi testo che il client cambierà
+  if (!mounted) {
+    return <div style={{ width: 260 }}></div>; // Mantieni lo spazio della sidebar vuoto
+  }
 
   return (
+    <aside>
     <div style={sidebar}>
 
       {/* LOGO */}
@@ -43,15 +66,15 @@ export default function Sidebar({
 
       {/* PROJECT */}
       <div style={sectionTitle}>
-        <Folder size={16}/> Project
+        <Folder size={16}/> {translate('stats.Project')}
       </div>
 
       <div style={menuItem} onClick={() => setActiveView("create_project")}>
-        Create project
+        {translate('stats.Create project')}
       </div>
 
       <div style={menuItem} onClick={() => setActiveView("load_project")}>
-        Load project
+        {translate('stats.Load project')}
       </div>
 
       <div
@@ -61,21 +84,21 @@ export default function Sidebar({
           setActiveView("manage_projects")
         }}
       >
-        Manage projects
+        {translate('stats.Manage projects')}
       </div>
 
       <div 
         style={{...menuItem, color: activeView === "topics" ? "#22c55e" : "#e5e7eb", fontWeight: activeView === "topics" ? "600" : "400"}} 
         onClick={() => setActiveView("topics")}
       >
-        <Layers size={16} style={{marginRight: 8}}/> Topics Dashboard
+        <Layers size={16} style={{marginRight: 8}}/> {translate('stats.Topics Dashboard')}
       </div>
 
       <div style={divider} />
 
       {/* STUDY */}
       <div style={sectionTitle}>
-        <Brain size={16}/> Study
+        <Brain size={16}/> {translate('stats.Study')}
       </div>
 
       <div
@@ -87,7 +110,7 @@ export default function Sidebar({
           setActiveView("ask")
         }}
       >
-        <HelpCircle size={16}/> Ask question
+        <HelpCircle size={16}/> {translate('stats.Ask question')}
       </div>
 
       <div
@@ -99,7 +122,7 @@ export default function Sidebar({
         setActiveView("study_session")
       }}
             >
-      <Brain size={16}/> Study Session
+      <Brain size={16}/> {translate('stats.Study Session')}
       </div>
 
       <div
@@ -111,7 +134,7 @@ export default function Sidebar({
           setActiveView("active_recall")
         }}
       >
-        <Brain size={16}/> Memory check
+        <Brain size={16}/> {translate('stats.Memory check')}
       </div>
 
 
@@ -124,7 +147,7 @@ export default function Sidebar({
           setActiveView("generate_flashcards")
         }}
       >
-        <Layers size={16}/> Generate flashcards
+        <Layers size={16}/> {translate('stats.Generate flashcards')}
       </div>
 
       <div
@@ -136,7 +159,7 @@ export default function Sidebar({
           setActiveView("flashcards")
         }}
       >
-        <Layers size={16}/> Load flashcards
+        <Layers size={16}/> {translate('stats.Load flashcards')}
         <span style={{marginLeft:6,color:"#9ca3af"}}>
           ({availableFlashcards || 0})
         </span>
@@ -148,7 +171,7 @@ export default function Sidebar({
 
       {/* QUIZ */}
       <div style={sectionTitle}>
-        <ClipboardList size={16}/> Quiz
+        <ClipboardList size={16}/> {translate('stats.Quiz')}
       </div>
 
       <div
@@ -160,7 +183,7 @@ export default function Sidebar({
           setActiveView("quiz")
         }}
       >
-        <ClipboardList size={16}/> Generate quiz
+        <ClipboardList size={16}/> {translate('stats.Generate quiz')}
       </div>
 
       <div
@@ -179,7 +202,7 @@ export default function Sidebar({
 
         }}
       >
-        <History size={16}/> Previous quizzes
+        <History size={16}/> {translate('stats.Previous quizzes')}
         <span style={{marginLeft:6,color:"#9ca3af"}}>
           ({previousQuizzes?.length || 0})
         </span>
@@ -190,25 +213,35 @@ export default function Sidebar({
       <div
         style={menuItem}
         onClick={async () => {
-
           // reset quiz
           setStarted(false)
           setFinished(false)
           setAnswers({})  
 
           if(projectId){
-            await loadResults(projectId)
-            await loadSummary(projectId)
+            // Se loadSummary non è definita nel Workspace o passata come prop, 
+            // caricheremo i dati direttamente dentro SummaryView tramite useEffect.
+            await loadResults(projectId) 
           }
 
           setActiveView("results_summary")
-
         }}
       >
-        <BarChart3 size={16}/> Results & Summary
+        <BarChart3 size={16}/> {translate('stats.Results & Summary')}
       </div>
 
+      
+      <div>
+       
+
+      
+        <div style={{ display: 'flex', gap: '10px', padding: '20px' }}>
+          <button onClick={() => changeLanguage('it')} style={btnStyle}>ITA</button>
+          <button onClick={() => changeLanguage('en')} style={btnStyle}>ENG</button>
+        </div>
+      </div>  
     </div>
+    </aside>
   );
 }
 
@@ -252,4 +285,15 @@ const divider = {
   height: 1,
   background: "#1f2937",
   margin: "14px 0"
+};
+
+const btnStyle = {
+  padding: '8px 12px',
+  cursor: 'pointer',
+  backgroundColor: '#374151',
+  color: 'white',
+  border: '1px solid #4b5563',
+  borderRadius: '6px',
+  fontSize: '12px',
+  fontWeight: 'bold'
 };

@@ -9,6 +9,7 @@ import StudySessionView from "./views/StudySessionView"
 import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
+import { useTranslation } from 'react-i18next';
 
 export default function Workspace({
 
@@ -76,13 +77,34 @@ loaderMessages,
 console.log("🧠 ACTIVE VIEW:", activeView)
 const quizList = Array.isArray(quiz) ? quiz : []
 
+const [mounted, setMounted] = useState(false);
 
+useEffect(() => {
+  setMounted(true);
+}, []);
+
+const { t: translate } = useTranslation();
+const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+  let interval: any;
+  // Controlla che queste variabili siano quelle che attivano il caricamento nel tuo codice
+  if (uploading || generatingFlashcards || generatingQuiz) {
+    interval = setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % 4); // Ruota da 0 a 3
+    }, 3000);
+  } else {
+    setCurrentStep(0);
+  }
+  return () => clearInterval(interval);
+}, [uploading, generatingFlashcards, generatingQuiz]); // <--- Fondamentale che ci siano tutte!
 
 
 const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
 const [openProjects, setOpenProjects] = useState<{[key:string]: boolean}>({})
 const [quizStats, setQuizStats] = useState<{[key:string]: any}>({})
 const [statsLoaded, setStatsLoaded] = useState(false)
+const [topicsOpen, setTopicsOpen] = useState(true);
 
 const previous = Array.isArray(previousQuizzes) ? previousQuizzes : []
 const chartData = previous.map((q:any, index:number) => {
@@ -90,30 +112,12 @@ const chartData = previous.map((q:any, index:number) => {
   console.log("QUIZ ID:", q.id)
   console.log("QUIZ STATS:", quizStats)
   console.log("STATS FOR THIS QUIZ:", quizStats[q.id])
-
+  console.log("🔥 WORKSPACE resultsData:", resultsData)
   return {
     name: `Q${index + 1}`, 
     score: stats?.last_score || 0
   }
 })
-
-const LOADER_TEXTS = {
-  quiz: [
-    "Analyzing documents...",
-    "Creating challenging questions...",
-    "Generating options...",
-    "Finalizing your quiz!"
-  ],
-  flashcards: [
-    "Extracting key concepts...",
-    "Summarizing definitions...",
-    "Creating front & back cards...",
-    "Organizing your deck!"
-  ]
-};
-
-
-
 
 
 useEffect(()=>{
@@ -166,42 +170,41 @@ useEffect(()=>{
 
 }, [projects])
 
-useEffect(() => {
-  setStatsLoaded(false)
-}, [activeView, projectId])
+// 1. Reset delle stats quando cambi vista o progetto
+  useEffect(() => {
+    setStatsLoaded(false);
+  }, [activeView, projectId]);
 
-useEffect(() => {
+  
 
-  async function loadStats(){
 
-    if(activeView !== "previous_quizzes") return
-    if(!projectId) return
-    if(!loadQuizStats) return
-    if(statsLoaded) return
 
-    const data = await loadQuizStats(projectId)
+  // 2. Caricamento effettivo delle statistiche
+  useEffect(() => {
+    async function loadStats() {
+      if (activeView !== "previous_quizzes" && activeView !== "results_summary") return;
+      if (!projectId || !loadQuizStats || statsLoaded) return;
 
-    console.log("RAW STATS DATA:", data) 
+      console.log("🔄 Caricamento statistiche in corso...");
+      const data = await loadQuizStats(projectId);
+      
+      const map: any = {};
+      if (data && data.quiz_history) {
+        data.quiz_history.forEach((s: any) => {
+          map[s.quiz_id || s.id] = {
+            attempts: s.attempts || 1,
+            best_score: s.score,
+            last_score: s.score
+          };
+        });
+      }
 
-    const map = {}
-
-    if(Array.isArray(data)){
-      data.forEach((s:any) => {
-        map[s.quiz_id] = s
-      })
-    } else if (data && typeof data === "object") {
-      Object.entries(data).forEach(([quizId, s]: any) => {
-        map[quizId] = s
-      })
+      setQuizStats(map);
+      setStatsLoaded(true);
     }
 
-    setQuizStats(map)
-    setStatsLoaded(true)   // 🔥 IMPORTANTISSIMO
-  }
-
-  loadStats()
-
-}, [activeView, projectId])
+    loadStats();
+  }, [activeView, projectId, loadQuizStats, statsLoaded]); // Aggiunto statsLoaded alle dipendenze
 
 
 
@@ -209,80 +212,76 @@ useEffect(() => {
 console.log("WORKSPACE LOG:", uploadLog)
 console.log("WORKSPACE resultsData:", resultsData);
 return (
+  <div style={{ ...workspace, position: "relative" }}>
 
+    {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
+    {uploading ||
+    generatingFlashcards ||
+    generatingQuiz ||
+    status === "Loading project..." ||
+    status === "Loading previous material..." ||
+    status === "Project loaded successfully" ||
+    status === "Processing topics..." ? (
+      <div style={loaderContainer}>
+        
+        {/* 1. SPINNER O CHECK DI SUCCESSO */}
+        {status === "Project loaded successfully" ? (
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            background: "#22c55e",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 20,
+            color: "white",
+            animation: "pop 0.3s ease"
+          }}>
+            ✔
+          </div>
+        ) : (
+          <div style={spinner}></div>
+        )}
 
-<div style={{...workspace, position:"relative"}}>
+        {/* 2. TITOLO DINAMICO TRADOTTO */}
+        <div style={loaderTitle}>
+          {!mounted ? (
+            "Loading..."
+          ) : uploading ? (
+            (uploadLog || translate('stats.Uploading document...'))
+          ) : generatingFlashcards ? (
+            // Prova senza "common:" se vedi ancora la chiave tecnica
+            translate(`loaders.flashcards_${currentStep}`)
+          ) : generatingQuiz ? (
+            translate(`loaders.quiz_${currentStep}`)
+          ) : (
+            /* LOGICA STATUS */
+            status === "Loading project..." ? translate('stats.loading_project') :
+            status === "Loading previous material..." ? translate('stats.loading_previous') :
+            status === "Project loaded successfully" ? translate('stats.project_success') :
+            status === "Processing topics..." ? translate('stats.processing_topics') :
+            status
+          )}
+        </div>
 
-{uploading ||
- status === "Loading project..." ||
- status === "Loading previous material..." ||
- status === "Project loaded successfully" ||
- status === "Processing topics..." || // <--- Questa riga tiene sveglia la pagina!
- generatingFlashcards ? (
+        {/* 3. SOTTOTITOLO DINAMICO TRADOTTO */}
+        <div style={loaderSubtitle}>
+          {mounted ? (
+            uploading
+              ? translate('stats.OCR files may take longer to process')
+              : (generatingFlashcards || generatingQuiz)
+                ? translate('stats.AI is analyzing your documents to create the best content')
+                : translate('stats.Please wait while we prepare your project')
+          ) : "..."}
+        </div>
 
-  <div style={loaderContainer}>
-  {/* 1. SPINNER O CHECK DI SUCCESSO */}
-  {status === "Project loaded successfully" ? (
-    <div style={{
-      width: 40,
-      height: 40,
-      borderRadius: "50%",
-      background: "#22c55e",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: 20,
-      color: "white",
-      animation: "pop 0.3s ease"
-    }}>
-      ✔
-    </div>
-  ) : (
-    <div style={spinner}></div>
-  )}
+        
+      </div>
+    ) : /* --- FINE BLOCCO LOADER --- */
 
-  {/* 2. TITOLO DINAMICO (Il messaggio principale) */}
-  <div
-    style={{
-      ...loaderTitle,
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      opacity: status === "Project loaded successfully" ? 1 : 0.9,
-      transform: status === "Project loaded successfully"
-        ? "scale(1)"
-        : "scale(0.98)",
-      transition: "all 0.3s ease"
-    }}
-  >
-    {!uploading && status === "Project loaded successfully" && (
-      <span style={{
-        color: "#22c55e",
-        fontSize: 22,
-        animation: "pop 0.3s ease"
-      }}>
-        ✔
-      </span>
-    )}
-
-    {uploading
-      ? (uploadLog || "Uploading document...")
-      : generatingFlashcards || generatingQuiz // <-- Controllo se sta generando qualcosa
-        ? (loaderMessages ? loaderMessages[loaderType][loaderStep] : "Processing...") 
-        : status}
-  </div>
-
-  {/* 3. SOTTOTITOLO DINAMICO */}
-  <div style={loaderSubtitle}>
-    {uploading
-      ? "OCR files may take longer to process"
-      : (generatingFlashcards || generatingQuiz)
-        ? "AI is analyzing your documents to create the best content" // Messaggio durante la generazione
-        : "Please wait while we prepare your project"}
-  </div>
-</div>
-
-) : !projectId ? (
+    !projectId ? (
+      // Qui continua con il tuo codice del logo (StudyForge)
 
   
    <div style={{
@@ -317,8 +316,14 @@ return (
       maxWidth:400,
       lineHeight:1.6
     }}>
-      Welcome 👋  
-      Create a new project or load an existing one to start studying.
+      {mounted ? (
+        <>
+          {translate('stats.Welcome 👋 ')} 
+          {translate('stats.Create a new project or load an existing one to start studying.')}
+        </>
+      ) : (
+        "Loading..." // Testo temporaneo che corrisponde tra server e client
+      )}
     </p>
 
   </div>
@@ -340,7 +345,7 @@ return (
       fontSize:26,
       marginBottom:10
     }}>
-      Upload your study material
+      {translate('stats.Upload your study material')}
     </h2>
 
     <p style={{
@@ -348,7 +353,7 @@ return (
       maxWidth:400,
       lineHeight:1.6
     }}>
-      Upload your files to start generating topics, flashcards and quizzes.
+      {translate('stats.Upload your files to start generating topics, flashcards and quizzes.')}
     </p>
 
   </div>
@@ -366,7 +371,7 @@ return (
     {/* MANAGE PROJECTS */}
     {activeView === "manage_projects" && (
       <div style={{padding:40}}>
-        <h2>Manage Projects</h2>
+        <h2>{translate('stats.Manage Projects')}</h2>
 
         
 
@@ -411,7 +416,7 @@ return (
                     cursor:"pointer"
                   }}
                 >
-                  Delete project
+                  {translate('stats.Delete project')}
                 </button>
 
               </div>
@@ -419,7 +424,7 @@ return (
               {/* DOCUMENT LIST */}
               {docs.length === 0 && (
                 <div style={{color:"#9ca3af", fontSize:13}}>
-                  No documents
+                  {translate('stats.No documents')} 
                 </div>
               )}
 
@@ -486,13 +491,14 @@ return (
           📚 Centro di Controllo Argomenti
         </h2>
         <p style={{ color: "#9ca3af", marginBottom: "30px" }}>
-          Seleziona un argomento specifico per avviare una sessione di studio mirata.
+          {translate('stats.Select a specific topic to start a targeted study session.')}
         </p>
 
         <TopicsView
           topics={topics}
+          projectId={projectId}
           loadingTopics={loadingTopics}
-          topicsOpen={true}
+          topicsOpen={topicsOpen}
           setTopicsOpen={() => {}}
           selectedTopics={selectedTopics}
           setSelectedTopics={setSelectedTopics}
@@ -538,12 +544,12 @@ return (
         textAlign:"center"
       }}>
         <h3 style={{ color:"white", fontSize:22 }}>
-          Generate Flashcards
+          {translate('stats.Generate Flashcards')}
         </h3>
 
-        <p style={{ color:"#9ca3af", maxWidth:500 }}>
-          Select topics and number of cards in the left panel, then press 
-          <b style={{color:"white"}}> Generate </b>.
+        <p style={{ color:"#9ca3af", maxWidth:600 }}>
+          {translate('stats.Select topics and number of cards in the left panel, then press')}
+          <b style={{color:"white"}}> {translate('stats.Generate')} </b>.
         </p>
       </div>
     )}
@@ -612,10 +618,10 @@ return (
               maxWidth:500,
               lineHeight:1.6
             }}>
-              Choose how many new flashcards you want to generate and press 
-              <b style={{color:"white"}}> Generate </b>,  
-              or choose how many of your existing flashcards you’d like to review and press 
-              <b style={{color:"white"}}> Start Study </b>.
+              {translate('stats.Choose how many new flashcards you want to generate and press ')}
+              <b style={{color:"white"}}> {translate('stats.Generate')} </b>,  
+              {translate('stats.or choose how many of your existing flashcards you’d like to review and press ')}
+              <b style={{color:"white"}}> {translate('stats.Start Study')} </b>.
             </p>
           </div>
 
@@ -653,8 +659,8 @@ return (
             }}
           />
           <h2 style={{ color: "#9ca3af", maxWidth: 400 }}>
-            Welcome 👋  
-            Create a new project or load an existing one to start studying.
+            {translate('stats.Welcome 👋 ')}
+            {translate('stats.Create a new project or load an existing one to start studying.')}
           </h2>
         </div>
       )
@@ -805,7 +811,7 @@ return (
                   </div>
 
                   <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                    {q.num_questions} questions
+                    {q.num_questions} {translate('stats.questions')}
                   </div>
 
                   {stats && (
@@ -819,7 +825,7 @@ return (
                     }}>
                       
                       <span style={{ color: "#9ca3af" }}>
-                        Attempts: {stats.attempts}
+                        {translate('stats.Attempts: {stats.attempts}')}
                       </span>
 
                       <span>·</span>
@@ -830,7 +836,7 @@ return (
                               "#ef4444",
                         fontWeight: 600
                       }}>
-                        Best: {stats.best_score}%
+                        {translate('stats.Best: {stats.best_score}%')}
                       </span>
 
                       <span>·</span>
@@ -841,7 +847,7 @@ return (
                               "#ef4444",
                         fontWeight: 600
                       }}>
-                        Last: {stats.last_score}%
+                        {translate('stats.Last: {stats.last_score}%')}
                       </span>
 
                       {stats.attempts > 1 && (
@@ -851,7 +857,7 @@ return (
                             color: stats.last_score >= stats.best_score ? "#22c55e" : "#ef4444",
                             fontWeight: 600
                           }}>
-                            {stats.last_score >= stats.best_score ? "↑ Improving" : "↓ Needs review"}
+                            {stats.last_score >= stats.best_score ? translate('stats.↑ Improving') : translate('stats.↓ Needs review')}
                           </span>
                         </>
                       )}
@@ -877,7 +883,7 @@ return (
                   onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
                   onMouseLeave={e => e.currentTarget.style.opacity = "1"}
                 >
-                  Retake
+                  {translate('stats.Retake')}
                 </button>
 
               </div>
@@ -885,7 +891,7 @@ return (
           })
         ) : (
           <div style={{ color:"#9ca3af" }}>
-            No quizzes yet
+            {translate('stats.No quizzes yet')}
           </div>
         )}
 
@@ -910,6 +916,7 @@ return (
 
 )
 }
+
 
 
 const workspace = {

@@ -1,5 +1,6 @@
 import TopicsView from "./views/TopicsView"
 import React from "react"
+import { useTranslation } from 'react-i18next';
 
 export default function ToolPanel({
 
@@ -65,6 +66,8 @@ uploadStatus
 
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([])
   const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([])
+  const topicLabel = selectedTopic || "General";
+  const { t: translate } = useTranslation();
 
   return (
     <div style={panel}>
@@ -84,7 +87,7 @@ uploadStatus
             color: "#9ca3af",
             letterSpacing: 1
           }}>
-            ACTIVE PROJECT
+            {translate('stats.ACTIVE PROJECT')}
           </div>
 
           <div style={{
@@ -100,7 +103,7 @@ uploadStatus
             color: "#9ca3af",
             marginTop: 4
           }}>
-            {documents?.length || 0} documents • {topics?.length || 0} topics
+            {documents?.length || 0} {translate('stats.documents')} • {topics?.length || 0} {translate('stats.topics')}
           </div>
         </div>
       )}
@@ -110,12 +113,12 @@ uploadStatus
       {/* ========================= */}
       {activeView === "create_project" && (
         <>
-          <h3>Create Project</h3>
+          <h3>{translate('stats.Create Project')}</h3>
 
           {/* STEP 1 */}
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>
-              1. Project Name
+              {translate('stats.1. Project Name')}
             </div>
 
             <input
@@ -134,7 +137,7 @@ uploadStatus
                 cursor: !projectName?.trim() ? "not-allowed" : "pointer"
               }}
             >
-              Create project
+              {translate('stats.Create project')}
             </button>
           </div>
 
@@ -143,12 +146,12 @@ uploadStatus
           {/* STEP 2 */}
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6 }}>
-              2. Upload Documents
+              {translate('stats.2. Upload Documents')}
             </div>
 
             {!projectId ? (
               <div style={{ color: "#9ca3af", fontSize: 13 }}>
-                Create the project first to enable document upload.
+                {translate('stats.Create the project first to enable document upload.')}
               </div>
             ) : (
               <>
@@ -171,7 +174,7 @@ uploadStatus
                     cursor: "pointer"
                   }}
                 >
-                  Upload documents
+                  {translate('stats.Upload documents')}
                 </button>
 
                 {uploadStatus && (
@@ -183,7 +186,7 @@ uploadStatus
                 {documents?.length > 0 && (
                   <div style={{ marginTop: 16 }}>
                     <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                      Uploaded documents
+                      {translate('stats.Uploaded documents')}
                     </div>
 
                     {documents.map((doc: any, i: number) => (
@@ -211,10 +214,10 @@ uploadStatus
       {/* ========================= */}
       {activeView === "load_project" && (
         <>
-          <h3>Load Project</h3>
+          <h3>{translate('stats.Load Project')}</h3>
 
           <div style={{marginBottom:8,fontWeight:600}}>
-            Select project
+            {translate('stats.Select project')}
           </div>
 
           <div style={projectList}>
@@ -238,7 +241,7 @@ uploadStatus
 
           {projectId && (
             <>
-              <label style={{display:"block", marginTop:16}}>Upload documents</label>
+              <label style={{display:"block", marginTop:16}}>{translate('stats.Upload documents')}</label>
 
               <input
                 type="file"
@@ -266,7 +269,7 @@ uploadStatus
               <div style={{marginTop:20}}>
 
               <div style={{fontWeight:600, marginBottom:6}}>
-              Uploaded documents
+              {translate('stats.Uploaded documents')}
               </div>
 
               {documents.map((doc:any,i:number)=>(
@@ -294,7 +297,7 @@ uploadStatus
               <div style={{marginTop:20}}>
 
               <div style={{fontWeight:600, marginBottom:6}}>
-              Detected topics
+              {translate('stats.Detected topics')}
               </div>
 
               {topics.map((t:any,i:number)=>(
@@ -331,7 +334,7 @@ uploadStatus
           {!selectedTopic && (
             <>
               <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
-                Select a topic
+                {translate('stats.Select a topic')}
               </div>
 
               <div style={{ maxHeight: 200, overflowY: "auto" }}>
@@ -381,11 +384,11 @@ uploadStatus
       {/* ========================= */}
       {activeView === "generate_flashcards" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Generate Flashcards</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Flashcards')}</h3>
 
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 11, color: "#9ca3af", letterSpacing: 0.5, marginBottom: 8, display: "block" }}>
-              SELECT TOPICS TO COVER
+              {translate('stats.SELECT TOPICS TO COVER')}
             </label>
             
             {/* LISTA COMPATTA (Checkbox + Nome) */}
@@ -424,7 +427,7 @@ uploadStatus
             </div>
           </div>
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Number of cards</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Number of cards')}</div>
           <input
             type="number"
             value={numQuestions}
@@ -452,7 +455,7 @@ uploadStatus
       {/* ========================= */}
       {activeView === "flashcards" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Generate Flashcards</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Flashcards')}</h3>
 
           {/* SELEZIONE TOPIC: Apparirà qui la lista con i checkbox */}
           {selectedTopic && (
@@ -520,7 +523,7 @@ uploadStatus
       {/* ========================= */}
       {activeView === "quiz" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Generate Quiz</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Quiz')}</h3>
 
           {/* FOCUS MODE PER QUIZ */}
           {selectedTopic && (
@@ -531,7 +534,7 @@ uploadStatus
               border: "1px solid #22c55e",
               borderRadius: 8
             }}>
-              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>TARGET TOPIC</div>
+              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>{translate('stats.TARGET TOPIC')}</div>
               <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 {selectedTopics && selectedTopics.length > 1
                   ? `${selectedTopics[0]?.topic?.split(" ")[0]} (${selectedTopics.length} topics)`
@@ -558,7 +561,7 @@ uploadStatus
             </div>
           )}
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Questions</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Questions')}</div>
           <input
             type="number"
             value={numQuestions}
@@ -566,7 +569,7 @@ uploadStatus
             style={input}
           />
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Difficulty</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Difficulty')}</div>
           <select
             value={difficulty}
             onChange={(e)=>setDifficulty(e.target.value)}
@@ -577,7 +580,7 @@ uploadStatus
             <option>hard</option>
           </select>
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Language</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Language')}</div>
           <select
             value={language}
             onChange={(e)=>setLanguage(e.target.value)}
@@ -587,7 +590,7 @@ uploadStatus
             <option>Italian</option>
           </select>
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Timer (minutes)</div>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Timer (minutes)')}</div>
           <input
             type="number"
             value={timerMinutes}
@@ -602,7 +605,7 @@ uploadStatus
             }}
             style={button}
           >
-            Generate {selectedTopic ? 'Topic' : 'General'} Quiz
+            Generate {selectedTopic ? 'Topic' : 'General'} {translate('stats.Quiz')}
           </button>
         </>
       )}

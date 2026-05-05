@@ -1,3 +1,4 @@
+import '../lib/i18n';
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import "../styles/global.css"

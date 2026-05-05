@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { supabase } from "../../lib/supabase"
+import { useTranslation } from 'react-i18next';
 
 export default function FlashcardsView({
 flashcards,
@@ -11,7 +12,7 @@ projectId,
 loadingFlashcards,
 loaderText
 }) {
-
+const { t: translate } = useTranslation();
 if(openCard === null){
     return (
       <div style={{ textAlign: "center", marginTop: 60 }}>
@@ -33,14 +34,14 @@ if(openCard === null){
                 animation: "spin 1s linear infinite" 
             }} />
             <p style={{ color: "#22c55e", fontWeight: 600, fontSize: "18px" }}>
-              {loaderText || "Generating flashcards..."}
+              {loaderText || translate('stats.generating_flashcards')}
             </p>
           </div>
         ) : (
           /* 2. MOSTRA LE ISTRUZIONI SE NON STA CARICANDO */
           <div style={{ color: "#9ca3af", fontSize: 18 }}>
-            Select how many flashcards you want to revise<br/>
-            and press <b>Start Study</b>
+            {translate('stats.Select how many flashcards you want to revise')}<br/>
+            and press <b>{translate('stats.Start Study')}</b>
           </div>
         )}
 
@@ -64,7 +65,7 @@ if(openCard === null){
         color: "#9ca3af",
         marginTop: 60
       }}>
-        No flashcards generated
+        {translate('stats.No flashcards generated')}
       </div>
     )
   }
@@ -77,9 +78,9 @@ if(openCard === null){
         color: "white",
         marginTop: 60
       }}>
-        <h2>🎉 Study session completed</h2>
+        <h2>🎉 {translate('stats.Study session completed')}</h2>
         <p style={{ color: "#9ca3af" }}>
-          You reviewed {flashcards.length} cards.
+          {translate('stats.You reviewed')} {flashcards.length} {translate('stats.cards')}.
         </p>
       </div>
     )
@@ -240,7 +241,7 @@ if(openCard === null){
                 }}
                 style={wrongBtn}
               >
-                Wrong
+                {translate('stats.Wrong')}
               </button>
 
               <button
@@ -250,7 +251,7 @@ if(openCard === null){
                 }}
                 style={hardBtn}
               >
-                Correct but hard
+                {translate('stats.Correct but hard')}
               </button>
 
               <button
@@ -260,7 +261,7 @@ if(openCard === null){
                 }}
                 style={goodBtn}
               >
-                Correct
+                {translate('stats.Correct')}
               </button>
 
               <button
@@ -270,11 +271,11 @@ if(openCard === null){
                 }}
                 style={easyBtn}
               >
-                Easy
+                {translate('stats.Easy')}
               </button>
 
               <button onClick={goToPrevious}>
-                ⬅️ Previous
+                ⬅️ {translate('stats.Previous')}
               </button>
 
             </div>

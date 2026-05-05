@@ -1,9 +1,40 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../../lib/supabase"
+import { useTranslation } from 'react-i18next';
+
 
 export default function SummaryView({ summaryStats, projectId }){
+  console.log("DATI RICEVUTI DAL BACKEND:", summaryStats);
 
 const [flashcardResults, setFlashcardResults] = useState(null)
+const { t: translate } = useTranslation();
+// 1. PRIMA controlliamo se summaryStats esiste
+if (!summaryStats) {
+  return (
+    <div style={{ padding: 20, textAlign: "center", color: "#9ca3af" }}>
+      <p>{translate('stats.Loading topics...')}</p>
+    </div>
+  );
+}
+
+// 2. DOPO che siamo sicuri che esiste, dichiariamo topics
+const topics = summaryStats?.topics_detail || [];
+
+console.log("Valore di topics calcolato:", topics);
+
+// 3. Poi controlliamo se topics è vuoto
+if (topics.length === 0) {
+  return (
+    <div style={{ padding: 20, textAlign: "center", color: "#9ca3af" }}>
+      <p>{translate('stats.No topics analyzed yet. Complete a quiz to see your mastery!')}</p>
+    </div>
+  );
+}
+
+// Suddivisione nelle 3 categorie per le colonne
+const strongTopics = topics.filter(t => t.score >= 80);
+const improvingTopics = topics.filter(t => t.score >= 50 && t.score < 80);
+const weakTopics = topics.filter(t => t.score < 50);
 
 useEffect(() => {
 
@@ -54,34 +85,34 @@ No data yet
 </div>
 )
 }
-
+console.log("🔍 DEBUG SUMMARY STATS:", summaryStats);
 return(
 
 <div>
 
-<h2 style={title}>Study Summary</h2>
+<h2 style={title}>{translate('stats.Study Summary')}</h2>
 
 <div>
 
 {/* ================= PERFORMANCE ================= */}
-<h3 style={sectionTitle}>Performance</h3>
+<h3 style={sectionTitle}>{translate('stats.Performance')}</h3>
 
 <div style={grid}>
 
   {flashcardResults && (
     <>
       <div style={card}>
-        <h3>Flashcard Accuracy</h3>
+        <h3>{translate('stats.Flashcard Accuracy')}</h3>
         <p>{flashcardResults.accuracy}%</p>
       </div>
 
       <div style={card}>
-        <h3>Avg Response Time</h3>
+        <h3>{translate('stats.Avg Response Time')}</h3>
         <p>{flashcardResults.avg_time}s</p>
       </div>
 
       <div style={card}>
-        <h3>Total Reviews</h3>
+        <h3>{translate('stats.Total Reviews')}</h3>
         <p>{flashcardResults.total_reviews}</p>
       </div>
     </>
@@ -89,19 +120,56 @@ return(
 
 </div>
 
+{/* ================= COLONNE TOPIC ================= */}
+<h3 style={sectionTitle}>{translate('stats.Topic Breakdown')}</h3>
+<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
+  
+  {/* COLONNA CRITICAL */}
+  <div style={columnStyle}>
+    <h4 style={{ color: "#ef4444", fontSize: "12px" }}>
+      {translate('stats.Critical')} {"(< 50%)"}
+    </h4>
+    {summaryStats.topics_detail?.filter(t => t.score < 50).map(t => (
+      <div key={t.topic} style={miniCardStyle}>{t.topic} ({t.score}%)</div>
+    ))}
+  </div>
+
+  {/* COLONNA IMPROVING */}
+  <div style={columnStyle}>
+    <h4 style={{ color: "#eab308", fontSize: "12px" }}>
+      {translate('stats.Improving')} {"(50-80%)"}
+    </h4>
+    {summaryStats.topics_detail?.filter(t => t.score >= 50 && t.score < 80).map(t => (
+      <div key={t.topic} style={miniCardStyle}>{t.topic} ({t.score}%)</div>
+    ))}
+  </div>
+
+  {/* Colonna MASTERED */}
+  {/* In SummaryView.tsx */}
+<div style={columnStyle}>
+  <h4 style={{ color: "#22c55e", fontSize: "12px" }}>{translate('stats.Mastered')} {"> 80%"}</h4>
+  {summaryStats.topics_detail?.filter(t => t.score >= 80).map((t, i) => (
+    <div key={i} style={miniCardStyle}>
+       {t.topic}
+       <span style={{ display: 'block', fontSize: '12px' }}>{t.score}% accuracy</span>
+    </div>
+  ))}
+</div>
+</div>
+
 
 {/* ================= STUDY PROGRESS ================= */}
-<h3 style={sectionTitle}>Study Progress</h3>
+<h3 style={sectionTitle}>{translate('stats.Study Progress')}</h3>
 
 <div style={grid}>
 
   <div style={card}>
-    <h3>Flashcards Reviewed</h3>
+    <h3>{translate('stats.Flashcards Reviewed')}</h3>
     <p>{summaryStats.flashcards_reviewed ?? 0}</p>
   </div>
 
   <div style={card}>
-    <h3>Topics Studied</h3>
+    <h3>{translate('stats.Topics Studied')}</h3>
     <p>{summaryStats.topics_count ?? 0}</p>
   </div>
 
@@ -114,12 +182,12 @@ return(
 <div style={grid}>
 
   <div style={card}>
-    <h3>Quiz Attempts</h3>
+    <h3>{translate('stats.Quiz Attempts')}</h3>
     <p>{summaryStats.quiz_attempts ?? 0}</p>
   </div>
 
   <div style={card}>
-    <h3>Average Score</h3>
+    <h3>{translate('stats.Average Score')}</h3>
     <p>{summaryStats.avg_score ?? 0}%</p>
   </div>
 
@@ -160,3 +228,27 @@ const sectionTitle = {
   textTransform: "uppercase",
   letterSpacing: 1
 }
+
+const columnStyle = {
+  background: "#111827",
+  border: "1px solid #374151",
+  borderRadius: "12px",
+  padding: "15px",
+  minHeight: "300px",
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: "10px"
+};
+
+const miniCardStyle = {
+  background: "#1f2937",
+  padding: "12px",
+  borderRadius: "8px",
+  fontSize: "13px",
+  color: "white",
+  borderLeft: "4px solid #374151",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+};
+
+
+
