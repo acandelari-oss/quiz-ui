@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase"
 import FlashcardsView from "./FlashcardsView"
 import ActiveRecallView from "./ActiveRecallView"
 import QuizView from "./QuizView"
+import { useTranslation } from 'react-i18next';
 
 const description = {
   color: "#9ca3af",
@@ -66,10 +67,31 @@ const loaderSubtitle = {
   color: "#9ca3af"
 }
 
-export default function StudySessionView({ projectId, selectedTopics }: { projectId: string, selectedTopics?: string[] | null }) {
-  const normalizedSelectedTopics = (selectedTopics || []).map(t =>
-    String(t).replace(/\s+/g, " ").trim()
-  );
+export default function StudySessionView({
+  projectId,
+  selectedTopics,
+  studyConfig
+}: {
+  projectId: string,
+  selectedTopics?: string[] | null,
+  studyConfig?: {
+    flashcards: number,
+    recall: number,
+    quiz: number
+  }
+}) {
+  const normalizedSelectedTopics = (selectedTopics || []).map((t:any) => {
+
+    const value =
+      typeof t === "string"
+        ? t
+        : t.topic
+
+    return String(value)
+      .replace(/\s+/g, " ")
+      .trim()
+
+  });
 
 console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
   const [step, setStep] = useState(0)
@@ -87,6 +109,7 @@ console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
   const [sessionLoaded, setSessionLoaded] = useState(false)
   const accuracy = correctCount + wrongCount > 0 ? correctCount / (correctCount + wrongCount) : 0.5
   const steps = ["Flashcards", "Active Recall", "Quiz", "Summary"]
+  const { t: translate } = useTranslation();
 
   useEffect(() => {
   setSessionLoaded(false)
@@ -193,6 +216,7 @@ console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
 const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: string }>({})
 const [quizFinished, setQuizFinished] = useState(false)
 const [quizStarted, setQuizStarted] = useState(false)
+const [quizId, setQuizId] = useState<string | null>(null)
 
 
 
@@ -211,7 +235,7 @@ async function generateQuiz() {
       },
       // 2. Il tuo backend aspetta un oggetto QuizRequest (num_questions, difficulty, language)
       body: JSON.stringify({
-        num_questions: 15,
+        num_questions: studyConfig?.quiz || 5,
         difficulty: "medium",
         topics: normalizedSelectedTopics || [],
         language: "english"
@@ -225,6 +249,7 @@ async function generateQuiz() {
       }
 
       const data = await res.json();
+      setQuizId(data.quiz_id || data.id)
       console.log("Quiz Data Received:", data);
 
       const questions = data.questions || data.quiz || [];
@@ -272,7 +297,12 @@ async function generateQuiz() {
 
     const session = await res.json()
 
-    setFlashcards(session.flashcards || [])
+    setFlashcards(
+      (session.flashcards || []).slice(
+        0,
+        studyConfig?.flashcards || 8
+      )
+    )
     setRecallTopics(session.recall_topics || [])
     setLoading(false)
     setSessionLoaded(true) // 🔥 blocca loop
@@ -288,17 +318,21 @@ async function generateQuiz() {
   return (
     <div style={loaderContainer}>
       <div style={spinner} />
-      <div style={loaderTitle}>
+     <div style={loaderTitle}>
         {step === 0 && (
           selectedTopics && selectedTopics.length > 0
-            ? `Generating study session for: ${selectedTopics.join(", ")}`
-            : "Preparing flashcards..."
+            ? `${translate('stats.Generating study session for')}: ${selectedTopics.join(", ")}`
+            : translate('stats.Preparing flashcards')
         )}
-        {step === 1 && "Analyzing your weak points..."}
-        {step === 2 && "Generating final Quiz..."}
+        {step === 1 && translate('stats.Analyzing your weak points')}
+        {step === 2 && translate('stats.Generating final Quiz')}
       </div>
+
       <div style={loaderSubtitle}>
-        {step === 2 ? "Creating custom questions based on your performance..." : "Please wait a moment."}
+        {step === 2 
+          ? translate('stats.Creating custom questions based on your performance') 
+          : translate('stats.Please wait a moment')
+        }
       </div>
     </div>
   )
@@ -319,15 +353,15 @@ async function generateQuiz() {
         {selectedTopics && selectedTopics.length > 0 && (
           <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid #8b5cf6", padding: "15px", borderRadius: "10px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontSize: "10px", color: "#8b5cf6", fontWeight: "bold", letterSpacing: "1px" }}>FOCUS STUDY ACTIVE</div>
+              <div style={{ fontSize: "10px", color: "#8b5cf6", fontWeight: "bold", letterSpacing: "1px" }}>{translate('stats.FOCUS STUDY ACTIVE')}</div>
               <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{selectedTopics.join(", ")}</div>
             </div>
             <span style={{ fontSize: "24px" }}>📚</span>
           </div>
         )}
 
-        <h2>AI Study Session</h2>
-        <p style={description}>A guided study session combining flashcards, active recall and quizzes.</p>
+        <h2>{translate('stats.AI Study Session')}</h2>
+        <p style={description}>{translate('stats.A guided study session combining flashcards, active recall and quizzes.')}</p>
 
         <div style={progress}>
           {steps.map((s, i) => (
@@ -355,6 +389,7 @@ async function generateQuiz() {
             <ActiveRecallView 
               projectId={projectId} 
               selectedTopics={normalizedSelectedTopics}
+              maxQuestions={studyConfig?.recall || 3}
               onComplete={handleRecallComplete} 
             />
           </>
@@ -370,7 +405,53 @@ async function generateQuiz() {
             finished={quizFinished}
             projectId={projectId}
             selectAnswer={(idx: number, val: string) => setQuizAnswers(prev => ({ ...prev, [idx]: val }))}
-            submitQuiz={() => setQuizFinished(true)}
+            submitQuiz={async () => {
+              console.log("🔥 STUDY SESSION SUBMIT CHIAMATO")
+              setQuizFinished(true)
+
+              const { data } = await supabase.auth.getSession()
+              const token = data.session?.access_token
+
+              const answersArray = quizData.map((q, index) => {
+                const userAnswer = quizAnswers[index]
+                const correctRaw = (q.correct_answer ?? q.correct ?? "").toString().trim()
+
+                let isCorrect = false
+
+                q.options.forEach((opt: string, j: number) => {
+                  const optLetter = String.fromCharCode(65 + j)
+
+                  const correct =
+                    correctRaw.toLowerCase() === opt.toLowerCase() ||
+                    correctRaw === optLetter ||
+                    String(Number(correctRaw)) === String(j)
+
+                  if (correct && userAnswer === opt) {
+                    isCorrect = true
+                  }
+                })
+
+                return {
+                  question_id: q.id,
+                  is_correct: isCorrect,
+                  topic: (q.topic || "General").trim().toLowerCase()
+                }
+              })
+
+              console.log("📦 STUDY SESSION ANSWERS:", answersArray)
+
+              await fetch(`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                  quiz_id: quizId,
+                  answers: answersArray
+                })
+              })
+            }}
             calculateScore={() => {
                 let score = 0;
                 quizData.forEach((q, i) => {
@@ -397,10 +478,10 @@ async function generateQuiz() {
         {step === 3 && (
           <div style={{ textAlign: "center", marginTop: 60, color: "white" }}>
             <h2>🎉 Study Session Completed</h2>
-            <p style={{ color: "#9ca3af", marginTop: 10 }}>Great work. You finished your study session.</p>
+            <p style={{ color: "#9ca3af", marginTop: 10 }}>{translate('stats.Great work. You finished your study session.')}</p>
             {weakTopics.length > 0 && (
               <div style={{ marginTop: 30 }}>
-                <h3>Topics you should review</h3>
+                <h3>{translate('stats.Topics you should review')}</h3>
                 <ul style={{ marginTop: 10, color: "#f87171", listStyle: "none", padding: 0 }}>
                   {[...new Set(weakTopics)].map((t, i) => <li key={i}>{t}</li>)}
                 </ul>
@@ -412,7 +493,7 @@ async function generateQuiz() {
               }}
               style={{ marginTop: 30, padding: "12px 20px", background: "#2563eb", border: "none", borderRadius: 8, color: "white", cursor: "pointer" }}
             >
-              Start new session
+              {translate('stats.Start new session')}
             </button>
           </div>
         )}

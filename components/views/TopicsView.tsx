@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from "../../lib/supabase"; // Il percorso potrebbe variare in base alla tua cartella
 import { useTranslation } from 'react-i18next';
+import { normalizeTopic } from "../../utils/topic";
 export default function TopicsView({
   
   topics,
@@ -62,7 +63,10 @@ export default function TopicsView({
         
         const data = await response.json();
         console.log("🔍 DATI GREZZI DAL SERVER:", data);
-        console.log("📋 TOPIC DA MAPPARE:", topics.map(t => t.topic));
+        console.log(
+          "📋 TOPIC DA MAPPARE:",
+          topics.map(t => t.title || t.topic)
+        );
 
         // Prova a forzare un match manuale per il primo topic per vedere se funziona
         const primoTopic = topics[0]?.topic;
@@ -80,7 +84,9 @@ export default function TopicsView({
     fetchDetailedStats();
   }, [projectId]);
   // ----------------------------------
-
+  console.log("🧠 TOPICS RAW:", topics);
+  console.log("🔥 RESULTS DATA:", resultsData)
+  console.log("🔑 RESULTS KEYS:", Object.keys(resultsData || {}))
   return (
     <div style={box}>
       <h3
@@ -146,9 +152,21 @@ export default function TopicsView({
                       
                       <button
                         onClick={() => {
-                          setSelectedTopics(categoryTopics)
-                          setSelectedTopic(null)
-                          setActiveView("quiz")
+                          if (!categoryTopics || categoryTopics.length === 0) {
+                            alert("No topics found");
+                            return;
+                          }
+
+                          console.log("🧠 QUIZ CATEGORY TOPICS:", categoryTopics)
+
+                          setSelectedTopics(categoryTopics);
+                          
+                          // 3. Prendiamo il nome della categoria dal primo topic disponibile
+                          // Invece di categoryName che non esiste, usiamo categoryTopics[0].category
+                          const currentCat = categoryTopics[0].category;
+                             
+
+                          setActiveView("quiz");
                         }}
                         style={macroBtn("#2563eb")}
                       >
@@ -157,13 +175,33 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map((t: any) => t.topic)
+                          const topics = categoryTopics.map(
+                            (t: any) => t.title || t.topic
+                          )
+
+                          setSelectedTopics(categoryTopics)
+
+                          setSelectedTopic(null)
+
+                          setActiveView("generate_flashcards")
+
+                        }}
+                        style={macroBtn("#0b9280")}
+                      >
+                        Flashcards
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const topics = categoryTopics.map(
+                            (t: any) => t.title || t.topic
+                          )
 
                           console.log("🧠 MEMORY TOPICS:", topics)   // 👈 AGGIUNGI QUESTO
 
-                          setSelectedTopics(topics)
+                          setSelectedTopics(categoryTopics)
                           setSelectedTopic(null)
-                          setActiveView("active_recall")
+                          setActiveView("active_recall_setup")
                         }}
                         style={macroBtn("#f4970c")}
                       >
@@ -172,21 +210,25 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map((t: any) => t.topic)
-                          setSelectedTopics(topics)
+                          const topics = categoryTopics.map(
+                            (t: any) => t.title || t.topic
+                          )
+                          setSelectedTopics(categoryTopics)
                           setSelectedTopic(null)
-                          setActiveView("ask")
+                          setActiveView("ask_setup")
                         }}
-                        style={macroBtn("#059669")}
+                        style={macroBtn("#0a6610")}
                       >
                         {translate('stats.Ask')}
                       </button>
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map((t: any) => t.topic)
-                          setSelectedTopics(topics)
-                          setActiveView("study_session")
+                          const topics = categoryTopics.map(
+                            (t: any) => t.title || t.topic
+                          )
+                          setSelectedTopics(categoryTopics)
+                          setActiveView("study_session_setup")
                         }}
                         style={macroBtn("#8b5cf6")}
                       >
@@ -196,88 +238,118 @@ export default function TopicsView({
                     </div>
 
                   </div>
+                  
 
                   {categoryTopics.map((t: any) => {
-                      const value = typeof t === 'string' ? t : t.topic;
-                      const isSelected = selectedTopics.includes(value);
-                      
-                      // --- LOGICA FLASHCARDS ---
-                      const statsEntry = Object.entries(flashcardDetailedStats || {}).find(
-                          ([key]) => normalizeTopic(key) === normalizeTopic(value)
-                      );
-                      const topicStats = statsEntry 
-                          ? (statsEntry[1] as any) 
-                          : { wrong: 0, hard: 0, good: 0, easy: 0, total: 0 };
+                    const topicObj = t;
 
-                      // --- LOGICA QUIZ ---
-                      const quizStats: any = Object.entries(resultsData || {}).find(
-                          ([key]) => normalizeTopic(key) === normalizeTopic(value)
-                      )?.[1];
+                    const value = topicObj.topic || topicObj.title;
 
-                      return (
-                        <div key={value} style={{ marginBottom: "12px", paddingLeft: "4px" }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {
-                                if (isSelected) {
-                                  setSelectedTopics(selectedTopics.filter((x: string) => x !== value));
-                                } else {
-                                  setSelectedTopics([...selectedTopics, value]);
-                                }
-                              }}
-                              style={{ marginTop: "4px", cursor: "pointer" }}
-                            />
+                    const isSelected = selectedTopics?.some(
+                      (x: any) => x.id === t.id
+                    )
 
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
-                                <span style={{ fontSize: "14px", fontWeight: 500, color: "white" }}>
-                                  {value}
-                                </span>
-                              </div>
+                    // --- LOG DI EMERGENZA (Apri la console F12 per vederli) ---
+                    console.log("🔍 Verifico topic:", value);
+                    console.log("📊 Dati Quiz disponibili:", resultsData?.topic_mastery?.length || 0, "elementi");
 
-                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
-                                
-                                {/* RENDER FLASHCARDS */}
-                                {topicStats.total > 0 && (
-                                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                    <span style={{ fontSize: "10px", color: "#60a5fa", fontWeight: "bold", minWidth: "65px" }}>
-                                      FLASHCARDS:
-                                    </span>
-                                    <div style={{ display: "flex", gap: "6px" }}>
-                                      <span style={{ fontSize: "10px", color: "#ef4444" }}>{translate('stats.wrong')}: {topicStats.wrong}</span>
-                                      <span style={{ fontSize: "10px", color: "#f97316" }}>{translate('stats.hard')}: {topicStats.hard}</span>
-                                      <span style={{ fontSize: "10px", color: "#3b82f6" }}>{translate('stats.good')}: {topicStats.good}</span>
-                                      <span style={{ fontSize: "10px", color: "#22c55e" }}>{translate('stats.easy')}: {topicStats.easy}</span>
-                                    </div>
+                    // --- LOGICA FLASHCARDS ---
+                    // Cerchiamo il match normalizzando entrambi i lati
+                    const statsEntry = Object.entries(flashcardDetailedStats || {}).find(
+                      ([key]) =>
+                        (key || "")
+                          .trim()
+                          .toLowerCase() === value.trim().toLowerCase()
+                    );
+                    
+                    const topicStats = statsEntry 
+                      ? (statsEntry[1] as any) 
+                      : { wrong: 0, hard: 0, good: 0, easy: 0, total: 0 };
+
+                    // --- LOGICA QUIZ ---
+                    // Se resultsData.topic_mastery è vuoto, quizStats sarà undefined
+                    const quizStats = resultsData?.topic_mastery?.find(
+                      (q: any) =>
+                        normalizeTopic(q.topic || q.title) ===
+                        normalizeTopic(value)
+                    );
+                    return (
+                      <div key={value} style={{ marginBottom: "12px", paddingLeft: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+
+                              if (isSelected) {
+
+                                setSelectedTopics(
+                                  selectedTopics.filter((x: any) => x.id !== t.id)
+                                )
+
+                              } else {
+
+                                setSelectedTopics([
+                                  ...selectedTopics,
+                                  t
+                                ])
+
+                              }
+
+                            }}
+                            style={{ marginTop: "4px", cursor: "pointer" }}
+                          />
+
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: "14px", fontWeight: 500, color: "white" }}>
+                              {value}
+                            </span>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
+                              
+                              {/* DEBUG: Se vuoi vedere se i dati esistono ma il nome è sbagliato, 
+                                  togli il commento alla riga sotto temporarily: */}
+                              {/* <span style={{fontSize: '8px', color: 'gray'}}>Debug: {topicStats.total} cards found</span> */}
+
+                              {topicStats.total > 0 && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span style={{ fontSize: "11px", color: "#60a5fa", fontWeight: "bold", minWidth: "80px" }}>
+                                    FLASHCARDS:
+                                  </span>
+                                  <div style={{ display: "flex", gap: "8px" }}>
+                                    <span style={{ fontSize: "11px", color: "#ef4444" }}>wrong: {topicStats.wrong}</span>
+                                    <span style={{ fontSize: "11px", color: "#f97316" }}>hard: {topicStats.hard}</span>
+                                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>good: {topicStats.good}</span>
+                                    <span style={{ fontSize: "11px", color: "#22c55e" }}>easy: {topicStats.easy}</span>
                                   </div>
-                                )}
-                                
-                                {/* RENDER QUIZ */}
-                                {quizStats && quizStats.total > 0 && (() => {
-                                    const percentage = (quizStats.correct / quizStats.total) * 100;
-                                    let color = "#ef4444";
-                                    if (percentage >= 80) color = "#22c55e";
-                                    else if (percentage >= 50) color = "#eab308";
+                                </div>
+                              )}
 
-                                    return (
-                                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                        <span style={{ fontSize: "10px", color: color, fontWeight: "bold", minWidth: "65px" }}>
-                                          QUIZ:
-                                        </span>
-                                        <span style={{ fontSize: "10px", color: "white" }}>
-                                          {Math.round(percentage)}{translate('stats%.accuracy')} ({quizStats.total} {translate('stats.total')})
-                                        </span>
-                                      </div>
-                                    );
-                                })()}
-
-                              </div>
+                              {quizStats && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span style={{ 
+                                    fontSize: "11px", 
+                                    color:
+                                      (quizStats.accuracy || 0) >= 80
+                                        ? "#22c55e"
+                                        : (quizStats.accuracy || 0) >= 50
+                                          ? "#eab308"
+                                          : "#ef4444", 
+                                    fontWeight: "bold", 
+                                    minWidth: "80px" 
+                                  }}>
+                                    QUIZ:
+                                  </span>
+                                  <span style={{ fontSize: "11px", color: "white" }}>
+                                    {Math.round(quizStats.accuracy || 0)}%
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
-                      );
+                      </div>
+                    );
                   })}
                 </div>
               ))}

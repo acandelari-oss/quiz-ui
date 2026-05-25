@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
+import { Calendar } from "lucide-react"
 
 import {
   Folder,
@@ -32,6 +33,7 @@ export default function Sidebar({
         const [mounted, setMounted] = useState(false);
         const { t: translate } = useTranslation();
         const { i18n, t } = useTranslation();
+        const [numToReview, setNumToReview] = useState(availableFlashcards || 0);
 
         const changeLanguage = (lng: string) => {
           i18n.changeLanguage(lng);
@@ -55,10 +57,10 @@ export default function Sidebar({
       {/* LOGO */}
       <div style={logoBox}>
         <Image
-          src="/logoSF.png"
+          src="/logoSTX.png"
           width={270}
           height={75}
-          alt="StudyQuiz"
+          alt="StutorX logo"
         />
       </div>
 
@@ -107,7 +109,7 @@ export default function Sidebar({
           setStarted(false)
           setFinished(false)
           setAnswers({})
-          setActiveView("ask")
+          setActiveView("ask_setup")
         }}
       >
         <HelpCircle size={16}/> {translate('stats.Ask question')}
@@ -119,7 +121,7 @@ export default function Sidebar({
         setStarted(false)
         setFinished(false)
         setAnswers({})
-        setActiveView("study_session")
+        setActiveView("study_session_setup")
       }}
             >
       <Brain size={16}/> {translate('stats.Study Session')}
@@ -131,12 +133,11 @@ export default function Sidebar({
           setStarted(false)
           setFinished(false)
           setAnswers({})
-          setActiveView("active_recall")
+          setActiveView("active_recall_setup")
         }}
       >
         <Brain size={16}/> {translate('stats.Memory check')}
       </div>
-
 
       <div
         style={menuItem}
@@ -150,20 +151,35 @@ export default function Sidebar({
         <Layers size={16}/> {translate('stats.Generate flashcards')}
       </div>
 
-      <div
-        style={menuItem}
-        onClick={async () => {
-          if(projectId){
-            await loadFlashcards(projectId)
+  
+   
+    <div
+      style={menuItem}
+      onClick={async (e) => {
+        // Impediamo conflitti di eventi
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (projectId) {
+          // 1. Spegniamo categoricamente i loader prima di ogni altra cosa
+          if (typeof setGeneratingFlashcards === 'function') {
+            setGeneratingFlashcards(false);
           }
-          setActiveView("flashcards")
-        }}
-      >
-        <Layers size={16}/> {translate('stats.Load flashcards')}
-        <span style={{marginLeft:6,color:"#9ca3af"}}>
-          ({availableFlashcards || 0})
-        </span>
-      </div>
+          
+          // 2. Carichiamo le card
+          await loadFlashcards(projectId);
+          
+          // 3. Cambiamo vista SOLO dopo che il caricamento è "iniziato"
+          setActiveView("flashcards");
+        }
+      }}
+    >
+      <Layers size={16}/> {translate('stats.Load flashcards')}
+      <span style={{ marginLeft: 6, color: "#9ca3af" }}>
+        ({availableFlashcards || 0})
+      </span>
+    </div>
+ 
 
       
 
@@ -208,7 +224,12 @@ export default function Sidebar({
         </span>
       </div>
 
-     
+      <div
+        style={menuItem}
+        onClick={() => setActiveView("planner")}
+      >
+        <Calendar size={16}/>{translate('stats.Study planner')}
+      </div>
 
       <div
         style={menuItem}

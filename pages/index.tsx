@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/router";
@@ -6,9 +6,14 @@ import { useRouter } from "next/router";
 import Sidebar from "../components/Sidebar";
 import ToolPanel from "../components/ToolPanel";
 import Workspace from "../components/Workspace";
+import {
+  extractTopicIds,
+  extractTopicNames,
+  normalizeTopic
+} from "../utils/topics";
 
 export default function Home() {
-
+const pollingRef = useRef<any>(null)
 const router = useRouter()
 
 
@@ -16,6 +21,7 @@ const router = useRouter()
 const [projectId,setProjectId]=useState("")
 const [projectName,setProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
+
 
 useEffect(() => {
   const {
@@ -81,6 +87,7 @@ const [askQuestion,setAskQuestion]=useState("")
 const [askAnswer,setAskAnswer]=useState("")
 const [chatMessages,setChatMessages]=useState<any[]>([])
 const [asking,setAsking]=useState(false)
+const [useGlobalKnowledge, setUseGlobalKnowledge] = useState(false)
 
 const [answers,setAnswers]=useState<any>({})
 const [score,setScore] = useState<number | null>(null)
@@ -103,7 +110,7 @@ const [activeView,setActiveView]=useState("project")
 
 const [topicsOpen,setTopicsOpen]=useState(true)
 const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
-const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+const [selectedTopics, setSelectedTopics] = useState<any[]>([])
 
 const [availableFlashcards,setAvailableFlashcards]=useState(0)
 const [studyCount,setStudyCount]=useState(10)
@@ -117,6 +124,12 @@ const [isGenerating, setIsGenerating] = useState(false);
 const [loaderStep, setLoaderStep] = useState(0);
 const [loaderType, setLoaderType] = useState<"quiz" | "flashcards">("quiz");
 const [resultsData, setResultsData] = useState(null);
+const [toolMode, setToolMode] = useState("")
+const [studyConfig, setStudyConfig] = useState({
+  flashcards: 8,
+  recall: 3,
+  quiz: 5
+})
 
 const loaderMessages = {
   quiz: [
@@ -134,6 +147,12 @@ const loaderMessages = {
     "Almost ready..."
   ]
 };
+
+useEffect(() => {
+
+  console.log("🧠 GLOBAL selectedTopics:", selectedTopics)
+
+}, [selectedTopics])
 
 useEffect(() => {
     if (projectId) {
@@ -163,17 +182,20 @@ init()
 
 useEffect(() => {
 
-  if (activeView === "flashcards" && projectId) {
+  // 🔥 NON sovrascrivere le flashcards appena generate
+  if (
+    activeView === "flashcards" &&
+    projectId &&
+    studyMode !== "generated"
+  ) {
 
     setStudyMode("loaded")
-
-   
 
     loadFlashcards(projectId)
 
   }
 
-}, [activeView, projectId])
+}, [activeView, projectId, studyMode])
 
 useEffect(() => {
   async function init() {
@@ -272,10 +294,14 @@ async function loadResults(projectId: string) {
   if (!res.ok) return
 
   const dataRes = await res.json()
+  console.log("🔥 FULL RESULTS RESPONSE:", dataRes)
+  console.log("🔥 topic_mastery:", dataRes.topic_mastery)
+  console.log("🔥 quiz_history:", dataRes.quiz_history)
 
   console.log("📊 RESULTS FROM API:", dataRes)
 
-  setResultsData(dataRes.topic_mastery)   // 🔥 QUESTA È LA CHIAVE
+  setResultsData(dataRes)
+  console.log("✅ RESULTS DATA SAVED:", dataRes)
 }
 
 async function createProject(){
@@ -475,48 +501,73 @@ const res = await fetch(
 
 async function loadTopics(projectId:string){
 
-setLoadingTopics(true)
+  try {
+    console.log("🧪 loadTopics RUNNING")
 
-const { data:sessionData }=await supabase.auth.getSession()
-const token=sessionData.session?.access_token
+    setLoadingTopics(true)
 
-if(!token){
-setLoadingTopics(false)
-return
-}
+    const { data:sessionData } = await supabase.auth.getSession()
 
-const res=await fetch(
-`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics`,
-{
-headers:{
-Authorization:`Bearer ${token}`,
-"Content-Type":"application/json"
-}
-}
-)
+    const token = sessionData.session?.access_token
 
-if(!res.ok){
-setLoadingTopics(false)
-return
-}
+    if(!token){
 
-const data=await res.json()
+      setLoadingTopics(false)
 
-setTopics(data.topics||[])
+      return
+    }
 
-console.log("DATI ARRIVATI DAL SERVER:", data); // <--- TEST 1
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics`,
+      {
+        headers:{
+          Authorization:`Bearer ${token}`,
+          "Content-Type":"application/json"
+        }
+      }
+    )
 
+    console.log("🟡 TOPICS RESPONSE STATUS:", res.status)
 
-setTopics(data.topics || []);
+    if(!res.ok){
+      console.error("❌ TOPICS FETCH FAILED")
+      return
+    }
 
+    const data = await res.json()
+    console.log("🧪 TOPICS RECEIVED:", data)
+    console.log("🔥 RAW TOPICS FROM API:", data.topics)
 
-console.log("STATO TOPICS AGGIORNATO CON:", data.topics?.length, "elementi"); // <--- TEST 2
+    setTopics(data.topics || [])
 
-setLoadingTopics(false)
+    console.log(
+      "✅ STATO TOPICS AGGIORNATO:",
+      data.topics?.length
+    )
 
+  } catch(err){
+
+    console.error("❌ LOAD TOPICS ERROR:", err)
+
+  } finally {
+
+    console.log("🔴 setLoadingTopics(false)")
+    setLoadingTopics(false)
+
+  }
 }
 
 async function pollTopicStatus(projectId:string){
+  console.log("🧨 pollTopicStatus CALLED")
+
+  if (pollingRef.current) {
+
+    console.log("🛑 CLEARING EXISTING POLL")
+
+    clearInterval(pollingRef.current)
+
+    pollingRef.current = null
+  }
 
   const { data:sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
@@ -524,13 +575,22 @@ async function pollTopicStatus(projectId:string){
   if(!token) return
 
   let attempts = 0
-  const maxAttempts = 40
+  const maxAttempts = 120
 
-  const interval = setInterval(async () => {
+  let isPolling = false
+
+  console.log("🚨 STARTING TOPIC POLLING")
+
+  console.log("🚀 STARTING NEW POLLING INTERVAL")
+
+  pollingRef.current = setInterval(async () => {
+
     attempts += 1
-
+    try {
+    console.log("🧠 POLLING PROJECT ID:", projectId)
+    
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status`,
+      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status?t=${Date.now()}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -540,38 +600,108 @@ async function pollTopicStatus(projectId:string){
     )
 
     if(!res.ok){
-      clearInterval(interval)
+
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
+
       console.error("TOPIC STATUS FAILED")
+
       return
     }
 
     const data = await res.json()
-    console.log("TOPIC STATUS:", data.status)
 
-    if(data.status === "completed"){
-      clearInterval(interval)
-      await loadTopics(projectId)
-      setStatus("Project loaded successfully"); 
-      setUploadStatus("Topics ready!"); 
-      
+    console.log("🔥 FULL TOPIC RESPONSE:", data)
+    console.log("🔥 STATUS TYPE:", typeof data.status)
+    console.log("🔥 STATUS VALUE:", JSON.stringify(data.status))
 
-      console.log("WORKSPACE SBLOCCATA!");
+    if(
+      String(data.status)
+        .trim()
+        .toLowerCase() === "completed"
+    ){
+
+      clearInterval(pollingRef.current)
+
+      console.log("🛑 POLLING STOPPED")
+
+      pollingRef.current = null
+
+      console.log("🟢 TOPIC GENERATION COMPLETED")
+      console.log("🧪 ENTERED COMPLETED BLOCK")
+
+      try {
+
+        console.log("🧪 STARTING loadTopics")
+
+        await loadTopics(projectId)
+
+        console.log("🧪 loadTopics FINISHED")
+
+        console.log("✅ TOPICS LOADED")
+
+        setStatus("Project loaded successfully")
+
+        setUploadStatus("Topics ready!")
+
+      } catch(err){
+
+        console.error("❌ FINAL LOAD TOPICS FAILED:", err)
+
+      }
+
       return
     }
 
-    if(data.status === "error"){
-      clearInterval(interval)
+    if(
+      String(data.status)
+        .trim()
+        .toLowerCase() === "partial"
+    ){
+
+      clearInterval(pollingRef.current)
+
+      pollingRef.current = null
+
+      setUploadStatus(
+        `Large document processed partially. Study material imported up to page ${data.last_processed_page}.`
+      )
+
+      await loadTopics(projectId)
+
+      return
+    }
+
+    if(
+      String(data.status)
+        .trim()
+        .toLowerCase() === "error"
+    ){
+
+      clearInterval(pollingRef.current)
+
+      pollingRef.current = null
+
       setUploadStatus("Topic generation failed")
+
       return
     }
 
     if(attempts >= maxAttempts){
-      clearInterval(interval)
+
+      clearInterval(pollingRef.current)
+
+      pollingRef.current = null
+
       setUploadStatus("Topic generation timeout")
     }
+    } catch(err){
 
+      console.error("❌ POLLING LOOP ERROR:", err)
+
+    }
   }, 3000)
-}
+      }
 
 async function loadPreviousQuizzes(projectId: string) {
   const { data: sessionData } = await supabase.auth.getSession()
@@ -629,8 +759,14 @@ return
 }
 
 const data = await res.json()
+const loadedCards = data.flashcards || [];
 
-setPreviousFlashcards(data.flashcards || [])
+// --- LE RIGHE CHE RISOLVONO TUTTO ---
+setFlashcards(loadedCards); // <--- AGGIUNGI QUESTA: Popola la vista Workspace
+setPreviousFlashcards(loadedCards); 
+// ------------------------------------
+
+
 
 setAvailableFlashcards((data.flashcards || []).length)
 setStudyMode("loaded")
@@ -684,30 +820,27 @@ async function loadQuizStats(id: string) {
         });
 
         // Trasformiamo i dati dei muscoli
+        console.log("🔥 STATS DATA RAW:", statsData);
         const topicsArray = Object.entries(statsData)
-            .filter(([key]) => typeof statsData[key] === 'object' && statsData[key].hasOwnProperty('total'))
-            .map(([name, stats]: [string, any]) => ({
-                topic: name,
-                score: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
-                correct: stats.correct,
-                total: stats.total
-            }));
+          .filter(([_, stats]: [string, any]) =>
+            stats &&
+            typeof stats === "object" &&
+            "total" in stats
+          )
+          .map(([name, stats]: [string, any]) => ({
+            topic: name,
+            score:
+              stats.total > 0
+                ? Math.round((stats.correct / stats.total) * 100)
+                : 0,
+            correct: stats.correct || 0,
+            total: stats.total || 0
+          }));
 
         // 4. Prepariamo l'oggetto finale
-        const formattedData = {
-            quiz_history: realHistory,
-            topic_mastery: topicsArray,
-            topics_detail: topicsArray,
-            quiz_attempts: realHistory.length, 
-            avg_score: topicsArray.length > 0 
-                ? Math.round(topicsArray.reduce((acc, t) => acc + t.score, 0) / topicsArray.length) 
-                : 0,
-            topics_count: topicsArray.length,
-            flashcards_reviewed: topicsArray.reduce((acc, t) => acc + t.total, 0)
-        };
+        console.warn("⚠️ Legacy local analytics builder disabled. Use /results instead.");
 
-        setResultsData(formattedData);
-        setSummaryStats(formattedData);
+        await loadResults(projectId);
 
     } catch (err) {
         console.error("❌ Errore:", err);
@@ -764,38 +897,49 @@ async function loadQuizStatsByQuiz(projectId: string) {
 // Questo codice esegue il caricamento ogni volta che il progetto attivo cambia o la pagina viene ricaricata
 
 
-async function loadStudyFlashcards(){
-  console.log("SELECTED TOPICS:", selectedTopics)
-  console.log("FLASHCARDS:", previousFlashcards)
+async function loadStudyFlashcards() {
 
-  if(previousFlashcards.length === 0) return
+  console.log("📚 LOAD STUDY FLASHCARDS")
+
+  if (!previousFlashcards || previousFlashcards.length === 0) {
+    console.warn("No previous flashcards")
+    return
+  }
 
   let filtered = previousFlashcards
 
-  // 🔥 FILTRO PER TOPIC
-  if(selectedTopics && selectedTopics.length > 0){
+  // FILTER BY TOPICS
+  if (selectedTopics && selectedTopics.length > 0) {
+
+    const normalizedTopics = selectedTopics.map((t: any) =>
+      normalizeTopic(
+        typeof t === "string" ? t : t.topic
+      )
+    )
 
     filtered = previousFlashcards.filter(card =>
-      selectedTopics.includes(card.topic)
+      normalizedTopics.includes(
+        normalizeTopic(card.topic)
+      )
     )
 
   }
 
-  // fallback se niente match
-  if(filtered.length === 0){
-    console.warn("No flashcards match selected topics")
-    filtered = previousFlashcards
-  }
-
   const cards = filtered.slice(0, studyCount)
 
+  console.log("✅ LOADED CARDS:", cards.length)
+
+  // IMPORTANTISSIMO
+  setStudyMode("loaded")
+
+  // SOLO le card selezionate
   setFlashcards(cards)
 
-  setStudyMode("loaded")
-  setActiveView("study_session")
+  // VIEW corretta
+  setActiveView("flashcards")
 
+  // APRI prima card
   setOpenCard(0)
-
 }
 
 
@@ -826,46 +970,13 @@ async function loadQuiz(id: string) {
   console.log("✅ QUIZ LOADED:", data)
 
   setQuiz(data.questions || [])
-  setQuizId(id)
+  if (data.quiz_id) {
+    setQuizId(data.quiz_id)
+  }
   setAnswers({})
   setFinished(false)
   setStarted(true)
   setActiveView("quiz")
-}
-
-
-
-async function loadResults(projectId: string) {
-  if (!projectId) return;
-
-  try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) return;
-
-    // 🔥 CAMBIA "/results" in "/stats" qui sotto:
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/stats`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    });
-
-    if (!res.ok) {
-        console.error("Server error:", res.status);
-        return;
-    }
-
-    const stats = await res.json();
-    console.log("📊 Stats ricevute:", stats);
-    
-    setResultsData(stats); // Popola i colori della TopicView
-
-  } catch (error) {
-    console.error("❌ Errore di connessione al backend:", error);
-    // Questo errore accade se il server Python è spento 
-    // o se l'URL NEXT_PUBLIC_API_URL è sbagliato
-  }
 }
 
 async function selectProject(id: string) {
@@ -940,7 +1051,12 @@ async function generateQuiz() {
       setGeneratingQuiz(false)
       return
     }
+    console.log("🧠 SELECTED TOPICS RAW:", selectedTopics)
 
+    if (selectedTopics?.length > 0) {
+      console.log("🧠 FIRST TOPIC:", selectedTopics[0])
+      console.log("🧠 TYPE:", typeof selectedTopics[0])
+    }
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
@@ -952,9 +1068,24 @@ async function generateQuiz() {
           },
           body: JSON.stringify({
             num_questions: numQuestions,
+
             difficulty: difficulty,
-            topics: selectedTopics && selectedTopics.length > 0 ? selectedTopics : null,
-            language: language
+
+            language: language,
+
+            topic_ids:
+              selectedTopics && selectedTopics.length > 0
+                ? extractTopicIds(selectedTopics)
+                : selectedTopic?.id
+                  ? [selectedTopic.id]
+                  : [],
+
+            topics:
+              selectedTopics && selectedTopics.length > 0
+                ? extractTopicNames(selectedTopics)
+                : selectedTopic?.topic
+                  ? [selectedTopic.topic]
+                  : [],
           })
         }
       )
@@ -965,6 +1096,14 @@ async function generateQuiz() {
       console.log("🔥 QUIZ RESPONSE:", data)
 
       const quizData = data.questions || data.quiz || []
+
+      const normalizedQuizData = quizData.map((q:any) => ({
+        ...q,
+        topic:
+          typeof q.topic === "string"
+            ? q.topic
+            : q.topic?.topic || "General"
+      }))
 
       if (data.quiz_id) {
         setQuizId(data.quiz_id)
@@ -981,7 +1120,7 @@ async function generateQuiz() {
         return
       }
       setActiveView("quiz") // Spostato qui per sicurezza
-      setQuiz(quizData)
+      setQuiz(normalizedQuizData)
       setTimeLeft(timerMinutes * 60)
       setStarted(true)
       setFinished(false)
@@ -994,6 +1133,41 @@ async function generateQuiz() {
       setIsGenerating(false)
       setGeneratingQuiz(false)
     }
+}
+
+function extractTopicNames(topics: any[]) {
+
+  if (!Array.isArray(topics)) return []
+
+  return topics
+    .map(t => {
+
+      if(typeof t === "string"){
+        return t
+      }
+
+      if(typeof t === "object" && t?.topic){
+        return t.topic
+      }
+
+      return null
+    })
+    .filter(Boolean)
+
+}
+
+function extractTopicIds(topics: any[]) {
+
+  if (!Array.isArray(topics)) return []
+
+  return topics
+    .map(t =>
+      typeof t === "object" && t?.id
+        ? t.id
+        : null
+    )
+    .filter(Boolean)
+
 }
   // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
   async function generateFlashcards() {
@@ -1024,9 +1198,16 @@ async function generateQuiz() {
     // LOGICA DI SELEZIONE TOPIC: 
     // Se c'è un topic selezionato nella dashboard (filtro attivo), usa solo quello.
     // Altrimenti usa la lista di topic selezionati manualmente.
-    const finalTopics = (selectedTopic && selectedTopic.trim() !== "") 
-        ? [selectedTopic.trim()] 
-        : (selectedTopics || []);
+    const finalTopics =
+      selectedTopics && selectedTopics.length > 0
+        ? extractTopicNames(selectedTopics)
+        : (
+            typeof selectedTopic === "string"
+              ? [selectedTopic.trim()]
+              : selectedTopic?.topic
+                ? [selectedTopic.topic.trim()]
+                : []
+          );
 
     try {
       const res = await fetch(
@@ -1038,8 +1219,18 @@ async function generateQuiz() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
+
+            topic_ids:
+              selectedTopics && selectedTopics.length > 0
+                ? extractTopicIds(selectedTopics)
+                : selectedTopic?.id
+                  ? [selectedTopic.id]
+                  : [],
+
             topics: finalTopics,
-            num_cards: numQuestions || 10 // Ho messo 10 come default più comune, ma tieni pure 5
+
+            num_cards: numQuestions || 10
+
           })
         }
       );
@@ -1056,6 +1247,9 @@ async function generateQuiz() {
         setStudyMode("generated");   
         setOpenCard(0);              // Apre subito la prima carta
         setActiveView("flashcards"); // Sposta la vista sulle flashcards
+
+        await loadResults(projectId);
+
       } else {
         alert("L'IA non ha generato flashcards. Prova a selezionare altri argomenti o verifica che ci sia testo a sufficienza.");
       }
@@ -1135,33 +1329,139 @@ async function generateQuiz() {
   }
 
   async function submitQuiz() {
+    if (!quiz || !Array.isArray(quiz)) {
+      console.error("❌ quiz non valido:", quiz)
+      return
+    }
+
+    if (!answers || typeof answers !== "object") {
+      console.error("❌ answers non valide:", answers)
+      return
+    }
+    
     try {
         // 1. CALCOLO UNA VOLTA SOLA (answersArray e attemptsArray)
+        
         const answersArray = quiz.map((q, index) => {
-            // ... logica del calcolo ...
-            return { question_id: q.id, is_correct: isCorrect, topic: q.topic };
-        });
+          
+          const userAnswer = answers[index]
+          const correctRaw = (q.correct ?? "").toString().trim()
 
-        const attemptsArray = quiz.map((q, index) => {
-            // ... logica degli attempts ...
-        });
+          let isCorrect = false
+          
+          console.log("🧩 OPTIONS:", q.options);
+
+          ;(Array.isArray(q.options) ? q.options : []).forEach((opt: string, j: number) => {
+            const optTextNorm = opt.toLowerCase()
+            const correctTextNorm = correctRaw.toLowerCase()
+            const optLetter = String.fromCharCode(65 + j)
+
+            const correct =
+              correctTextNorm === optTextNorm ||
+              correctRaw === optLetter ||
+              String(Number(correctRaw)) === String(j)
+
+            if (correct && userAnswer === opt) {
+              isCorrect = true
+            }
+          })
+
+          const normalizedTopic =
+            selectedTopic?.topic
+              ? normalizeTopic(selectedTopic.topic)
+              : normalizeTopic(q.topic || q.title)
+
+          console.log("🔥 NORMALIZED TOPIC:", normalizedTopic)
+          console.log("🔥 RAW q.topic:", q.topic)
+          console.log("🔥 RAW q.title:", q.title)
+
+          return {
+            question_id: q.id,
+            is_correct: isCorrect,
+            topic: normalizedTopic
+          }
+        })
+
+        // 🧠 genera un quiz_id consistente
+        const quizId = quiz?.[0]?.quiz_id || projectId
+
+        const { data } = await supabase.auth.getSession()
+        const token = data.session?.access_token
+        const userId = data.session?.user?.id
+
+        if (!userId) {
+          console.error("❌ userId mancante")
+          return
+        }
+
+        const topicsUsed = quiz
+          .map(q => q.topic || q.title)
+          .filter(Boolean)
+
+        const mainTopic =
+          topicsUsed.length === 1
+            ? normalizeTopic(topicsUsed[0])
+            : (
+                extractTopicNames(selectedTopics).join(", ")
+                || "General"
+              )
+
+        const attemptsArray = [
+          {
+            quiz_id: quizId,
+            score: calculateScore(),
+            user_id: userId, // 🔥 FIX
+            total_questions: quiz.length, // 🔥 FIX
+            project_id: projectId, // 🔥 FIX
+            topic: mainTopic,
+            answers: answersArray
+          }
+        ];
 
         // 2. INVIO A SUPABASE
         const { error } = await supabase.from("quiz_attempts").upsert(attemptsArray);
 
-        // 3. INVIO ALL'API PYTHON (usando lo STESSO answersArray di sopra)
+        if (error) {
+          console.error("❌ Supabase error:", error);
+          return;
+        }
+
+        await loadResults(projectId)
+
+        
+
+        
+
+        // 🔍 debug
+        console.log("🧪 QUIZ:", quiz);
+        console.log("🧪 ANSWERS:", answers);
+        console.log("🧪 ANSWERS ARRAY:", answersArray);
+        console.log("📦 PAYLOAD:", {
+          quiz_id: quizId,
+          answers: answersArray
+        });
+        console.log("🧠 TOPICS USED:", topicsUsed);
+        console.log("🧠 MAIN TOPIC:", mainTopic);
+
+        // 🚀 invio al backend
         await fetch(`${process.env.NEXT_PUBLIC_API_URL}/save_quiz_attempt`, {
-            method: "POST",
-            body: JSON.stringify({
-              // ...
-              answers: answersArray // <--- Uso la variabile definita al punto 1
-            })
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            quiz_id: quizId,
+            answers: answersArray
+          })
         });
 
         // 4. REFRESH
-        setStatsLoaded(false);
-        await loadQuizStats(projectId);
+        
         console.log("✅ Submit e Refresh completati con successo");
+
+        setFinished(true)
+        await loadQuizStats(projectId) // 🔥 QUI
         
       } catch (err) {
           console.error("❌ CRASH nella funzione submitQuiz:", err);
@@ -1188,6 +1488,8 @@ async function generateQuiz() {
         resultsData={resultsData} // AGGIUNGI QUESTA RIGA SE MANCA
         summaryStats={summaryStats} // AGGIUNGI ANCHE QUESTA
         topics={topics}
+        setGeneratingFlashcards={setGeneratingFlashcards}
+        
       />
 
       <ToolPanel
@@ -1234,6 +1536,10 @@ async function generateQuiz() {
         uploadFiles={uploadFiles}
         loadStudyFlashcards={loadStudyFlashcards}
         studyMode={studyMode}
+        setStudyMode={setStudyMode}
+        loadingFlashcards={loadingFlashcards}
+        studyConfig={studyConfig}
+        setStudyConfig={setStudyConfig}
       />
 
       <Workspace
@@ -1287,6 +1593,10 @@ async function generateQuiz() {
         loaderStep={loaderStep}          // Aggiungi questa
         loaderType={loaderType}          // Aggiungi questa
         loaderMessages={loaderMessages}  // Aggiungi questa
+        useGlobalKnowledge={useGlobalKnowledge}
+        setUseGlobalKnowledge={setUseGlobalKnowledge}
+        toolMode={toolMode}
+        setToolMode={setToolMode}
         
         
       />

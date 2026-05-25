@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Headphones } from "lucide-react"
+import { useTranslation } from 'react-i18next';
 
 const container = {
   display: "flex",
@@ -37,11 +38,15 @@ export default function AskView({
   asking,
   chatMessages,
   selectedTopic, // 1. Recurperiamo il topic dal padre
-  selectedTopics
+  selectedTopics,
+  useGlobalKnowledge,
+  setUseGlobalKnowledge
 }) {
   const messages = chatMessages || []
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+  const { t: translate } = useTranslation();
+  
 
   console.log("🧠 ASK RECEIVED TOPICS:", selectedTopics)
 
@@ -100,7 +105,7 @@ function toggleRecording() {
         paddingBottom: 10,
         borderBottom: selectedTopic ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid #374151" 
       }}>
-        <h3 style={{ margin: 0 }}>Ask your documents</h3>
+        <h3 style={{ margin: 0 }}>{translate('stats.Ask your documents')}</h3>
         
         {(selectedTopics && selectedTopics.length > 0) && (
           <div style={{
@@ -119,8 +124,20 @@ function toggleRecording() {
             <span style={{ fontSize: "16px" }}>🎯</span>
 
             {selectedTopics.length > 1
-              ? `MACRO TOPIC: ${selectedTopics[0].split(" ")[0].toUpperCase()} (${selectedTopics.length})`
-              : `SELECTED TOPIC: ${selectedTopics[0].toUpperCase()}`
+              ? `MACRO TOPIC: ${
+                  (
+                    typeof selectedTopics[0] === "string"
+                      ? selectedTopics[0]
+                      : selectedTopics[0]?.topic
+                  )?.split(" ")[0]
+                }`
+              : `SELECTED TOPIC: ${
+                  (
+                    typeof selectedTopics[0] === "string"
+                      ? selectedTopics[0]
+                      : selectedTopics[0]?.topic
+                  )?.toUpperCase()
+                }`
             }
 
           </div>
@@ -172,13 +189,95 @@ function toggleRecording() {
               background: "#22c55e",
               animation: "pulse 1s infinite"
             }} />
-            Thinking...
+            {translate('stats.Thinking...')}
           </div>
         </div>
       )}
-
+                  
       <div style={{ marginTop: 15 }}>
         <div style={{ position: "relative", width: "100%" }}>
+          <div style={{
+              marginBottom: '15px',
+              padding: '10px',
+              background: 'rgba(255,255,255,0.03)',
+              borderRadius: '8px',
+              border: '1px solid #374151'
+            }}>
+
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}>
+
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}>
+
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    color: '#22c55e'
+                  }}>
+                    Search Mode: {
+                      useGlobalKnowledge
+                        ? "Global AI Knowledge"
+                        : "Strict Document Search"
+                    }
+                  </span>
+
+                  <span style={{
+                    fontSize: '11px',
+                    color: '#9ca3af'
+                  }}>
+                    {
+                      useGlobalKnowledge
+                        ? "The AI can expand beyond your uploaded material."
+                        : "The AI answers using ONLY your uploaded study material."
+                    }
+                  </span>
+
+                </div>
+
+                <div
+                  onClick={() =>
+                    setUseGlobalKnowledge(!useGlobalKnowledge)
+                  }
+                  style={{
+                    width: '44px',
+                    height: '22px',
+                    backgroundColor: useGlobalKnowledge
+                      ? '#10b981'
+                      : '#4b5563',
+                    borderRadius: '20px',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.3s',
+                    flexShrink: 0
+                  }}
+                >
+
+                  <div style={{
+                    width: '18px',
+                    height: '18px',
+                    backgroundColor: 'white',
+                    borderRadius: '50%',
+                    position: 'absolute',
+                    top: '2px',
+                    left: useGlobalKnowledge
+                      ? '24px'
+                      : '2px',
+                    transition: 'left 0.3s',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+
+                </div>
+
+              </div>
+
+            </div>
           <textarea
             value={askQuestion}
             onChange={(e) => setAskQuestion(e.target.value)}
@@ -191,13 +290,23 @@ function toggleRecording() {
             }}
             placeholder={
               selectedTopics && selectedTopics.length > 1
-                ? `Ask about ${selectedTopics[0].split(" ")[0]} (${selectedTopics.length} topics)...`
+                ? `Ask about ${
+                    (
+                      typeof selectedTopics[0] === "string"
+                        ? selectedTopics[0]
+                        : selectedTopics[0]?.topic
+                    )?.split(" ")[0]
+                  } (${selectedTopics.length} topics)...`
                 : selectedTopics?.[0]
-                ? `Ask about ${selectedTopics[0]}...`
+                ? `Ask about ${
+                    typeof selectedTopics[0] === "string"
+                      ? selectedTopics[0]
+                      : selectedTopics[0]?.topic
+                  }...`
                 : "Ask something about your documents..."
             }
             style={{
-              width: "100%",
+              width: "91%",
               minHeight: 80,
               maxHeight: 200,
               resize: "none",
@@ -207,6 +316,8 @@ function toggleRecording() {
               background: "#111827",
               color: "white",
               lineHeight: 1.5,
+              overflowWrap: "break-word",
+              wordBreak: "break-word",
               outline: "none"
             }}
           />

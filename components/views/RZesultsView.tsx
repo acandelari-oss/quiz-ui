@@ -6,41 +6,17 @@ export default function ResultsView({ resultsData }) {
     return <div style={{ color: "white", padding: 20 }}>Loading results...</div>;
   }
 console.log("DEBUG ResultsView...", resultsData)
+console.log("TEST DIO")
   const { t: translate } = useTranslation();
   // Estraiamo i dati con dei fallback (array vuoti) per evitare crash .map()
   const topicMastery = resultsData?.topic_mastery || [];
-  const quizHistory = resultsData?.quiz_history || [];
+  
 
   return (
     <div>
       <h2 style={title}>{translate('stats.Results')}</h2>
 
-      {/* QUIZ HISTORY */}
-      <div style={section}>
-        <h3 style={{ marginBottom: 15 }}>{translate('stats.Quiz History')}</h3>
-        {quizHistory.length > 0 ? (
-          <table style={table}>
-            <thead>
-              <tr>
-                <th style={th}>{translate('stats.Date')}</th>
-                <th style={th}>{translate('stats.Score')}</th>
-                <th style={th}>{translate('stats.Topics')}</th> {/* Cambiato da difficulty a topics per coerenza */}
-              </tr>
-            </thead>
-            <tbody>
-              {quizHistory.map((q, i) => (
-                <tr key={i}>
-                  <td style={td}>{new Date(q.date).toLocaleDateString()}</td>
-                  <td style={td}>{q.score !== undefined ? `${q.score}%` : "/"}</td>
-                  <td style={td}>{q.title || "General Quiz"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p style={{ color: "#9ca3af", fontSize: 14 }}>No quiz attempts yet.</p>
-        )}
-      </div>
+      
 
       {/* TOPIC MASTERY in ResultsView.tsx */}
     <div style={section}>
@@ -49,12 +25,16 @@ console.log("DEBUG ResultsView...", resultsData)
         topicMastery.map((t, i) => (
         <div key={i} style={topicRow}>
             <div style={{ color: "white" }}>{t.topic}</div>
-            <div style={{ 
-            // Cambiato da t.accuracy a t.score
-            color: t.score >= 80 ? "#22c55e" : t.score >= 50 ? "#eab308" : "#ef4444",
-            fontWeight: "bold" 
-            }}>
-            {t.score}%
+            <div style={{ fontWeight: "bold", display: "flex", gap: 6 }}>
+              <span style={{ color: "#22c55e" }}>
+                {t.correct}
+              </span>
+
+              <span style={{ color: "#9ca3af" }}>/</span>
+
+              <span style={{ color: "#ef4444" }}>
+                {t.total - t.correct}
+              </span>
             </div>
         </div>
         ))

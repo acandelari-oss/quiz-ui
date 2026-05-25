@@ -1,5 +1,13 @@
 {
   "stats": {
+    "loading_project": "Loading project...",
+    "loading_previous": "Loading previous material...",
+    "project_success": "Project loaded successfully!",
+    "processing_topics": "Processing topics...",
+    "Uploading document...": "Uploading document...",
+    "OCR files may take longer to process": "OCR files may take longer to process",
+    "AI is analyzing your documents to create the best content": "AI is analyzing your documents to create the best content",
+    "Please wait while we prepare your project": "Please wait while we prepare your project",
     "Select one or more topics to focus your study.": "Select one or more topics to focus your study.",
     "Loading topics...": "Loading topics...",
     "No topics detected yet": "No topics detected yet",
@@ -134,12 +142,8 @@
     "documents": "Documents",
     "topics": "Topics",
     "Project loaded successfully": "Project loaded successfully",
-    "Uploading document...": "Uploading document...",
     "Document uploaded successfully": "Document uploaded successfully",
     "Processing...": "Processing...",
-    "OCR files may take longer to process": "OCR files may take longer to process",
-    "AI is analyzing your documents to create the best content": "AI is analyzing your documents to create the best content",
-    "Please wait while we prepare your project": "Please wait while we prepare your project",
     "Welcome 👋 ": "Welcome 👋 ",
     "Create a new project or load an existing one to start studying.": "Create a new project or load an existing one to start studying.",
     "Upload your study material": "Upload your study material",
@@ -148,10 +152,10 @@
     "Delete project": "Delete project",
     "No documents": "No documents",
     "Select a specific topic to start a targeted study session.": "Select a specific topic to start a targeted study session.",
-    "Select topics and number of cards in the left panel, then press": "Select topics and number of cards in the left panel, then press",
+    "Select topics and number of cards in the left panel, then press ": "Select topics and number of cards in the left panel, then press ",
     "Generate": "Generate",
-    "Choose how many new flashcards you want to generate and press": "Choose how many new flashcards you want to generate and press",
-    "or choose how many of your existing flashcards you’d like to review and press": "or choose how many of your existing flashcards you’d like to review and press",
+    "Choose how many new flashcards you want to generate and press ": "Choose how many new flashcards you want to generate and press ",
+    "or choose how many of your existing flashcards you would like to review and press ": "or choose how many of your existing flashcards you would like to review and press ",
     "Start Study": "Start Study",
     "questions": "questions",
     "Attempts": "Attempts",
@@ -160,36 +164,50 @@
     "Needs review": "Needs review",
     "No quizzes yet": "No quizzes yet",
     "Load project": "Load project",
-    "loading_project": "Loading project...",
-    "loading_previous": "Loading previous material...",
-    "project_success": "Project loaded successfully!",
-    "processing_topics": "Processing topics..."
-  }
-}
+    "Loading project": "Loading project",
+    "Loading previous material": "Loading previous material",
+    "Processing topics": "Processing topics",
+    "Thinking...": "Thinking...",
+    "Ask your documents": "Ask your documents",
+    "Delete current project": "Delete current project",
+    "Project manager": "Project manager",
+    "Generating study session for": "Generating study session for",
+    "FOCUS STUDY ACTIVE": "FOCUS STUDY ACTIVE",
+    "A guided study session combining flashcards, active recall and quizzes.": "A guided study session combining flashcards, active recall and quizzes.",
+    "MANUAL NEXT": "MANUAL NEXT",
+    "Study Session Completed": "Study Session Completed",
+    "Great work. You finished your study session.": "Great work. You finished your study session.",
+    "Topics you should review": "Topics you should review",
+    "Start new session": "Start new session",
+    "AI Study Session": "AI Study Session",
+    "Flashcard Study": "Flashcard Study",
+    "no_material": "I couldn not find any material for the selected topics. Try uploading more content or changing your selection.",
+    "No context found for the selected topics. Try uploading more content or changing your selection.": "No context found for the selected topics. Try uploading more content or changing your selection.",
+    "An error occurred while evaluating your answer. Please try again.": "An error occurred while evaluating your answer. Please try again.",
+    "suggested_answer": "Suggested answer",
+    "suggestion_label": "Suggestion",
+    "explain_prompt": "Explain me the right answer",
+    "Memory Check Trainer": "Memory Check Trainer",
+    "An active recall trainer that generates questions based on your study material to help you reinforce your memory and identify areas for improvement.": "An active recall trainer that generates questions based on your study material to help you reinforce your memory and identify areas for improvement.",
+    "Write your answer...": "Write your answer...",
+    "Submit Answer": "Submit Answer",
+    "Show answer": "Show answer",
+    "Next question": "Next question",
+    "Preparing flashcards:": "Preparing flashcards:",
+    "Loading flashcards...": "Loading flashcards..."
+  },
 
-{
-  {
+  
   "loaders": {
-    "quiz_0": "Analyzing documents...",
-    "quiz_1": "Creating challenging questions...",
-    "quiz_2": "Generating options...",
-    "quiz_3": "Finalizing your quiz!",
     "flashcards_0": "Extracting key concepts...",
     "flashcards_1": "Summarizing definitions...",
     "flashcards_2": "Creating front & back cards...",
-    "flashcards_3": "Organizing your deck!"
-  },
-  "stats": {
-    "loading_project": "Loading project...",
-    "loading_previous": "Loading previous material...",
-    "project_success": "Project loaded successfully!",
-    "processing_topics": "Processing topics...",
-    "Uploading document...": "Uploading document...",
-    "OCR files may take longer to process": "OCR files may take longer to process",
-    "AI is analyzing your documents to create the best content": "AI is analyzing your documents to create the best content",
-    "Please wait while we prepare your project": "Please wait while we prepare your project",
-    "Welcome 👋 ": "Welcome 👋 ",
-    "Create a new project or load an existing one to start studying.": "Create a new project or load an existing one to start studying."
+    "flashcards_3": "Organizing your deck!",
+    "quiz_0": "Analyzing documents...",
+    "quiz_1": "Creating challenging questions...",
+    "quiz_2": "Generating options...",
+    "quiz_3": "Finalizing your quiz!"
   }
 }
-}
+
+

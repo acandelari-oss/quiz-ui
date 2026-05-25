@@ -13,6 +13,9 @@ loadingFlashcards,
 loaderText
 }) {
 const { t: translate } = useTranslation();
+
+const [currentIndex, setCurrentIndex] = useState(0)
+
 if(openCard === null){
     return (
       <div style={{ textAlign: "center", marginTop: 60 }}>
@@ -49,7 +52,7 @@ if(openCard === null){
     )
   }
 
-  const [currentIndex, setCurrentIndex] = useState(0)
+  
 
   const goToPrevious = () => {
     if (currentIndex > 0) {
@@ -225,6 +228,17 @@ if(openCard === null){
             <div style={answerBox}>
               {card.answer}
             </div>
+            {card.topic && (
+              <div
+                style={{
+                  marginTop: 10,
+                  fontSize: 12,
+                  color: "#9ca3af"
+                }}
+              >
+                Topic: {card.topic}
+              </div>
+            )}
 
             <div style={{
               marginTop: 25,

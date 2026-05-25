@@ -1,6 +1,7 @@
 import TopicsView from "./views/TopicsView"
-import React from "react"
+import React, { useState } from "react"
 import { useTranslation } from 'react-i18next';
+import SelectedTopicsBanner from "./SelectedTopicsBanner"
 
 export default function ToolPanel({
 
@@ -56,11 +57,15 @@ setStudyCount,
 loadStudyFlashcards,
 flashcards,
 generatingFlashcards,
+loadingFlashcards,
 
 previousFlashcards,
 studyMode,
+setStudyMode,
 status,
-uploadStatus
+uploadStatus,
+toolMode,
+
 
 }: any) {
 
@@ -68,6 +73,13 @@ uploadStatus
   const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([])
   const topicLabel = selectedTopic || "General";
   const { t: translate } = useTranslation();
+  const [maxQuestions, setMaxQuestions] = useState(5)
+  const [sessionDuration, setSessionDuration] = useState(20)
+  const [studyConfig, setStudyConfig] = useState({
+    flashcards: 8,
+    recall: 3,
+    quiz: 5
+  })
 
   return (
     <div style={panel}>
@@ -161,6 +173,9 @@ uploadStatus
                   onChange={(e) => setFiles(e.target.files)}
                   style={input}
                 />
+                <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>
+                  Accepted formats: PDF. Text-based PDFs work best.
+                </div>
 
                 <button
                   onClick={uploadFiles}
@@ -323,111 +338,293 @@ uploadStatus
         </>
       )}
 
-      {/* ========================= */}
-      {/* SEZIONE TOPICS DINAMICA */}
-      {/* ========================= */}
-      {projectId && topics?.length > 0 &&
-        (activeView === "ask" || activeView === "quiz" || activeView === "flashcards") && (
-          
-        <div style={{ marginBottom: 20 }}>
+      {activeView === "ask_setup" && (
+        <div style={{ padding: "0px" }}>
 
-          {!selectedTopic && (
-            <>
-              <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
-                {translate('stats.Select a topic')}
+          <h3 style={{
+            fontSize: 15,
+            fontWeight: 600,
+            marginBottom: 12
+          }}>
+            Ask AI Tutor
+          </h3>
+          {selectedTopics.length === 0 && (
+            <p style={{
+              color: "#9ca3af",
+              fontSize: 13,
+              marginBottom: 14,
+              lineHeight: 1.5
+            }}>
+              Select one or more topics to focus your AI conversation.
+          </p>
+        )}
+          {/* SELECTED TOPICS BANNER */}
+
+          {selectedTopics && selectedTopics.length > 0 && (
+            <div style={{
+              marginBottom: 12,
+              padding: "8px 10px",
+              background: "rgba(34, 197, 94, 0.1)",
+              border: "1px solid #22c55e",
+              borderRadius: 6,
+              fontSize: 13,
+              color: "#e5e7eb"
+            }}>
+
+              <b>Selected topics:</b>
+
+              <div style={{
+                color: "#22c55e",
+                marginTop: 4,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4
+              }}>
+                {selectedTopics.map((t:any, i:number) => (
+
+                  <div key={i}>
+                    • {
+                      typeof t === "string"
+                        ? t
+                        : t.topic
+                    }
+                  </div>
+
+                ))}
               </div>
+              <button
+                onClick={() => {
+                  setSelectedTopics([])
+                  setSelectedTopic(null)
+                }}
+                style={{
+                  marginTop: 10,
+                  padding: "6px 10px",
+                  background: "transparent",
+                  border: "1px solid #22c55e",
+                  borderRadius: 6,
+                  color: "#22c55e",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: 600
+                }}
+              >
+                ✏ Change topics
+              </button>
+              
 
-              <div style={{ maxHeight: 200, overflowY: "auto" }}>
-                {topics.map((t: any, i: number) => {
-                  const value = t.topic
-                  const isSelected = selectedTopics?.includes(value)
-
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => {
-                          setSelectedTopics([value])
-                          setSelectedTopic(value)
-                      }}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "6px 8px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        background: isSelected ? "#1f2937" : "transparent"
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        readOnly
-                      />
-
-                      <span style={{ fontSize: 13 }}>
-                        {t.topic}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </>
+            </div>
+            
           )}
+          {selectedTopics.length === 0 && (
+
+            <div style={{ marginBottom: 20 }}>
+
+              <label style={{
+                fontSize: 11,
+                color: "#9ca3af",
+                letterSpacing: 0.5,
+                marginBottom: 8,
+                display: "block"
+              }}>
+                SELECT TOPICS TO FOCUS
+              </label>
+
+              <div style={{
+                maxHeight: "250px",
+                overflowY: "auto",
+                padding: "10px"
+              }}>
+
+                {topics && topics.map((t:any) => (
+
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "6px 0",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: selectedTopics.includes(t.topic)
+                        ? "#22c55e"
+                        : "#cbd5e1"
+                    }}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={selectedTopics.includes(t.topic)}
+
+                      onChange={() => {
+
+                        if (selectedTopics.includes(t.topic)) {
+
+                          setSelectedTopics(
+                            selectedTopics.filter(
+                              (item:string) => item !== t.topic
+                            )
+                          )
+
+                        } else {
+
+                          setSelectedTopics([
+                            ...selectedTopics,
+                            t.topic
+                          ])
+
+                        }
+
+                      }}
+
+                      style={{
+                        accentColor: "#22c55e"
+                      }}
+                    />
+
+                    {t.topic}
+
+                  </label>
+
+                ))}
+
+              </div>
+
+            </div>
+
+          )}
+          <button
+            onClick={() => setActiveView("ask")}
+            style={{
+              marginTop: 10,
+              padding: "10px",
+              background: "#2563eb",
+              border: "none",
+              color: "white",
+              borderRadius: 6,
+              cursor: "pointer",
+              width: "100%"
+            }}
+          >
+            Start Conversation
+          </button>
 
         </div>
       )}
 
-    
-      {/* ========================= */}
+      
+
+    {/* ========================= */}
       {/* GENERATE FLASHCARDS VIEW  */}
       {/* ========================= */}
+      
       {activeView === "generate_flashcards" && (
         <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Flashcards')}</h3>
+          <h3 style={{
+            fontSize: 15,
+            fontWeight: 600,
+            marginBottom: 12
+          }}>
+            {translate('stats.Generate Flashcards')}
+          </h3>
 
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 11, color: "#9ca3af", letterSpacing: 0.5, marginBottom: 8, display: "block" }}>
-              {translate('stats.SELECT TOPICS TO COVER')}
-            </label>
-            
-            {/* LISTA COMPATTA (Checkbox + Nome) */}
-            <div style={{ 
-              maxHeight: "250px", 
-              overflowY: "auto", 
-               
-              padding: "10px", 
-              
-            }}>
-              {topics && topics.map((t: any) => (
-                <label key={t.id} style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "10px", 
-                  padding: "6px 0", 
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  color: selectedTopics.includes(t.topic) ? "#22c55e" : "#cbd5e1"
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedTopics.includes(t.topic)}
-                    onChange={() => {
-                      if (selectedTopics.includes(t.topic)) {
-                        setSelectedTopics(selectedTopics.filter((item: string) => item !== t.topic));
-                      } else {
-                        setSelectedTopics([...selectedTopics, t.topic]);
-                      }
+          {/* SELECTED TOPICS BANNER */}
+
+          <SelectedTopicsBanner
+            selectedTopics={selectedTopics}
+            setSelectedTopics={setSelectedTopics}
+            setSelectedTopic={setSelectedTopic}
+          />
+
+          {/* TOPIC SELECTOR */}
+
+          {selectedTopics.length === 0 && (
+
+            <div style={{ marginBottom: 20 }}>
+
+              <label style={{
+                fontSize: 11,
+                color: "#9ca3af",
+                letterSpacing: 0.5,
+                marginBottom: 8,
+                display: "block"
+              }}>
+                {translate('stats.SELECT TOPICS TO COVER')}
+              </label>
+
+              <div style={{
+                maxHeight: "250px",
+                overflowY: "auto",
+                padding: "10px"
+              }}>
+
+                {topics && topics.map((t:any) => (
+
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "6px 0",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: selectedTopics.includes(t.topic)
+                        ? "#22c55e"
+                        : "#cbd5e1"
                     }}
-                    style={{ accentColor: "#22c55e" }}
-                  />
-                  {t.topic}
-                </label>
-              ))}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={selectedTopics.includes(t.topic)}
+
+                      onChange={() => {
+
+                        if (selectedTopics.includes(t.topic)) {
+
+                          setSelectedTopics(
+                            selectedTopics.filter(
+                              (item:string) => item !== t.topic
+                            )
+                          )
+
+                        } else {
+
+                          setSelectedTopics([
+                            ...selectedTopics,
+                            t.topic
+                          ])
+
+                        }
+
+                      }}
+
+                      style={{
+                        accentColor: "#22c55e"
+                      }}
+                    />
+
+                    {t.topic}
+
+                  </label>
+
+                ))}
+
+              </div>
+
             </div>
+
+          )}
+
+          <div style={{
+            fontSize: 13,
+            marginBottom: 4
+          }}>
+            {translate('stats.Number of cards')}
           </div>
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Number of cards')}</div>
           <input
             type="number"
             value={numQuestions}
@@ -441,83 +638,480 @@ uploadStatus
             style={{
               ...button,
               marginTop: 15,
-              background: generatingFlashcards ? "#334155" : "#22c55e",
-              cursor: generatingFlashcards ? "not-allowed" : "pointer"
+              background: generatingFlashcards
+                ? "#334155"
+                : "#22c55e",
+              cursor: generatingFlashcards
+                ? "not-allowed"
+                : "pointer"
             }}
           >
-            {generatingFlashcards ? "Generating..." : "GENERATE FLASHCARDS"}
+            {generatingFlashcards
+              ? "Generating..."
+              : translate('stats.Generate')}
           </button>
+
         </>
       )}
+      
+
 
       {/* ========================= */}
-      {/* STUDY FLASHCARDS */}
+      {/* STUDY FLASHCARDS VIEW     */}
       {/* ========================= */}
       {activeView === "flashcards" && (
-        <>
-          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Flashcards')}</h3>
+        <div style={{ padding: "0px" }}> {/* Rimosso padding extra per allineare allo stile */}
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+            {translate('stats.Flashcard Settings')}
+          </h3>
 
-          {/* SELEZIONE TOPIC: Apparirà qui la lista con i checkbox */}
-          {selectedTopic && (
-            <div style={{
-              marginBottom: 16,
-              padding: "12px",
-              background: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid #22c55e",
-              borderRadius: 8
-            }}>
-              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>TARGET TOPIC</div>
-              <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                {typeof selectedTopic === "object"
-                ? selectedTopic.topic
-                : selectedTopic}
-                <button onClick={() => setSelectedTopic(null)} style={{ background: "none", border: "none", color: "#9ca3af", cursor: "pointer", fontSize: 16 }}>✕</button>
-              </div>
-            </div>
-          )}
+          {/* Banner Topic se presente (dal tuo codice originale) */}
+          <SelectedTopicsBanner
+            selectedTopics={selectedTopics}
+            setSelectedTopics={setSelectedTopics}
+            setSelectedTopic={setSelectedTopic}
+          />
 
-          <div style={{ fontSize: 13, marginBottom: 4 }}>Number of cards</div>
+          {/* LOGICA SELEZIONE MODALITÀ */}
+          <div style={{ marginBottom: 20 }}>
+
+            {selectedTopics.length === 0 && (
+
+              <>
+                <label style={{
+                  fontSize: 11,
+                  color: "#9ca3af",
+                  letterSpacing: 0.5,
+                  marginBottom: 8,
+                  display: "block"
+                }}>
+                  SELECT TOPICS TO REVIEW
+                </label>
+
+                <div style={{
+                  maxHeight: "250px",
+                  overflowY: "auto",
+                  padding: "10px"
+                }}>
+
+                  {topics && topics.map((t:any) => (
+
+                    <label
+                      key={t.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "6px 0",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        color: selectedTopics.includes(t.topic)
+                          ? "#22c55e"
+                          : "#cbd5e1"
+                      }}
+                    >
+
+                      <input
+                        type="checkbox"
+                        checked={selectedTopics.includes(t.topic)}
+
+                        onChange={() => {
+
+                          if (selectedTopics.includes(t.topic)) {
+
+                            setSelectedTopics(
+                              selectedTopics.filter(
+                                (item:string) => item !== t.topic
+                              )
+                            )
+
+                          } else {
+
+                            setSelectedTopics([
+                              ...selectedTopics,
+                              t.topic
+                            ])
+
+                          }
+
+                        }}
+
+                        style={{
+                          accentColor: "#22c55e"
+                        }}
+                      />
+
+                      {t.topic}
+
+                    </label>
+
+                  ))}
+
+                </div>
+              </>
+            )}
+
+          </div>
+
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
+            Number of flashcards
+          </div>
+
           <input
             type="number"
-            value={numQuestions}
-            onChange={(e) => setNumQuestions(Number(e.target.value))}
+            value={studyCount}
+            onChange={(e) => setStudyCount(Number(e.target.value))}
             style={input}
           />
 
           <button
-            onClick={() => generateFlashcards()}
-            disabled={generatingFlashcards}
+            onClick={() => {
+              setStudyMode("loaded")
+              loadStudyFlashcards()
+            }}
             style={{
-              ...button, // usa il tuo stile standard dei bottoni
-              marginTop: 15,
-              background: generatingFlashcards ? "#334155" : "#22c55e",
+              ...button,
+              marginTop: 15
             }}
           >
-            {generatingFlashcards ? "Generating..." : `Generate ${selectedTopics?.length > 0 ? 'Selected' : 'General'} Flashcards`}
+            Start Study
+          </button>
+        </div>
+      )}
+      {/* ========================= */}
+      {/* ASK SETUP */}
+      {/* ========================= */}
+      
+
+      {/* ========================= */}
+      {/* ACTIVE RECALL SETUP */}
+      {/* ========================= */}
+
+      {activeView === "active_recall_setup" && (
+        <>
+          <h3 style={{
+            fontSize: 15,
+            fontWeight: 600,
+            marginBottom: 12
+          }}>
+            Active Recall Session
+          </h3>
+
+          <SelectedTopicsBanner
+            selectedTopics={selectedTopics}
+            setSelectedTopics={setSelectedTopics}
+            setSelectedTopic={setSelectedTopic}
+          />
+
+          <div style={{ marginBottom: 20 }}>
+            {selectedTopics.length === 0 && (
+            <label style={{
+              fontSize: 11,
+              color: "#9ca3af",
+              letterSpacing: 0.5,
+              marginBottom: 8,
+              display: "block"
+            }}>
+              SELECT TOPICS TO PRACTICE
+            </label>
+            )}
+            <div style={{
+              maxHeight: "250px",
+              overflowY: "auto",
+              padding: "10px"
+            }}>
+              {selectedTopics.length === 0 && (
+                <>
+                {topics && topics.map((t:any) => (
+
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "6px 0",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: selectedTopics.includes(t.topic)
+                        ? "#22c55e"
+                        : "#cbd5e1"
+                    }}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={selectedTopics.includes(t.topic)}
+
+                      onChange={() => {
+
+                        if (selectedTopics.includes(t.topic)) {
+
+                          setSelectedTopics(
+                            selectedTopics.filter(
+                              (item:string) => item !== t.topic
+                            )
+                          )
+
+                        } else {
+
+                          setSelectedTopics([
+                            ...selectedTopics,
+                            t.topic
+                          ])
+
+                        }
+
+                      }}
+
+                      style={{
+                        accentColor: "#22c55e"
+                      }}
+                    />
+
+                    {t.topic}
+
+                  </label>
+
+                ))}
+                </>
+              )}
+
+            </div>
+
+          </div>
+
+          <div style={{
+            fontSize: 13,
+            marginBottom: 4
+          }}>
+            Number of questions
+          </div>
+
+          <input
+            type="number"
+            value={maxQuestions}
+            onChange={(e) =>
+              setMaxQuestions(Number(e.target.value))
+            }
+            style={input}
+          />
+
+          <button
+            onClick={() => setActiveView("active_recall")}
+            style={{
+              ...button,
+              marginTop: 15
+            }}
+          >
+            Start Active Recall
           </button>
         </>
       )}
 
-      {activeView === "flashcards" && studyMode === "generated" && (
-        <>
-          <h3>Generated Flashcards</h3>
-          {selectedTopic && (
-            <div style={{
-              marginBottom: 12,
-              padding: "8px 10px",
-              background: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid #22c55e",
-              borderRadius: 6,
-              fontSize: 13,
-              color: "#e5e7eb"
+      {/* ========================= */}
+      {/* STUDY SESSION SETUP */}
+      {/* ========================= */}
+        {activeView === "study_session_setup" && (
+          <>
+            <h3 style={{
+              fontSize: 15,
+              fontWeight: 600,
+              marginBottom: 12
             }}>
-              <b>Selected topic:</b>
-              <div style={{ color: "#22c55e", marginTop: 4 }}>• {topicLabel}</div>
+              Guided Study Session
+            </h3>
+            <SelectedTopicsBanner
+              selectedTopics={selectedTopics}
+              setSelectedTopics={setSelectedTopics}
+              setSelectedTopic={setSelectedTopic}
+            />
+            <p style={{
+              color: "#9ca3af",
+              fontSize: 13,
+              marginBottom: 16,
+              lineHeight: 1.5
+            }}>
+              Create an adaptive study session focused on your selected topics.
+            </p>
+
+            <div style={{ marginBottom: 20 }}>
+              {selectedTopics.length === 0 && (
+              <label style={{
+                fontSize: 11,
+                color: "#9ca3af",
+                letterSpacing: 0.5,
+                marginBottom: 8,
+                display: "block"
+              }}>
+                SELECT TOPICS TO STUDY
+              </label>
+              )}
+              <div style={{
+                maxHeight: "250px",
+                overflowY: "auto",
+                padding: "10px"
+              }}>
+               
+             
+              </div>
+
             </div>
-          )}
+
+            <div style={{
+              fontSize: 13,
+              marginBottom: 8
+            }}>
+              Session Duration
+            </div>
+
+            <select
+              value={sessionDuration}
+              onChange={(e) => {
+
+                const duration = Number(e.target.value)
+
+                setSessionDuration(duration)
+
+                if (duration === 20) {
+
+                  setStudyConfig({
+                    flashcards: 8,
+                    recall: 3,
+                    quiz: 5
+                  })
+
+                }
+
+                if (duration === 40) {
+
+                  setStudyConfig({
+                    flashcards: 15,
+                    recall: 5,
+                    quiz: 10
+                  })
+
+                }
+
+                if (duration === 60) {
+
+                  setStudyConfig({
+                    flashcards: 25,
+                    recall: 8,
+                    quiz: 15
+                  })
+
+                }
+
+              }}
+              style={input}
+            >
+              <option value={20}>20 minutes</option>
+              <option value={40}>40 minutes</option>
+              <option value={60}>60 minutes</option>
+            </select>
+            <div style={{
+              marginTop: 14,
+              padding: "12px",
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid #374151",
+              borderRadius: 8,
+              fontSize: 12,
+              color: "#9ca3af",
+              lineHeight: 1.6
+            }}>
+
+              {sessionDuration === 20 && (
+                <>
+                  <div>• 8 flashcards</div>
+                  <div>• 3 memory checks</div>
+                  <div>• 5 quiz questions</div>
+                </>
+              )}
+
+              {sessionDuration === 40 && (
+                <>
+                  <div>• 15 flashcards</div>
+                  <div>• 5 memory checks</div>
+                  <div>• 10 quiz questions</div>
+                </>
+              )}
+
+              {sessionDuration === 60 && (
+                <>
+                  <div>• 25 flashcards</div>
+                  <div>• 8 memory checks</div>
+                  <div>• 15 quiz questions</div>
+                </>
+              )}
+
+            </div>
+
+            <button
+              onClick={() => setActiveView("study_session")}
+              style={{
+                ...button,
+                marginTop: 15
+              }}
+            >
+              Start Study Session
+            </button>
+          </>
+        )}
+      {/* ========================= */}
+      {/* PLANNER SETUP */}
+      {/* ========================= */}
+
+      {activeView === "planner" && (
+        <>
+          <h3 style={{
+            fontSize: 15,
+            fontWeight: 600,
+            marginBottom: 12
+          }}>
+            Weekly Study Planner
+          </h3>
+
+          <p style={{
+            color: "#9ca3af",
+            fontSize: 13,
+            lineHeight: 1.6,
+            marginBottom: 20
+          }}>
+            Generate a fixed weekly study plan based on your weakest topics and study progress.
+          </p>
+
+          <div style={{
+            padding: 12,
+            border: "1px solid #374151",
+            borderRadius: 8,
+            background: "rgba(255,255,255,0.03)",
+            marginBottom: 20
+          }}>
+
+            <div style={{
+              fontSize: 13,
+              marginBottom: 8
+            }}>
+              Weekly intensity
+            </div>
+
+            <select style={input}>
+              <option>Light</option>
+              <option>Balanced</option>
+              <option>Intensive</option>
+            </select>
+
+          </div>
+
+          <button
+            onClick={() => setActiveView("planner_view")}
+            style={button}
+          >
+            Generate Weekly Plan
+          </button>
         </>
       )}
-
       {/* ========================= */}
       {/* QUIZ */}
       {/* ========================= */}
@@ -526,39 +1120,88 @@ uploadStatus
           <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Quiz')}</h3>
 
           {/* FOCUS MODE PER QUIZ */}
-          {selectedTopic && (
-            <div style={{
-              marginBottom: 16,
-              padding: "12px",
-              background: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid #22c55e",
-              borderRadius: 8
-            }}>
-              <div style={{ fontSize: 10, color: "#22c55e", fontWeight: "bold", marginBottom: 4 }}>{translate('stats.TARGET TOPIC')}</div>
-              <div style={{ fontSize: 14, fontWeight: "600", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                {selectedTopics && selectedTopics.length > 1
-                  ? `${selectedTopics[0]?.topic?.split(" ")[0]} (${selectedTopics.length} topics)`
-                  : (selectedTopics?.[0]?.topic ||
-                    (typeof selectedTopic === "object"
-                        ? selectedTopic?.topic
-                        : selectedTopic))}
-                <button
-                  onClick={() => {
-                    setSelectedTopic(null)
-                    setSelectedTopics([])
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                    fontSize: 16
-                  }}
-                >
-                  ✕
-                </button>
+          <SelectedTopicsBanner
+            selectedTopics={selectedTopics}
+            setSelectedTopics={setSelectedTopics}
+            setSelectedTopic={setSelectedTopic}
+          />
+          {selectedTopics.length === 0 && (
+
+            <div style={{ marginBottom: 20 }}>
+
+              <label style={{
+                fontSize: 11,
+                color: "#9ca3af",
+                letterSpacing: 0.5,
+                marginBottom: 8,
+                display: "block"
+              }}>
+                SELECT TOPICS TO COVER
+              </label>
+
+              <div style={{
+                maxHeight: "250px",
+                overflowY: "auto",
+                padding: "10px"
+              }}>
+
+                {topics && topics.map((t:any) => (
+
+                  <label
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "6px 0",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      color: selectedTopics.includes(t.topic)
+                        ? "#22c55e"
+                        : "#cbd5e1"
+                    }}
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={selectedTopics.includes(t.topic)}
+
+                      onChange={() => {
+
+                        if (selectedTopics.includes(t.topic)) {
+
+                          setSelectedTopics(
+                            selectedTopics.filter(
+                              (item:string) => item !== t.topic
+                            )
+                          )
+
+                        } else {
+
+                          setSelectedTopics([
+                            ...selectedTopics,
+                            t.topic
+                          ])
+
+                        }
+
+                      }}
+
+                      style={{
+                        accentColor: "#22c55e"
+                      }}
+                    />
+
+                    {t.topic}
+
+                  </label>
+
+                ))}
+
               </div>
+              
             </div>
+
           )}
 
           <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Questions')}</div>
@@ -609,6 +1252,7 @@ uploadStatus
           </button>
         </>
       )}
+      
 
       {status && (
         <div style={statusBox}>
@@ -619,6 +1263,8 @@ uploadStatus
     </div>
   )
 }
+
+
 
 const panel: React.CSSProperties = {
   width: 320,

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 export default function ProjectManagerView({
 
 projects,
@@ -15,12 +16,12 @@ documents,
 uploadStatus
 
 }: any){
-
+const { t: translate } = useTranslation();
 return(
 
 <div style={box}>
 
-<h2>Project manager</h2>
+<h2>{translate('stats.Project manager')}</h2>
 
 {/* SELECT PROJECT */}
 
@@ -31,7 +32,7 @@ return(
 <div style={{marginBottom:20}}>
 
 <div style={{marginBottom:8,fontWeight:600}}>
-Select project
+{translate('stats.Select project')}
 </div>
 
 <div style={projectList}>
@@ -64,7 +65,7 @@ cursor:"pointer"
 
 <div style={section}>
 
-<label>Create project</label>
+<label>{translate('stats.Create project')}</label>
 
 <input
 placeholder="New project name"
@@ -77,7 +78,7 @@ style={input}
 onClick={createProject}
 style={button}
 >
-Create project
+{translate('stats.Create project')}
 </button>
 
 </div>
@@ -93,7 +94,7 @@ Create project
 onClick={()=>deleteProject(projectId)}
 style={dangerButton}
 >
-Delete current project
+{translate('stats.Delete current project')}
 </button>
 
 </div>
@@ -107,7 +108,7 @@ Delete current project
 
 <div style={section}>
 
-<label>Upload documents</label>
+<label>{translate('stats.Upload documents')}</label>
 
 <input
 type="file"
@@ -123,7 +124,7 @@ uploadFiles()
 }}
 style={button}
 >
-Upload
+{translate('stats.Upload')}
 </button>
 
 {uploadStatus && (
@@ -166,7 +167,7 @@ uploadStatus.includes("Uploading")
 
 <div style={section}>
 
-<strong style={{color:"white"}}>Uploaded documents</strong>
+<strong style={{color:"white"}}>{translate('stats.Uploaded documents')}</strong>
 
 {documents.map((doc:any,i:number)=>(
 

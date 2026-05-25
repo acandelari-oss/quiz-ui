@@ -1,5 +1,12 @@
 {
   "stats": {
+    "Loading project": "Caricamento progetto...",
+    "Loading previous material": "Caricamento materiale precedente...",
+    "Processing topics": "Elaborazione argomenti...",
+    "Uploading document": "Caricamento documento...",
+    "OCR files may take longer to process": "I file OCR potrebbero richiedere più tempo",
+    "AI is analyzing your documents to create the best content": "L'IA sta analizzando i documenti per creare i contenuti migliori",
+    "Please wait while we prepare your project": "Attendi mentre prepariamo il tuo progetto",
     "Select one or more topics to focus your study.": "Seleziona uno o più argomenti per focalizzare il tuo studio.",
     "Loading topics...": "Caricamento argomenti...",
     "No topics detected yet": "Nessun argomento rilevato ancora",
@@ -130,12 +137,8 @@
     "documents": "Documento/i",
     "topics": "Argomenti",
     "Project loaded successfully": "Progetto caricato con successo",
-    "Uploading document...": "Caricamento dei files in corso...",
     "Document uploaded successfully": "File caricato con successo",
     "Processing...": "Elaborazione...",
-    "OCR files may take longer to process": "I file OCR possono richiedere più tempo per essere elaborati",
-    "AI is analyzing your documents to create the best content": "L'AI sta analizzando i tuoi documenti per creare il miglior contenuto",
-    "Please wait while we prepare your project": "Per favore, attendi mentre prepariamo il tuo progetto",
     "Welcome 👋 ": "Benvenuto 👋 ",
     "Create a new project or load an existing one to start studying.": "Crea un nuovo progetto o caricane uno esistente per iniziare a studiare.",
     "Upload your study material": "Carica il tuo materiale di studio",
@@ -143,11 +146,11 @@
     "Manage Projects": "Gestisci Progetti",
     "Delete project": "Elimina progetto",
     "No documents": "Nessun documento",
-    "Select a specific topic to start a targeted study session.": "Seleziona un argomento specifico per iniziare una sessione di studio mirata.",
-    "Select topics and number of cards in the left panel, then press": "Seleziona argomenti e numero di carte nel pannello di sinistra, poi premi",
+    "Select a specific topic to start a targeted study session. ": "Seleziona un argomento specifico per iniziare una sessione di studio mirata.",
+    "Select topics and number of cards in the left panel, then press ": "Seleziona argomenti e numero di carte nel pannello di sinistra, poi premi",
     "Generate": "Genera",
-    "Choose how many new flashcards you want to generate and press": "Scegli quante nuove flashcard vuoi generare e premi",
-    "or choose how many of your existing flashcards you’d like to review and press": "oppure scegli quante delle tue Flashcard già generate vuoi rivedere e premi",
+    "Choose how many new flashcards you want to generate and press ": "Scegli quante nuove flashcard vuoi generare e premi ",
+    "or choose how many of your existing flashcards you would like to review and press ": "oppure scegli quante delle tue Flashcard già generate vuoi rivedere e premi ",
     "Start Study": "Inizia Studio",
     "questions": "domande",
     "Attempts": " tentativi",
@@ -156,25 +159,44 @@
     "Needs review": "Da rivedere",
     "No quizzes yet": "Ancora nessun quiz",
     "Load project": "Carica progetto",
-    "loading_project": "Caricamento progetto...",
-    "loading_previous": "Caricamento materiale precedente...",
-    "project_success": "Progetto caricato con successo!",
-    "processing_topics": "Elaborazione argomenti..."
+    "Thinking...": "Sto pensando...",
+    "Ask your documents": "Fai una domanda sui tuoi files",
+    "Delete current project": "Elimina progetto corrente",
+    "Project manager": "Gestione progetti",
+     "Generating study session for": "Generazione sessione di studio per ",
+    "FOCUS STUDY ACTIVE": "FOCUS STUDY ATTIVO",
+    "A guided study session combining flashcards, active recall and quizzes.": "Una sessione di studio guidata che combina flashcard, richiamo attivo e quiz.",
+    "Study Session Completed": "Sessione di studio completata",
+    "Great work. You finished your study session.": "Ottimo lavoro. Hai completato la tua sessione di studio.",
+    "Topics you should review": "Argomenti che dovresti rivedere",
+    "Start new session": "Inizia nuova sessione",
+    "AI Study Session": "Sessione di studio AI",
+    "Flashcard Study": "Studio con flashcard",
+    "no_material": "Non sono riuscito a trovare materiale per gli argomenti selezionati. Prova a caricare più contenuti o a cambiare la tua selezione.",
+    "No context found for the selected topics. Try uploading more content or changing your selection.": "Non è stato trovato alcun contesto per gli argomenti selezionati. Prova a caricare più contenuti o a cambiare la tua selezione.",
+    "An error occurred while evaluating your answer. Please try again.": "Si è verificato un errore durante la valutazione della tua risposta. Per favore riprova.",
+    "suggested_answer": "Risposta suggerita",
+    "suggestion_label": "Suggerimento",
+    "explain_prompt": "Spiegami la risposta giusta per questa domanda",
+    "Memory Check Trainer": "Memory Check Trainer",
+    "An active recall trainer that generates questions based on your study material to help you reinforce your memory and identify areas for improvement.": "Uno strumento di allenamento per il richiamo attivo che genera domande basate sul tuo materiale di studio per aiutarti a rafforzare la tua memoria e identificare le aree di miglioramento.",
+    "Write your answer...": "Scrivi la tua risposta...",
+    "Submit Answer": "Invia Risposta",
+    "Show answer": "Mostra risposta",
+    "Next question": "Prossima domanda"
+    
 
-  }
-}
+  },
 
-{
-  {
   "loaders": {
-    "quiz_0": "Analisi dei documenti...",
-    "quiz_1": "Creazione domande...",
-    "quiz_2": "Generazione opzioni...",
-    "quiz_3": "Quasi pronto!",
     "flashcards_0": "Estrazione concetti...",
     "flashcards_1": "Sintesi definizioni...",
     "flashcards_2": "Creazione carte...",
-    "flashcards_3": "Mazzo in preparazione!"
+    "flashcards_3": "Mazzo in preparazione!",
+    "quiz_0": "Analisi dei documenti...",
+    "quiz_1": "Creazione domande...",
+    "quiz_2": "Generazione opzioni...",
+    "quiz_3": "Quasi pronto!"
   }
 }
-}
+

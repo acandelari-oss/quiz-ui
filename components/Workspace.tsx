@@ -2,7 +2,7 @@ import AskView from "./views/AskView"
 import FlashcardsView from "./views/FlashcardsView"
 import QuizView from "./views/QuizView"
 import ResultsView from "./views/ResultsView"
-import SummaryView from "./views/SummaryView"
+import SummaryViewNew from "./views/SummaryView"
 import ActiveRecallView from "./views/ActiveRecallView"
 import { useState, useEffect } from "react"
 import StudySessionView from "./views/StudySessionView"
@@ -68,6 +68,11 @@ isGenerating,
 loaderStep,
 loaderType,
 loaderMessages,
+useGlobalKnowledge,
+setUseGlobalKnowledge,
+toolMode,
+setToolMode,
+studyConfig,
 
 
 
@@ -113,11 +118,15 @@ const chartData = previous.map((q:any, index:number) => {
   console.log("QUIZ STATS:", quizStats)
   console.log("STATS FOR THIS QUIZ:", quizStats[q.id])
   console.log("🔥 WORKSPACE resultsData:", resultsData)
+  console.log("🔥 topic_mastery:", resultsData?.topic_mastery)
   return {
     name: `Q${index + 1}`, 
     score: stats?.last_score || 0
   }
 })
+
+console.log("Valore di currentStep:", currentStep);
+console.log("Sta caricando le flashcard?", generatingFlashcards);
 
 
 useEffect(()=>{
@@ -191,7 +200,7 @@ useEffect(()=>{
       const map: any = {};
       if (data && data.quiz_history) {
         data.quiz_history.forEach((s: any) => {
-          map[s.quiz_id || s.id] = {
+          map[s.id] = {
             attempts: s.attempts || 1,
             best_score: s.score,
             last_score: s.score
@@ -206,14 +215,23 @@ useEffect(()=>{
     loadStats();
   }, [activeView, projectId, loadQuizStats, statsLoaded]); // Aggiunto statsLoaded alle dipendenze
 
-
+  useEffect(() => {
+    // Se abbiamo flashcard caricate e siamo nella vista flashcards, 
+    // assicuriamoci che il loader di generazione sia spento.
+    if (activeView === "flashcards" && flashcards && flashcards.length > 0) {
+      // Se hai accesso alla funzione setter qui:
+      // setGeneratingFlashcards(false); 
+    }
+  }, [activeView, flashcards]);
 
 
 console.log("WORKSPACE LOG:", uploadLog)
 console.log("WORKSPACE resultsData:", resultsData);
+console.log("RENDERING ATTUALE - View:", activeView, "Cards:", flashcards?.length, "Gen:", generatingFlashcards);
 return (
+  
   <div style={{ ...workspace, position: "relative" }}>
-
+    
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {uploading ||
     generatingFlashcards ||
@@ -257,11 +275,12 @@ return (
             translate(`loaders.quiz_${currentStep}`)
           ) : (
             /* LOGICA STATUS */
-            status === "Loading project..." ? translate('stats.loading_project') :
-            status === "Loading previous material..." ? translate('stats.loading_previous') :
-            status === "Project loaded successfully" ? translate('stats.project_success') :
-            status === "Processing topics..." ? translate('stats.processing_topics') :
-            status
+            status === "Loading project..." ? translate('stats.Loading project') :
+            status === "Loading previous material..." ? translate('stats.Loading previous material') :
+            status === "Project loaded successfully" ? translate('stats.Project loaded successfully') :
+            status === "Processing topics..."
+              ? "We're organizing your material into study topics"
+            :status
           )}
         </div>
 
@@ -269,10 +288,12 @@ return (
         <div style={loaderSubtitle}>
           {mounted ? (
             uploading
-              ? translate('stats.OCR files may take longer to process')
-              : (generatingFlashcards || generatingQuiz)
-                ? translate('stats.AI is analyzing your documents to create the best content')
-                : translate('stats.Please wait while we prepare your project')
+              ? (
+                  uploadLog?.includes("LARGE_FILE_WARNING")
+                    ? "Large academic document detected. Processing may take longer than usual."
+                    : translate('stats.OCR files may take longer to process')
+                )
+              : "☕ Good moment for a short coffee break — when you're back, your study workspace will be ready."
           ) : "..."}
         </div>
 
@@ -284,7 +305,7 @@ return (
       // Qui continua con il tuo codice del logo (StudyForge)
 
   
-   <div style={{
+  <div style={{
     display:"flex",
     flexDirection:"column",
     alignItems:"center",
@@ -294,8 +315,8 @@ return (
   }}>
 
     <img
-      src="/logoSF.png"
-      alt="StudyForge logo"
+      src="/logoSTX.png"
+      alt="StutorX logo"
       style={{
         width:280,
         marginBottom:20,
@@ -303,13 +324,7 @@ return (
       }}
     />
 
-    <h1 style={{
-      color:"white",
-      fontSize:32,
-      marginBottom:10
-    }}>
-      StudyForge
-    </h1>
+    
 
     <p style={{
       color:"#9ca3af",
@@ -318,7 +333,7 @@ return (
     }}>
       {mounted ? (
         <>
-          {translate('stats.Welcome 👋 ')} 
+          {translate('stats.Welcome 👋')} 
           {translate('stats.Create a new project or load an existing one to start studying.')}
         </>
       ) : (
@@ -355,8 +370,62 @@ return (
     }}>
       {translate('stats.Upload your files to start generating topics, flashcards and quizzes.')}
     </p>
+    <div style={{
+      marginTop: 28,
+      background: "rgba(255,255,255,0.04)",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: 16,
+      padding: "18px 22px",
+      maxWidth: 700,
+      textAlign: "left"
+    }}>
+
+      <div style={{
+        color: "white",
+        fontWeight: 600,
+        marginBottom: 12,
+        fontSize: 18
+      }}>
+        📚 Study Material Tips
+      </div>
+
+      <div style={{
+        color: "#d1d5db",
+        fontSize: 15,
+        lineHeight: 1.7
+      }}>
+
+        <div style={{ marginBottom: 10 }}>
+          <strong>Accepted formats</strong><br />
+          • PDF<br />
+          • Word (.docx)<br />
+          • PowerPoint (.pptx)
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <strong>Best results</strong><br />
+          • text-based documents work best<br />
+          • chapter-based uploads improve topic quality<br />
+          • smaller thematic uploads generate more precise quizzes and flashcards
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <strong>Recommended size</strong><br />
+          • ~40–80 pages per upload for optimal study analysis<br />
+          • very large academic files may require additional processing time
+        </div>
+
+        <div>
+          <strong>Good to know</strong><br />
+          • scanned documents and OCR files may take longer<br />
+          • the platform analyzes conceptual relationships before generating quizzes and flashcards
+        </div>
+
+      </div>
+    </div>
 
   </div>
+  
 
 ) : (  
 
@@ -521,6 +590,8 @@ return (
         asking={asking}
         chatMessages={chatMessages}
         selectedTopics={selectedTopics} 
+        useGlobalKnowledge={useGlobalKnowledge}
+        setUseGlobalKnowledge={setUseGlobalKnowledge}
       />
     )}
 
@@ -529,105 +600,94 @@ return (
       <ActiveRecallView 
         projectId={projectId} 
         selectedTopics={selectedTopics}
+        useGlobalKnowledge={useGlobalKnowledge}
+        setUseGlobalKnowledge={setUseGlobalKnowledge}
       />
     )}
 
-    {/* FLASHCARDS */}
-    {/* GENERATE FLASHCARDS VIEW */}
+    {/* 1. VISTA GENERAZIONE (Solo se chiamata esplicitamente) */}
     {activeView === "generate_flashcards" && (
-      <div style={{
-        display:"flex",
-        flexDirection:"column",
-        alignItems:"center",
-        justifyContent:"center",
-        height:"60vh",
-        textAlign:"center"
-      }}>
-        <h3 style={{ color:"white", fontSize:22 }}>
-          {translate('stats.Generate Flashcards')}
-        </h3>
-
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", textAlign:"center" }}>
+        <h3 style={{ color:"white", fontSize:22 }}>{translate('stats.Generate Flashcards')}</h3>
         <p style={{ color:"#9ca3af", maxWidth:600 }}>
           {translate('stats.Select topics and number of cards in the left panel, then press')}
           <b style={{color:"white"}}> {translate('stats.Generate')} </b>.
         </p>
       </div>
     )}
-      {activeView === "flashcards" && (
-        <>
-        {selectedTopic && (
-        <div style={{
-          background: "rgba(34, 197, 94, 0.1)",
-          border: "1px solid #22c55e",
-          padding: "10px 15px",
-          borderRadius: "8px",
-          marginBottom: "20px",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          color: "#22c55e",
-          fontWeight: "bold"
-        }}>
-          🎯 Focusing on: {typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}
-        </div>
-      )}
-        {loadingFlashcards ? (
 
-          // 🔥 SPINNER SOLO DURANTE GENERAZIONE
+    {/* 2. VISTA FLASHCARDS (Caricamento e Visualizzazione) */}
+    {activeView === "flashcards" && (
+      <>
+        {/* 1. Banner del Topic (Se selezionato) */}
+        {selectedTopic && (
           <div style={{
-            display:"flex",
-            flexDirection:"column",
-            alignItems:"center",
-            justifyContent:"center",
-            height:"60vh",
-            color:"white"
+            background: "rgba(34, 197, 94, 0.1)",
+            border: "1px solid #22c55e",
+            padding: "10px 15px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            color: "#22c55e",
+            fontWeight: "bold"
+          }}>
+            🎯 Focusing on: {typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}
+          </div>
+        )}
+
+        {/* 2. Gestione Spinner (Solo durante caricamento o generazione) */}
+        {loadingFlashcards || generatingFlashcards ? (
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", height: "60vh", color: "white"
           }}>
             <div style={spinner}></div>
-            <div style={{marginTop:10}}>Generating flashcards...</div>
+            <div style={{ marginTop: 10 }}>
+              {generatingFlashcards ? "Generating flashcards..." : "Loading flashcards..."}
+            </div>
           </div>
-
-        ) : flashcards.length > 0 ? (
-
+        ) : flashcards && flashcards.length > 0 ? (
+          /* 3. Visualizzazione Flashcards (Se i dati sono pronti) */
           <FlashcardsView
             flashcards={flashcards}
             openCard={openCard}
             setOpenCard={setOpenCard}
           />
-
         ) : (
-
-          // 👇 QUESTA PARTE RIMANE quando entri nella view
+          /* 4. Schermata di Benvenuto/Generate (Contenuto ripristinato) */
           <div style={{
-            display:"flex",
-            flexDirection:"column",
-            alignItems:"center",
-            justifyContent:"center",
-            height:"60vh",
-            textAlign:"center"
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "60vh",
+            textAlign: "center"
           }}>
             <h3 style={{
-              color:"white",
-              fontSize:22,
-              marginBottom:10
+              color: "white",
+              fontSize: 22,
+              marginBottom: 10
             }}>
-              Flashcard Study
+              {translate('stats.Flashcard Study')}
             </h3>
 
             <p style={{
-              color:"#9ca3af",
-              maxWidth:500,
-              lineHeight:1.6
+              color: "#9ca3af",
+              maxWidth: 500,
+              lineHeight: 1.6
             }}>
               {translate('stats.Choose how many new flashcards you want to generate and press ')}
-              <b style={{color:"white"}}> {translate('stats.Generate')} </b>,  
-              {translate('stats.or choose how many of your existing flashcards you’d like to review and press ')}
-              <b style={{color:"white"}}> {translate('stats.Start Study')} </b>.
+              <b style={{ color: "white" }}> {translate('stats.Generate')}</b><br />
+              {translate('stats.or choose how many of your existing flashcards you would like to review and press ')}
+              <b style={{ color: "white" }}> {translate('stats.Start Study')}</b>.
             </p>
           </div>
-
         )}
       </>
     )}
+    
 
     {/* ========================= */}
     {/* STUDY SESSION */}
@@ -637,6 +697,7 @@ return (
         <StudySessionView 
           projectId={projectId} 
           selectedTopics={selectedTopics}  // 🔥 FIX
+          studyConfig={studyConfig}
 // <--- Fondamentale per filtrare i materiali
         />
       ) : (
@@ -897,13 +958,132 @@ return (
 
       </div>
     )}
+    {/* ========================= */}
+    {/* PLANNER VIEW */}
+    {/* ========================= */}
+
+    {activeView === "planner_view" && (
+
+      <div style={{
+        padding: 30,
+        color: "white"
+      }}>
+
+        <h2 style={{
+          fontSize: 28,
+          fontWeight: 700,
+          marginBottom: 24
+        }}>
+          📅 Weekly Study Planner
+        </h2>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 18
+        }}>
+
+          {[
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday"
+          ].map((day, i) => (
+
+            <div
+              key={i}
+              style={{
+                background: "#111827",
+                border: "1px solid #374151",
+                borderRadius: 12,
+                padding: 18,
+                minHeight: 240,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between"
+              }}
+            >
+
+              <div>
+
+                <div style={{
+                  fontSize: 14,
+                  color: "#9ca3af",
+                  marginBottom: 12
+                }}>
+                  {day}
+                </div>
+
+                <div style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  marginBottom: 10
+                }}>
+                  Biochemistry
+                </div>
+
+                <div style={{
+                  fontSize: 13,
+                  color: "#cbd5e1",
+                  marginBottom: 16
+                }}>
+                  ~ 45 min
+                </div>
+
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  fontSize: 13,
+                  color: "#e5e7eb"
+                }}>
+
+                  <div>• Flashcards</div>
+                  <div>• Recall</div>
+                  <div>• Quiz</div>
+
+                </div>
+
+              </div>
+
+              <button
+                style={{
+                  marginTop: 20,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #22c55e",
+                  background: "transparent",
+                  color: "#22c55e",
+                  cursor: "pointer",
+                  fontWeight: 600
+                }}
+              >
+                Start Daily Session
+              </button>
+
+            </div>
+
+          ))}
+
+        </div>
+
+      </div>
+
+    )}
     {/* RESULTS */}
+    {/* RESULTS & SUMMARY UNITI */}
     {activeView === "results_summary" && (
-      <div>
-        <ResultsView resultsData={resultsData} />
-        <div style={{ marginTop: 40 }} />
-        <SummaryView 
+      <div style={{ padding: 20 }}>
+        <h2 style={{ color: "white", marginBottom: 20 }}>
+          {translate('stats.Results & Summary')}
+        </h2>
+
+        {/* Usiamo solo SummaryView che ora contiene tutto */}
+        <SummaryViewNew 
           summaryStats={summaryStats} 
+          resultsData={resultsData} // Passiamo anche i dati dei topic
           projectId={projectId}
         />
       </div>
