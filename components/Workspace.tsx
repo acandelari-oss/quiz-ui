@@ -10,6 +10,16 @@ import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
 import { useTranslation } from 'react-i18next';
+import HintBox from "@/components/ui/HintBox";
+import {
+  BarChart3,
+  Calendar,
+  ClipboardList,
+  BrainCircuit,
+  Layers3,
+  HelpCircle,
+  Brain
+} from "lucide-react";
 
 export default function Workspace({
 
@@ -596,6 +606,58 @@ return (
     )}
 
     {/* ACTIVE RECALL - CORRETTO */}
+    {activeView === "ask_setup" && (
+
+      <div style={{ padding: 20 }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 20,
+          color: "#ffffff",
+          fontWeight: 600,
+          fontSize: 24
+        }}>
+          <HelpCircle size={48}/>
+          <p>ASK A QUESTION</p>
+        </div>
+
+        <HintBox
+          text="Ask the AI to explain concepts, compare ideas, simplify difficult topics, or clarify mistakes from your quizzes."
+        />
+
+      </div>
+
+    )}
+
+     {activeView === "active_recall_setup" && (
+
+      <div style={{ padding: 20 }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 20,
+          color: "#ffffff",
+          fontWeight: 600,
+          fontSize: 24
+        }}>
+          <Brain size={48}/>
+          <p>MEMORY CHECK</p>
+        </div>
+
+        <HintBox
+          text="Memory Check is designed to strengthen long-term recall. Try answering in your own words before asking for help."
+        />
+
+      </div>
+
+    )} 
+
     {activeView === "active_recall" && (
       <ActiveRecallView 
         projectId={projectId} 
@@ -607,13 +669,36 @@ return (
 
     {/* 1. VISTA GENERAZIONE (Solo se chiamata esplicitamente) */}
     {activeView === "generate_flashcards" && (
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"60vh", textAlign:"center" }}>
+      <>
+      <div style={{ padding: 20 }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 20,
+          color: "#ffffff",
+          fontWeight: 600,
+          fontSize: 24
+        }}>
+          <Layers3 size={48}/>
+          <p>FLASHCARDS</p>
+        </div>
+
+        <HintBox
+          text="Flashcards work best with active recall. Try answering mentally before revealing the solution."
+        />
+
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"20vh", textAlign:"center" }}>
         <h3 style={{ color:"white", fontSize:22 }}>{translate('stats.Generate Flashcards')}</h3>
-        <p style={{ color:"#9ca3af", maxWidth:600 }}>
+        <p style={{ color:"#9ca3af", maxWidth:600, fontSize:18 }}>
           {translate('stats.Select topics and number of cards in the left panel, then press')}
           <b style={{color:"white"}}> {translate('stats.Generate')} </b>.
         </p>
       </div>
+      </>
     )}
 
     {/* 2. VISTA FLASHCARDS (Caricamento e Visualizzazione) */}
@@ -692,15 +777,67 @@ return (
     {/* ========================= */}
     {/* STUDY SESSION */}
     {/* ========================= */}
+
+    {activeView === "study_session_setup" && (
+
+      <div style={{ padding: 20 }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 20,
+          color: "#ffffff",
+          fontWeight: 600,
+          fontSize: 24
+        }}>
+          <BrainCircuit size={48}/>
+          <p>STUDY SESSION</p>
+        </div>
+
+        <HintBox
+          text="Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time."
+        />
+
+      </div>
+
+    )}
+
     {activeView === "study_session" && (
       projectId ? (
-        <StudySessionView 
-          projectId={projectId} 
-          selectedTopics={selectedTopics}  // 🔥 FIX
-          studyConfig={studyConfig}
-// <--- Fondamentale per filtrare i materiali
-        />
+
+        <div style={{ padding: 20 }}>
+
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            marginBottom: 20,
+            color: "#22c55e",
+            fontWeight: 600,
+            fontSize: 24
+          }}>
+            <BrainCircuit size={48}/>
+            <p>STUDY SESSION</p>
+          </div>
+
+          <HintBox
+            text="Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time."
+          />
+
+          <StudySessionView 
+            projectId={projectId} 
+            selectedTopics={selectedTopics}
+            studyConfig={studyConfig}
+          />
+
+        </div>
+
       ) : (
+        
+        
         <div style={{
           display: "flex",
           flexDirection: "column",
@@ -775,22 +912,39 @@ return (
             </p>
           </div>
         ) : (
-          <QuizView
-            quiz={quiz}
-            answers={answers}
-            selectAnswer={selectAnswer}
-            finished={finished}
-            started={started}
-            submitQuiz={submitQuiz}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            formatTime={formatTime}
-            answeredCount={answeredCount}
-            calculateScore={calculateScore}
-            loadQuizStats={loadQuizStats}
-            projectId={projectId}
-            quizId={quizId}
+          <>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              marginBottom: 20,
+              color: "#ffffff",
+              fontWeight: 600,
+              fontSize: 24
+            }}>
+              <ClipboardList size={48}/><p>QUIZ GENERATION</p>
+            </div>
+            <HintBox
+              text="Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information."
           />
+            <QuizView
+              quiz={quiz}
+              answers={answers}
+              selectAnswer={selectAnswer}
+              finished={finished}
+              started={started}
+              submitQuiz={submitQuiz}
+              expanded={expanded}
+              setExpanded={setExpanded}
+              formatTime={formatTime}
+              answeredCount={answeredCount}
+              calculateScore={calculateScore}
+              loadQuizStats={loadQuizStats}
+              projectId={projectId}
+              quizId={quizId}
+            />
+          </>
         )}
       </div>
     )}

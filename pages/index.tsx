@@ -6,6 +6,8 @@ import { useRouter } from "next/router";
 import Sidebar from "../components/Sidebar";
 import ToolPanel from "../components/ToolPanel";
 import Workspace from "../components/Workspace";
+import PlannerView from "@/components/views/PlannerView";
+
 import {
   extractTopicIds,
   extractTopicNames,
