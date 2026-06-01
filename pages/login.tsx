@@ -69,8 +69,8 @@ export default function LoginPage() {
         <Image
           src="/logoSTX.png"
           width={220}
-          height={140}
-          alt="StudyQuiz Logo"
+          height={100}
+          alt="StutorX Logo"
         />
       </div>
 
