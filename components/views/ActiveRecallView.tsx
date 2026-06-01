@@ -52,7 +52,7 @@ export default function ActiveRecallView({
     if (value == null) return ""
     return String(value)
   }
-  const { t: translate } = useTranslation();
+  const { t: translate, i18n } = useTranslation();
   function downloadSessionPDF() {
 
     const doc = new jsPDF()
@@ -212,11 +212,17 @@ export default function ActiveRecallView({
         // Se il backend crasha ancora con [], questa stringa evita il crash 
         // perché la lista NON è None e NON è vuota.
         use_global_knowledge: useGlobalKnowledge,
-        topics: isAllMode ? ["__ALL__"] : normalizedTopics
+        topics: isAllMode ? ["__ALL__"] : normalizedTopics,
+        language: i18n.language === "it"
+          ? "Italian"
+          : "English"
       };
-
+      console.log(
+        "🌍 ACTIVE RECALL LANGUAGE:",
+        i18n.language
+      );
       console.log("📤 TENTATIVO PAYLOAD FINALE:", payload);
-
+      
       const res = await fetch(`${apiUrl}/projects/${projectId}/active_recall_question`, {
         method: "POST",
         headers: {

@@ -1,9 +1,12 @@
+import { useTranslation } from 'react-i18next';
 export default function HintBox({
+
+  
   text
 }:{
   text:string
 }) {
-
+const { t: translate } = useTranslation();
   return (
 
     <div style={{
@@ -20,7 +23,7 @@ export default function HintBox({
       <b style={{
         color: "#22c55e"
       }}>
-        💡 Study tip
+        {translate('stats.💡 Study tip')}
       </b>
 
       <div style={{
@@ -32,5 +35,5 @@ export default function HintBox({
     </div>
 
   )
-
+  
 }

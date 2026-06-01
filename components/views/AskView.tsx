@@ -221,10 +221,10 @@ function toggleRecording() {
                     fontWeight: 'bold',
                     color: '#22c55e'
                   }}>
-                    Search Mode: {
+                    {translate('stats.Search Mode')}: {
                       useGlobalKnowledge
-                        ? "Global AI Knowledge"
-                        : "Strict Document Search"
+                        ? translate('stats.Global AI Knowledge')
+                        : translate('stats.Strict Document Search')
                     }
                   </span>
 
@@ -234,8 +234,8 @@ function toggleRecording() {
                   }}>
                     {
                       useGlobalKnowledge
-                        ? "The AI can expand beyond your uploaded material."
-                        : "The AI answers using ONLY your uploaded study material."
+                        ? translate('stats.The AI can expand beyond your uploaded material.')
+                        : translate('stats.The AI answers using ONLY your uploaded study material.')
                     }
                   </span>
 
@@ -289,21 +289,21 @@ function toggleRecording() {
               }
             }}
             placeholder={
-              selectedTopics && selectedTopics.length > 1
-                ? `Ask about ${
+              selectedTopics?.length > 1
+                ? `${translate('stats.Ask about')} ${
                     (
                       typeof selectedTopics[0] === "string"
                         ? selectedTopics[0]
                         : selectedTopics[0]?.topic
                     )?.split(" ")[0]
-                  } (${selectedTopics.length} topics)...`
-                : selectedTopics?.[0]
-                ? `Ask about ${
+                  } (${selectedTopics.length} ${translate('stats.topics')})...`
+                : selectedTopics?.length === 1
+                ? `${translate('stats.Ask about')} ${
                     typeof selectedTopics[0] === "string"
                       ? selectedTopics[0]
                       : selectedTopics[0]?.topic
                   }...`
-                : "Ask something about your documents..."
+                : translate('stats.Ask something about your documents...')
             }
             style={{
               width: "91%",

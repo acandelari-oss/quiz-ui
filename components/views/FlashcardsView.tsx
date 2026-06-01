@@ -42,9 +42,9 @@ if(openCard === null){
           </div>
         ) : (
           /* 2. MOSTRA LE ISTRUZIONI SE NON STA CARICANDO */
-          <div style={{ color: "#9ca3af", fontSize: 18 }}>
-            {translate('stats.Select how many flashcards you want to revise')}<br/>
-            and press <b>{translate('stats.Start Study')}</b>
+          <div style={{ color: "#ffffff", fontSize: 24 }}>
+            {translate('stats.Select how many flashcards you want to revise and press')}<br/>
+            <b>{translate('stats.Start Study')}</b>
           </div>
         )}
 

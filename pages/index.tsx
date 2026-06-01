@@ -119,6 +119,7 @@ const [studyCount,setStudyCount]=useState(10)
 
 const [summaryStats,setSummaryStats]=useState<any>(null)
 
+
 const [uploadLog, setUploadLog] = useState("")
 const [loadingFlashcards, setLoadingFlashcards] = useState(false)
 const [studyMode, setStudyMode] = useState<"generated" | "loaded" | null>(null)
@@ -132,23 +133,25 @@ const [studyConfig, setStudyConfig] = useState({
   recall: 3,
   quiz: 5
 })
+const [questionStyle, setQuestionStyle] =
+  useState("balanced")
 
 const loaderMessages = {
   quiz: [
-    "Analyzing study material...",
-    "Extracting key concepts...",
-    "Formulating questions...",
-    "Generating options and explanations...",
+    "Analyzing learning materials...",
+    "Identifying key concepts...",
+    "Building high-quality questions...",
+    "Creating answer options...",
     "Finalizing your quiz..."
   ],
   flashcards: [
-    "Scanning documents...",
-    "Identifying core definitions...",
+    "Scanning study material...",
+    "Extracting key concepts...",
     "Creating flashcards...",
-    "Polishing content...",
+    "Organizing your deck...",
     "Almost ready..."
   ]
-};
+}
 
 useEffect(() => {
 
@@ -655,24 +658,7 @@ async function pollTopicStatus(projectId:string){
       return
     }
 
-    if(
-      String(data.status)
-        .trim()
-        .toLowerCase() === "partial"
-    ){
-
-      clearInterval(pollingRef.current)
-
-      pollingRef.current = null
-
-      setUploadStatus(
-        `Large document processed partially. Study material imported up to page ${data.last_processed_page}.`
-      )
-
-      await loadTopics(projectId)
-
-      return
-    }
+    
 
     if(
       String(data.status)
@@ -684,7 +670,7 @@ async function pollTopicStatus(projectId:string){
 
       pollingRef.current = null
 
-      setUploadStatus("Topic generation failed")
+      setActiveView("upload_error")
 
       return
     }
@@ -1060,6 +1046,8 @@ async function generateQuiz() {
       console.log("🧠 TYPE:", typeof selectedTopics[0])
     }
     try {
+
+      console.log("🌍 LANGUAGE SENT:", language)
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
         {
@@ -1072,8 +1060,10 @@ async function generateQuiz() {
             num_questions: numQuestions,
 
             difficulty: difficulty,
-
+            
             language: language,
+
+            question_style: questionStyle,
 
             topic_ids:
               selectedTopics && selectedTopics.length > 0
@@ -1491,6 +1481,7 @@ function extractTopicIds(topics: any[]) {
         summaryStats={summaryStats} // AGGIUNGI ANCHE QUESTA
         topics={topics}
         setGeneratingFlashcards={setGeneratingFlashcards}
+        setLanguage={setLanguage}
         
       />
 
@@ -1542,6 +1533,8 @@ function extractTopicIds(topics: any[]) {
         loadingFlashcards={loadingFlashcards}
         studyConfig={studyConfig}
         setStudyConfig={setStudyConfig}
+        questionStyle={questionStyle}
+        setQuestionStyle={setQuestionStyle}
       />
 
       <Workspace

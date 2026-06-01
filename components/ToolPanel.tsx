@@ -65,6 +65,8 @@ setStudyMode,
 status,
 uploadStatus,
 toolMode,
+questionStyle,
+setQuestionStyle,
 
 
 }: any) {
@@ -80,6 +82,7 @@ toolMode,
     recall: 3,
     quiz: 5
   })
+ 
 
   return (
     <div style={panel}>
@@ -1221,6 +1224,27 @@ toolMode,
             <option>easy</option>
             <option>medium</option>
             <option>hard</option>
+          </select>
+          <div style={{ fontSize: 13, marginBottom: 4 }}>
+            Question Style
+          </div>
+
+          <select
+            value={questionStyle}
+            onChange={(e)=>setQuestionStyle(e.target.value)}
+            style={input}
+          >
+            <option value="balanced">
+              Balanced
+            </option>
+
+            <option value="exam">
+              Exam Style
+            </option>
+
+            <option value="reasoning">
+              Reasoning Heavy
+            </option>
           </select>
 
           <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Language')}</div>

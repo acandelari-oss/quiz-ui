@@ -194,7 +194,37 @@
     "Show answer": "Show answer",
     "Next question": "Next question",
     "Preparing flashcards:": "Preparing flashcards:",
-    "Loading flashcards...": "Loading flashcards..."
+    "Loading flashcards...": "Loading flashcards...",
+    "☕ Good moment for a short coffee break — when you are back, your study workspace will be ready.": "☕ Good moment for a short coffee break — when you are back, your study workspace will be ready.",
+    "We are organizing your material into study topics": "We are organizing your material into study topics",
+    "Study planner": "Study planner",
+    "Ask the AI to explain concepts, compare ideas, simplify difficult topics, or clarify mistakes from your quizzes.": "Ask the AI to explain concepts, compare ideas, simplify difficult topics, or clarify mistakes from your quizzes.",
+    "ASK A QUESTION": "ASK A QUESTION",
+    "💡 Study tip": "💡 Study tip",
+    "MEMORY CHECK": "MEMORY CHECK",
+    "Memory Check is designed to strengthen long-term recall. Try answering in your own words before asking for help.": "Memory Check is designed to strengthen long-term recall. Try answering in your own words before asking for help.",
+    "FLASHCARDS": "FLASHCARDS",
+    "Flashcards work best with active recall. Try answering mentally before revealing the solution.": "Flashcards work best with active recall. Try answering mentally before revealing the solution.",
+    "Select how many flashcards you want to revise and press": "Select how many flashcards you want to revise and press",
+    "Search Mode:": "Search Mode",
+    "Global AI Knowledge": "Global AI Knowledge",
+    "Strict Document Search": "Strict Document Search",
+    "The AI can expand beyond your uploaded material.": "The AI can expand beyond your uploaded material.",
+    "The AI answers using ONLY your uploaded study material.": "The AI answers using ONLY your uploaded study material.",
+    "Ask about": "Ask about",
+    "Ask something about your documents...": "Ask something about your documents...",
+    "STUDY SESSION": "STUDY SESSION",
+    "QUIZ GENERATION": "QUIZ GENERATION",
+    "Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.": "Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.",
+    "Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time.": "Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time.",
+    "Score trend": "Score trend",
+    "We are building your quiz and checking question quality.": "We are building your quiz and checking question quality.",
+    "We are extracting key concepts and preparing your flashcards.": "We are extracting key concepts and preparing your flashcards.",
+    "We are organizing your material into study topics.": "We are organizing your material into study topics.",
+    "Preparing your learning workspace. This may take a moment...": "Preparing your learning workspace. This may take a moment...",
+    "Large academic document detected. Processing may take longer than usual.": "Large academic document detected. Processing may take longer than usual."
+   
+    
   },
 
   
@@ -203,10 +233,10 @@
     "flashcards_1": "Summarizing definitions...",
     "flashcards_2": "Creating front & back cards...",
     "flashcards_3": "Organizing your deck!",
-    "quiz_0": "Analyzing documents...",
-    "quiz_1": "Creating challenging questions...",
-    "quiz_2": "Generating options...",
-    "quiz_3": "Finalizing your quiz!"
+    "quiz_0": "Analyzing learning materials...",
+    "quiz_1": "Building questions...",
+    "quiz_2": "Generating answer options...",
+    "quiz_3": "Validating question quality..."
   }
 }
 

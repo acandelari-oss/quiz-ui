@@ -27,7 +27,8 @@ export default function Sidebar({
   setFinished,
   setAnswers,
   loadPreviousQuizzes,
-  loadQuizStats
+  loadQuizStats,
+  setLanguage
 }: any) {
    // Dentro il componente Sidebar
         const [mounted, setMounted] = useState(false);
@@ -36,9 +37,12 @@ export default function Sidebar({
         const [numToReview, setNumToReview] = useState(availableFlashcards || 0);
 
         const changeLanguage = (lng: string) => {
-          i18n.changeLanguage(lng);
-          // Opzionale: salva la preferenza nel DB qui quando saremo pronti
-        };
+          i18n.changeLanguage(lng)
+
+          setLanguage(
+            lng === "it" ? "Italian" : "English"
+          )
+        }
   // Questo useEffect gira SOLO sul client dopo il primo render
   useEffect(() => {
     setMounted(true);

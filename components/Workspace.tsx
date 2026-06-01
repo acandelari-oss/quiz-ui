@@ -18,7 +18,8 @@ import {
   BrainCircuit,
   Layers3,
   HelpCircle,
-  Brain
+  Brain,
+  AlertTriangle
 } from "lucide-react";
 
 export default function Workspace({
@@ -99,6 +100,10 @@ useEffect(() => {
 }, []);
 
 const { t: translate } = useTranslation();
+const handleLogout = async () => {
+  await supabase.auth.signOut()
+  window.location.reload()
+}
 const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
@@ -241,6 +246,54 @@ console.log("RENDERING ATTUALE - View:", activeView, "Cards:", flashcards?.lengt
 return (
   
   <div style={{ ...workspace, position: "relative" }}>
+    <div
+      style={{
+        height: 40,
+        
+        display: "flex",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        gap: 12,
+        padding: "0 12px",
+        borderBottom: "1px solid #1f2937",
+        background: "#111827",
+        position: "sticky",
+        top: 0,
+        zIndex: 100
+      }}
+    >
+
+      <button
+        style={{
+          padding: "8px 5px",
+          borderRadius: 8,
+          border: "1px solid #374151",
+          background: "#1f2937",
+          color: "white",
+          cursor: "pointer",
+         
+        }}
+        onClick={() => alert("Account area coming soon")}
+      >
+        Account
+      </button>
+
+      <button
+        style={{
+          padding: "8px 14px",
+          borderRadius: 8,
+          border: "1px solid #ef4444",
+          background: "#7f1d1d",
+          color: "white",
+          cursor: "pointer",
+          
+        }}
+        onClick={handleLogout}
+      >
+        Logout
+      </button>
+
+    </div>
     
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {uploading ||
@@ -289,23 +342,29 @@ return (
             status === "Loading previous material..." ? translate('stats.Loading previous material') :
             status === "Project loaded successfully" ? translate('stats.Project loaded successfully') :
             status === "Processing topics..."
-              ? "We're organizing your material into study topics"
-            :status
+              ? translate('stats.We are organizing your material into study topics')
+              :status
           )}
         </div>
 
         {/* 3. SOTTOTITOLO DINAMICO TRADOTTO */}
-        <div style={loaderSubtitle}>
-          {mounted ? (
-            uploading
-              ? (
-                  uploadLog?.includes("LARGE_FILE_WARNING")
-                    ? "Large academic document detected. Processing may take longer than usual."
-                    : translate('stats.OCR files may take longer to process')
-                )
-              : "☕ Good moment for a short coffee break — when you're back, your study workspace will be ready."
-          ) : "..."}
-        </div>
+       <div style={loaderSubtitle}>
+        {mounted ? (
+          uploading ? (
+            uploadLog?.includes("LARGE_FILE_WARNING")
+              ? translate('stats.Large academic document detected. Processing may take longer than usual.')
+              : translate('stats.OCR files may take longer to process')
+          ) : generatingQuiz ? (
+            translate('stats.We are building your quiz and checking question quality.')
+          ) : generatingFlashcards ? (
+            translate('stats.We are extracting key concepts and preparing your flashcards.')
+          ) : status === "Processing topics..." ? (
+            translate('stats.We are organizing your material into study topics.')
+          ) : (
+            translate('stats.Preparing your learning workspace.')
+          )
+        ) : "..."}
+      </div>
 
         
       </div>
@@ -446,7 +505,48 @@ return (
   // NORMAL APP
   // =========================
   <>
-    
+    {activeView === "upload_error" && (
+
+      <div style={{ padding: 20 }}>
+
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          marginBottom: 20,
+          color: "#ef4444",
+          fontWeight: 600,
+          fontSize: 24
+        }}>
+          <AlertTriangle size={48}/>
+          <p>FILE PROCESSING FAILED</p>
+        </div>
+
+        <HintBox
+          text="The uploaded file could not be fully processed. Large scanned PDFs, unsupported formatting, or extremely large documents may cause ingestion failures."
+        />
+
+        <div style={{
+          marginTop: 30,
+          color: "#9ca3af",
+          lineHeight: 1.8,
+          fontSize: 14,
+          maxWidth: 700,
+          marginInline: "auto",
+          textAlign: "center"
+        }}>
+          <p>Suggestions:</p>
+
+          <p>• Split very large files into chapters</p>
+          <p>• Export the document as a text-based PDF</p>
+          <p>• Avoid scanned or image-only pages</p>
+          <p>• Remove heavily formatted slides when possible</p>
+        </div>
+
+      </div>
+
+    )}
     {/* MANAGE PROJECTS */}
     {activeView === "manage_projects" && (
       <div style={{padding:40}}>
@@ -621,11 +721,11 @@ return (
           fontSize: 24
         }}>
           <HelpCircle size={48}/>
-          <p>ASK A QUESTION</p>
+          <p>{translate('stats.ASK A QUESTION')} </p>
         </div>
 
         <HintBox
-          text="Ask the AI to explain concepts, compare ideas, simplify difficult topics, or clarify mistakes from your quizzes."
+          text={translate('stats.Ask the AI to explain concepts, compare ideas, simplify difficult topics, or clarify mistakes from your quizzes.')}
         />
 
       </div>
@@ -647,11 +747,11 @@ return (
           fontSize: 24
         }}>
           <Brain size={48}/>
-          <p>MEMORY CHECK</p>
+          <p>{translate('stats.MEMORY CHECK')}</p>
         </div>
 
         <HintBox
-          text="Memory Check is designed to strengthen long-term recall. Try answering in your own words before asking for help."
+          text={translate('stats.Memory Check is designed to strengthen long-term recall. Try answering in your own words before asking for help.')}  
         />
 
       </div>
@@ -683,11 +783,11 @@ return (
           fontSize: 24
         }}>
           <Layers3 size={48}/>
-          <p>FLASHCARDS</p>
+          <p>{translate('stats.FLASHCARDS')}</p>
         </div>
 
         <HintBox
-          text="Flashcards work best with active recall. Try answering mentally before revealing the solution."
+          text={translate('stats.Flashcards work best with active recall. Try answering mentally before revealing the solution.')}  
         />
 
       </div>
@@ -793,11 +893,11 @@ return (
           fontSize: 24
         }}>
           <BrainCircuit size={48}/>
-          <p>STUDY SESSION</p>
+          <p>{translate('stats.STUDY SESSION')}</p>
         </div>
 
         <HintBox
-          text="Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time."
+          text={translate('stats.Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time.')}
         />
 
       </div>
@@ -820,11 +920,11 @@ return (
             fontSize: 24
           }}>
             <BrainCircuit size={48}/>
-            <p>STUDY SESSION</p>
+            <p>{translate('stats.STUDY SESSION')}</p>
           </div>
 
           <HintBox
-            text="Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time."
+            text={translate('stats.Study Sessions combine quizzes, flashcards, and memory exercises to reinforce understanding over time.')}
           />
 
           <StudySessionView 
@@ -923,11 +1023,11 @@ return (
               fontWeight: 600,
               fontSize: 24
             }}>
-              <ClipboardList size={48}/><p>QUIZ GENERATION</p>
+              <ClipboardList size={48}/><p>{translate('stats.QUIZ GENERATION')}</p>
             </div>
             <HintBox
-              text="Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information."
-          />
+              text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
+            />
             <QuizView
               quiz={quiz}
               answers={answers}
@@ -967,7 +1067,7 @@ return (
             marginBottom:20
           }}>
             <div style={{ color:"#9ca3af", marginBottom:10 }}>
-              Score trend
+              {translate('stats.Score trend')}  
             </div>
 
             <div style={{ display:"flex", alignItems:"flex-end", gap:8 }}>
