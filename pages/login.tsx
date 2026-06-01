@@ -67,7 +67,7 @@ export default function LoginPage() {
       {/* LOGO */}
       <div style={{ marginBottom: 30 }}>
         <Image
-          src="/logoSF.png"
+          src="/logoSTX.png"
           width={220}
           height={140}
           alt="StudyQuiz Logo"
@@ -88,7 +88,7 @@ export default function LoginPage() {
 }}>
 
         <h2 style={{ color: "white", textAlign: "center" }}>
-          StudyQuiz Login
+          StutorX Login
         </h2>
 
         <input
