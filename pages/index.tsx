@@ -1086,6 +1086,9 @@ async function generateQuiz() {
 
       const data = await res.json()
       console.log("🔥 QUIZ RESPONSE:", data)
+      console.log(
+        JSON.stringify(data, null, 2)
+      )
 
       const quizData = data.questions || data.quiz || []
 

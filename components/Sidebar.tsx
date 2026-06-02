@@ -61,10 +61,10 @@ export default function Sidebar({
       {/* LOGO */}
       <div style={logoBox}>
         <Image
-          src="/logoSTX.png"
-          width={270}
-          height={75}
-          alt="StutorX logo"
+          src="/logodun.png"
+          width={220}
+          height={60}
+          alt="Do U no logo"
         />
       </div>
 
@@ -284,7 +284,8 @@ const sidebar = {
 const logoBox = {
   display: "flex",
   justifyContent: "center",
-  marginBottom: 20
+  marginBottom: 20,
+  marginTop: 10
 };
 
 const sectionTitle = {

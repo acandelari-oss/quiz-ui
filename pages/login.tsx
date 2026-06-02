@@ -67,9 +67,9 @@ export default function LoginPage() {
       {/* LOGO */}
       <div style={{ marginBottom: 30 }}>
         <Image
-          src="/logoSTX.png"
+          src="/logodun.png"
           width={220}
-          height={100}
+          height={60}
           alt="StutorX Logo"
         />
       </div>

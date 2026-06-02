@@ -384,8 +384,8 @@ return (
   }}>
 
     <img
-      src="/logoSTX.png"
-      alt="StutorX logo"
+      src="/logodun.png"
+      alt="Do U No logo"
       style={{
         width:280,
         marginBottom:20,
@@ -948,8 +948,8 @@ return (
           textAlign: "center"
         }}>
           <img
-            src="/logo.png"
-            alt="StudyForge logo"
+            src="/logodun.png"
+            alt="Do U No logo"
             style={{
               width: 80,
               marginBottom: 20,
