@@ -384,10 +384,10 @@ return (
   }}>
 
     <img
-      src="/logodun.png"
+      src="/logoduntext.png"
       alt="Do U No logo"
       style={{
-        width:280,
+        width:360,
         marginBottom:20,
         opacity:0.9
       }}
