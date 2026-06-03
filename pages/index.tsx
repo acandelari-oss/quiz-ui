@@ -7,6 +7,7 @@ import Sidebar from "../components/Sidebar";
 import ToolPanel from "../components/ToolPanel";
 import Workspace from "../components/Workspace";
 import PlannerView from "@/components/views/PlannerView";
+import { useTranslation } from "react-i18next";
 
 import {
   extractTopicIds,
@@ -15,6 +16,7 @@ import {
 } from "../utils/topics";
 
 export default function Home() {
+const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
 const router = useRouter()
 
@@ -101,6 +103,9 @@ const [uploading,setUploading]=useState(false)
 const [numQuestions,setNumQuestions]=useState(10)
 const [difficulty,setDifficulty]=useState("medium")
 const [language,setLanguage]=useState("English")
+  useEffect(() => {
+    console.log("🌍 CURRENT LANGUAGE STATE:", language)
+  }, [language])
 const [timerMinutes,setTimerMinutes]=useState(0)
 
 const [timeLeft,setTimeLeft]=useState(0)
@@ -1017,6 +1022,7 @@ async function selectProject(id: string) {
 }
 
 async function generateQuiz() {
+    console.log("🚨 GENERATE QUIZ CLICKED");
     console.log("GENERATE QUIZ FUNCTION RUNNING")
     if (!projectId) return
 
@@ -1048,6 +1054,14 @@ async function generateQuiz() {
     try {
 
       console.log("🌍 LANGUAGE SENT:", language)
+      console.log("🌍 I18N LANGUAGE:", i18n.language)
+
+      console.log(
+        "🌍 LANGUAGE SENT:",
+        i18n.language.startsWith("it")
+          ? "Italian"
+          : "English"
+      )
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
         {
@@ -1061,7 +1075,10 @@ async function generateQuiz() {
 
             difficulty: difficulty,
             
-            language: language,
+            language:
+              i18n.language.startsWith("it")
+                ? "Italian"
+                : "English",
 
             question_style: questionStyle,
 

@@ -367,7 +367,10 @@ export default function ActiveRecallView({
     if (!SpeechRecognition) return alert("Speech not supported");
 
     const recog = new SpeechRecognition();
-    recog.lang = "it-IT";
+    recog.lang =
+      i18n.language === "it"
+        ? "it-IT"
+        : "en-US";
     recog.onresult = (event: any) => setInput(prev => prev + " " + event.results[0][0].transcript);
     recog.onend = () => setRecording(false);
     setRecognition(recog);

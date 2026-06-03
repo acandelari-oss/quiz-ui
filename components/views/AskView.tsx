@@ -45,7 +45,7 @@ export default function AskView({
   const messages = chatMessages || []
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
-  const { t: translate } = useTranslation();
+  const { t: translate, i18n } = useTranslation();
   
 
   console.log("🧠 ASK RECEIVED TOPICS:", selectedTopics)
@@ -60,7 +60,10 @@ export default function AskView({
     }
 
     const recog = new SpeechRecognition()
-    recog.lang = "en-US"
+    recog.lang =
+      i18n.language === "it"
+        ? "it-IT"
+        : "en-US";
     recog.continuous = false
     recog.interimResults = false // 🔥 FIX duplicazioni
 

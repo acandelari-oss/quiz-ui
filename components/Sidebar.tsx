@@ -42,6 +42,7 @@ export default function Sidebar({
           setLanguage(
             lng === "it" ? "Italian" : "English"
           )
+          console.log("🌍 CHANGE LANGUAGE:", lng)
         }
   // Questo useEffect gira SOLO sul client dopo il primo render
   useEffect(() => {
@@ -261,8 +262,39 @@ export default function Sidebar({
 
       
         <div style={{ display: 'flex', gap: '10px', padding: '20px' }}>
-          <button onClick={() => changeLanguage('it')} style={btnStyle}>ITA</button>
-          <button onClick={() => changeLanguage('en')} style={btnStyle}>ENG</button>
+          <button
+            onClick={() => changeLanguage("it")}
+            style={{
+              ...btnStyle,
+              backgroundColor:
+                i18n.language.startsWith("it")
+                  ? "#22c55e"
+                  : "#374151",
+              borderColor:
+                i18n.language.startsWith("it")
+                  ? "#22c55e"
+                  : "#4b5563"
+            }}
+          >
+            ITA
+          </button>
+
+          <button
+            onClick={() => changeLanguage("en")}
+            style={{
+              ...btnStyle,
+              backgroundColor:
+                i18n.language.startsWith("en")
+                  ? "#22c55e"
+                  : "#374151",
+              borderColor:
+                i18n.language.startsWith("en")
+                  ? "#22c55e"
+                  : "#4b5563"
+            }}
+          >
+            ENG
+          </button>
         </div>
       </div>  
     </div>
