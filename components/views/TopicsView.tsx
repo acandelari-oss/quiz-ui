@@ -128,27 +128,173 @@ export default function TopicsView({
                   acc[cat].push(curr);
                   return acc;
                 }, {})
-              ).map(([category, categoryTopics]: [string, any]) => (
-                <div key={category} style={{ marginBottom: "10px" }}>
-                  <div style={{ 
-                    display: "flex", 
-                    justifyContent: "space-between", 
-                    alignItems: "center",
-                    borderBottom: "1px solid #374151",
-                    paddingBottom: "4px",
-                    marginBottom: "10px"
-                  }}>
+              ).map(([category, categoryTopics]: [string, any]) => {
 
-                    <h4 style={{ 
-                      color: "#60a5fa", 
-                      fontSize: "16px", 
-                      textTransform: "uppercase"
-                    }}>
+                const totalQuizQuestions = categoryTopics.reduce(
+                  (sum: number, topic: any) => {
+                    const stats = resultsData?.topic_mastery?.find(
+                      (q: any) =>
+                        normalizeTopic(q.topic || q.title) ===
+                        normalizeTopic(topic.topic || topic.title)
+                    )
+
+                    return sum + (stats?.total || 0)
+                  },
+                  0
+                )
+                const quizTotals = categoryTopics.reduce(
+                  (acc: any, topic: any) => {
+
+                    const stats = resultsData?.topic_mastery?.find(
+                      (q: any) =>
+                        normalizeTopic(q.topic || q.title) ===
+                        normalizeTopic(topic.topic || topic.title)
+                    )
+
+                    if (!stats) return acc
+
+                    acc.correct += stats.correct || 0
+                    acc.total += stats.total || 0
+
+                    return acc
+
+                  },
+                  {
+                    correct: 0,
+                    total: 0
+                  }
+                )
+                const quizAverage =
+                  quizTotals.total > 0
+                    ? Math.round(
+                        (quizTotals.correct / quizTotals.total) * 100
+                      )
+                    : 0
+
+                const totalFlashcards = categoryTopics.reduce(
+                  (sum: number, topic: any) => {
+                    const value = topic.topic || topic.title
+
+                    const statsEntry = Object.entries(
+                      flashcardDetailedStats || {}
+                    ).find(
+                      ([key]) =>
+                        key.trim().toLowerCase() ===
+                        value.trim().toLowerCase()
+                    )
+
+                    const stats = statsEntry
+                      ? (statsEntry[1] as any)
+                      : null
+
+                    return sum + (stats?.total || 0)
+                  },
+                  0
+                )
+
+                const flashcardTotals = categoryTopics.reduce(
+                  (acc: any, topic: any) => {
+
+                    const value = topic.topic || topic.title
+
+                    const statsEntry = Object.entries(
+                      flashcardDetailedStats || {}
+                    ).find(
+                      ([key]) =>
+                        key.trim().toLowerCase() ===
+                        value.trim().toLowerCase()
+                    )
+
+                    const stats = statsEntry
+                      ? (statsEntry[1] as any)
+                      : null
+
+                    if (!stats) return acc
+
+                    acc.wrong += stats.wrong || 0
+                    acc.hard += stats.hard || 0
+                    acc.good += stats.good || 0
+                    acc.easy += stats.easy || 0
+
+                    return acc
+
+                  },
+                  {
+                    wrong: 0,
+                    hard: 0,
+                    good: 0,
+                    easy: 0
+                  }
+                )
+                const totalReviews =
+                  flashcardTotals.wrong +
+                  flashcardTotals.hard +
+                  flashcardTotals.good +
+                  flashcardTotals.easy
+
+                const flashcardMastery =
+                  totalReviews > 0
+                    ? Math.round(
+                        (
+                          (
+                            flashcardTotals.hard +
+                            flashcardTotals.good +
+                            flashcardTotals.easy
+                          ) /
+                          totalReviews
+                        ) * 100
+                      )
+                    : 0
+
+                return (
+                  <div key={category} style={{
+                    marginBottom: 24,
+                    border: "1px solid #1f2937",
+                    borderRadius: 16,
+                    background: "#080a10",
+                    overflow: "hidden",
+                    boxShadow: "0 0 0 1px rgba(255,255,255,0.03)"
+                  }}>
+                
+                 <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "16px 20px",
+                    borderBottom: "1px solid #1f2937",
+                    background: "rgba(255,255,255,0.02)"
+                  }}
+                >
+
+                    <h4
+                      style={{
+                        color: "#60a5fa",
+                        fontSize: "18px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        margin: 0
+                      }}
+                    >
                       {category}
                     </h4>
+                    
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 24,
+                        marginTop: 10,
+                        fontSize: 12,
+                        color: "#9ca3af"
+                      }}
+                    >
+                     
+
+                      
+                    </div>
 
                     {/* 🔥 BOTTONI MACRO */}
-                    <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", gap: 10 }}>
                       
                       <button
                         onClick={() => {
@@ -238,8 +384,121 @@ export default function TopicsView({
                     </div>
 
                   </div>
-                  
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 24,
+                      alignItems: "center",
+                      padding: "12px 20px",
+                      borderBottom: "1px solid #1f2937",
+                      color: "#9ca3af",
+                      fontSize: 15
+                    }}
+                  >
+                    <span>
+                      <img
+                        src="/icons/category-topic-side.svg"
+                        alt=""
+                        width={24}
+                        height={24}
+                      /> {categoryTopics.length} {translate('stats.Topics')}
+                    </span>
 
+                    <span>
+                      <img
+                        src="/icons/quiz-side.svg"
+                        alt=""
+                        width={24}
+                        height={24}
+                      /> {totalQuizQuestions} {translate('stats.Quiz')}
+                    </span>
+
+                    <span>
+                      <img
+                        src="/icons/flashcards-side.svg"
+                        alt=""
+                        width={24}
+                        height={24}
+                      /> {totalFlashcards} Flashcards
+                    </span>
+
+                    <span
+                      style={{
+                        color:
+                          quizAverage >= 80
+                            ? "#22c55e"
+                            : quizAverage >= 50
+                              ? "#eab308"
+                              : "#ef4444",
+                        fontWeight: 700
+                      }}
+                    >
+                      <img
+                        src="/icons/quiz_avg-side.svg"
+                        alt=""
+                        width={24}
+                        height={24}
+                      /> {translate('stats.Quiz Avg')} {quizAverage}%
+                    </span>
+
+                    <span
+                      style={{
+                        color:
+                          flashcardMastery >= 80
+                            ? "#22c55e"
+                            : flashcardMastery >= 50
+                              ? "#eab308"
+                              : "#ef4444",
+                        fontWeight: 700
+                      }}
+                    >
+                      <img
+                        src="/icons/flashcard_mastery-side.svg"
+                        alt=""
+                        width={24}
+                        height={24}
+                      /> {translate('stats.Flashcard Mastery')} {flashcardMastery}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 1fr 90px 70px 70px 70px 70px 120px",
+                      gap: 12,
+                      padding: "14px 20px",
+                      borderBottom: "1px solid #1f2937",
+                      color: "#9ca3af",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textTransform: "uppercase"
+                    }}
+                  >
+                    <div></div>
+                    <div></div>
+                    <div style={{ textAlign: "center" }}>Quiz</div>
+
+                    <div
+                      style={{
+                        gridColumn: "4 / span 4",
+                        textAlign: "center",
+                        color: "#9ca3af",
+                        fontSize: 11
+                      }}
+                    >
+                      FLASHCARDS
+                    </div>
+
+                    <div style={{ textAlign: "center" }}>{translate('stats.Last Studied')}</div>
+                    <div>Topic</div>
+                    <div></div>
+                    
+                    <div></div>
+                    <div style={{ textAlign: "center" }}>{translate('stats.Wrong')}</div>
+                    <div style={{ textAlign: "center" }}>{translate('stats.Hard')}</div>
+                    <div style={{ textAlign: "center" }}>{translate('stats.Good')}</div>
+                    <div style={{ textAlign: "center" }}>{translate('stats.Easy')}</div>
+                    <div></div>
+                  </div>
                   {categoryTopics.map((t: any) => {
                     const topicObj = t;
 
@@ -273,9 +532,22 @@ export default function TopicsView({
                         normalizeTopic(q.topic || q.title) ===
                         normalizeTopic(value)
                     );
+                    console.log("🧪 TOPIC:", value);
+                    console.log("🧪 QUIZ STATS:", quizStats);
                     return (
-                      <div key={value} style={{ marginBottom: "12px", paddingLeft: "4px" }}>
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div
+                        key={value}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "40px 1fr 90px 70px 70px 70px 70px 120px",
+                          gap: 12,
+                          alignItems: "center",
+                          padding: "14px 20px",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)"
+                        }}
+                      >
+                        
+                        <div>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -297,62 +569,95 @@ export default function TopicsView({
                               }
 
                             }}
-                            style={{ marginTop: "4px", cursor: "pointer" }}
+                            style={{ cursor: "pointer" }}
                           />
+                        </div>
 
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: "14px", fontWeight: 500, color: "white" }}>
-                              {value}
-                            </span>
+                        <div
+                          style={{
+                            color: "white",
+                            fontSize: 14,
+                            fontWeight: 500,
+                            borderRight: "1px solid rgba(255,255,255,0.08)"
+                          }}
+                        >
+                          {value}
+                        </div>
 
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "4px" }}>
-                              
-                              {/* DEBUG: Se vuoi vedere se i dati esistono ma il nome è sbagliato, 
-                                  togli il commento alla riga sotto temporarily: */}
-                              {/* <span style={{fontSize: '8px', color: 'gray'}}>Debug: {topicStats.total} cards found</span> */}
+                        <div
+                          style={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            textAlign: "center",
+                            borderRight: "1px solid rgba(255,255,255,0.08)",
+                            color:
+                              (quizStats?.accuracy || 0) >= 80
+                                ? "#22c55e"
+                                : (quizStats?.accuracy || 0) >= 50
+                                  ? "#eab308"
+                                  : "#ef4444"
+                          }}
+                        >
+                          {Math.round(quizStats?.accuracy || 0)}%
+                        </div>
 
-                              {topicStats.total > 0 && (
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <span style={{ fontSize: "11px", color: "#60a5fa", fontWeight: "bold", minWidth: "80px" }}>
-                                    FLASHCARDS:
-                                  </span>
-                                  <div style={{ display: "flex", gap: "8px" }}>
-                                    <span style={{ fontSize: "11px", color: "#ef4444" }}>wrong: {topicStats.wrong}</span>
-                                    <span style={{ fontSize: "11px", color: "#f97316" }}>hard: {topicStats.hard}</span>
-                                    <span style={{ fontSize: "11px", color: "#3b82f6" }}>good: {topicStats.good}</span>
-                                    <span style={{ fontSize: "11px", color: "#22c55e" }}>easy: {topicStats.easy}</span>
-                                  </div>
-                                </div>
-                              )}
+                        <div
+                          style={{
+                            textAlign: "center",
+                            color: "#ef4444",
+                            fontWeight: 600
+                          }}
+                        >
+                          {topicStats.wrong || 0}
+                        </div>
 
-                              {quizStats && (
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                  <span style={{ 
-                                    fontSize: "11px", 
-                                    color:
-                                      (quizStats.accuracy || 0) >= 80
-                                        ? "#22c55e"
-                                        : (quizStats.accuracy || 0) >= 50
-                                          ? "#eab308"
-                                          : "#ef4444", 
-                                    fontWeight: "bold", 
-                                    minWidth: "80px" 
-                                  }}>
-                                    QUIZ:
-                                  </span>
-                                  <span style={{ fontSize: "11px", color: "white" }}>
-                                    {Math.round(quizStats.accuracy || 0)}%
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                        <div
+                          style={{
+                            textAlign: "center",  
+                            color: "#f97316",
+                            fontWeight: 600
+                          }}
+                        >
+                          {topicStats.hard || 0}
+                        </div>
+
+                        <div
+                          style={{
+                            textAlign: "center",
+                            color: "#3b82f6",
+                            fontWeight: 600
+                          }}
+                        >
+                          {topicStats.good || 0}
+                        </div>
+
+                        <div
+                          style={{
+                            textAlign: "center",
+                            color: "#22c55e",
+                            
+                            fontWeight: 600,
+                            borderRight: "1px solid rgba(255,255,255,0.08)"
+                          }}
+                        >
+                          {topicStats.easy || 0}
+                        </div>
+
+                        <div
+                          style={{
+                            textAlign: "center",
+                            color: "#9ca3af",
+                            fontSize: 13
+                          }}
+                        >
+                          -
                         </div>
                       </div>
                     );
-                  })}
+                    })}
                 </div>
-              ))}
+              )
+            })}
             </div>
           )}
         </>
@@ -374,11 +679,11 @@ const box = {
 };
 
 const macroBtn = (color: string) => ({
-  padding: "4px 10px",
-  fontSize: "11px",
+  padding: "10px 10px",
+  fontSize: "13px",
   background: color,
   color: "white",
   border: "none",
-  borderRadius: "4px",
+  borderRadius: "8px",
   cursor: "pointer"
 })

@@ -211,7 +211,27 @@
     "We are extracting key concepts and preparing your flashcards.": "Stiamo estraendo i concetti chiave e preparando le tue flashcard.",
     "We are organizing your material into study topics.": "Stiamo organizzando il tuo materiale in argomenti di studio.",
     "Preparing your learning workspace. This may take a moment...": "Stiamo preparando la tua area di studio. Questo potrebbe richiedere un momento...",
-    "Large academic document detected. Processing may take longer than usual.": "Documento accademico di grandi dimensioni rilevato. L'elaborazione potrebbe richiedere più tempo del solito."
+    "Large academic document detected. Processing may take longer than usual.": "Documento accademico di grandi dimensioni rilevato. L'elaborazione potrebbe richiedere più tempo del solito.",
+    "Topic Dashboard": "Centro di Controllo Argomenti",
+    "Quiz Avg": "Media Quiz",
+   "Flashcard Mastery": "Padronanza Flashcard",
+   "Last Studied": "Ultimo ripasso",
+   "Wrong": "Sbagliate",
+   "Hard": "Difficile",
+   "Good": "Buone",
+   "Easy": "Facili",
+   "Wow, You Master This Topic": "Wow, Padroneggi questo argomento",
+   "Topics You Should Focus On": "Argomenti su cui dovresti concentrarti",
+   "Topics You Still Have Some Doubts": "Argomenti su cui hai ancora qualche dubbio",
+   "Due Today": "Ad oggi",
+   "Recall Accuracy": "Precisione del richiamo",
+   "Total Reviews": "Revisioni totali",
+   "Weak Areas": "Argomenti su cui lavorare",
+   "Average Accuracy": "Media risposte corrette",
+   "Correct / Wrong": "Corrette / Sbagliate",
+   "Quiz Taken": "Quiz Sostenuti",
+   "Quiz Performance": "Prestazione Quiz",
+   "Stats & Planner": "Statistiche e Pianificazione"
 
   },
 

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 111.72 111.72">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #36f2ed;
+      }
+
+      .cls-2 {
+        fill: url(#linear-gradient-4);
+      }
+
+      .cls-3 {
+        fill: url(#linear-gradient-3);
+      }
+
+      .cls-4 {
+        fill: url(#linear-gradient-2);
+      }
+
+      .cls-5 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-6 {
+        fill: #0053df;
+      }
+
+      .cls-7 {
+        fill: #1aa0e6;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="255.63" y1="727.1" x2="358.01" y2="727.1" gradientTransform="translate(-251.16 -671.2)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#36f2ed"/>
+      <stop offset="1" stop-color="#0053df"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="272.13" x2="341.52" xlink:href="#linear-gradient"/>
+    <linearGradient id="linear-gradient-3" x1="285.9" x2="327.75" xlink:href="#linear-gradient"/>
+    <linearGradient id="linear-gradient-4" x1="297.5" x2="316.15" xlink:href="#linear-gradient"/>
+  </defs>
+  <g id="_ëÎÓÈ_1" data-name="ëÎÓÈ 1">
+    <g>
+      <g>
+        <path class="cls-5" d="M55.67,4.71C27.4,4.71,4.48,27.63,4.48,55.9s22.92,51.19,51.19,51.19,51.19-22.92,51.19-51.19S83.94,4.71,55.67,4.71ZM55.67,102.79c-25.9,0-46.89-21-46.89-46.89S29.77,9,55.67,9s46.89,21,46.89,46.89-21,46.89-46.89,46.89Z"/>
+        <path class="cls-4" d="M55.67,21.21c-19.16,0-34.69,15.53-34.69,34.69s15.53,34.69,34.69,34.69,34.69-15.53,34.69-34.69-15.53-34.69-34.69-34.69ZM55.67,85.49c-16.35,0-29.6-13.25-29.6-29.6s13.25-29.6,29.6-29.6,29.6,13.25,29.6,29.6-13.25,29.6-29.6,29.6Z"/>
+        <path class="cls-3" d="M55.67,34.97c-11.56,0-20.93,9.37-20.93,20.93s9.37,20.93,20.93,20.93,20.93-9.37,20.93-20.93-9.37-20.93-20.93-20.93ZM55.67,71.47c-8.6,0-15.57-6.97-15.57-15.57s6.97-15.57,15.57-15.57,15.57,6.97,15.57,15.57-6.97,15.57-15.57,15.57Z"/>
+        <path class="cls-2" d="M55.67,46.58c-5.15,0-9.32,4.17-9.32,9.32s4.17,9.32,9.32,9.32,9.32-4.17,9.32-9.32-4.17-9.32-9.32-9.32Z"/>
+      </g>
+      <rect class="cls-6" x="105.86" y="52.93" width="5.86" height="5.86"/>
+      <rect class="cls-1" y="52.93" width="5.86" height="5.86"/>
+      <rect class="cls-7" x="52.93" y="0" width="5.86" height="5.86" transform="translate(52.93 58.79) rotate(-90)"/>
+      <rect class="cls-7" x="52.93" y="105.86" width="5.86" height="5.86" transform="translate(-52.93 164.65) rotate(-90)"/>
+    </g>
+  </g>
+</svg>

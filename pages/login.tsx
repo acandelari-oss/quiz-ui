@@ -88,7 +88,7 @@ export default function LoginPage() {
 }}>
 
         <h2 style={{ color: "white", textAlign: "center" }}>
-          StutorX Login
+          DO-U-NO Login
         </h2>
 
         <input

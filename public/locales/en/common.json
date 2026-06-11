@@ -222,8 +222,27 @@
     "We are extracting key concepts and preparing your flashcards.": "We are extracting key concepts and preparing your flashcards.",
     "We are organizing your material into study topics.": "We are organizing your material into study topics.",
     "Preparing your learning workspace. This may take a moment...": "Preparing your learning workspace. This may take a moment...",
-    "Large academic document detected. Processing may take longer than usual.": "Large academic document detected. Processing may take longer than usual."
-   
+    "Large academic document detected. Processing may take longer than usual.": "Large academic document detected. Processing may take longer than usual.",
+    "Topic Dashboard": "Topic Dashboard",
+    "Quiz Avg": "Quiz Avg",
+   "Flashcard Mastery": "Flashcard Mastery",
+   "Last Studied": "Last Studied",
+   "Wrong": "Wrong",
+   "Hard": "Hard",
+   "Good": "Good",
+   "Easy": "Easy",
+   "Wow, You Master This Topic": "Wow, You Master This Topic",
+   "Topics You Should Focus On": "Topics You Should Focus On",
+   "Topics You Still Have Some Doubts": "Topics You Still Have Some Doubts",
+   "Due Today": "Due Today",
+   "Recall Accuracy": "Recall Accuracy",
+   "Total Reviews": "Total Reviews",
+   "Weak Areas": "Weak Areas",
+   "Average Accuracy": "Average Accuracy",
+   "Correct / Wrong": "Correct / Wrong",
+   "Quiz Taken": "Quiz Taken",
+   "Quiz Performance": "Quiz Performance",
+   "Stats & Planner": "Stats & Planner"
     
   },
 

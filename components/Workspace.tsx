@@ -256,7 +256,7 @@ return (
         gap: 12,
         padding: "0 12px",
         borderBottom: "1px solid #1f2937",
-        background: "#111827",
+        background: "#080a10",
         position: "sticky",
         top: 0,
         zIndex: 100
@@ -665,9 +665,14 @@ return (
     )}
     {/* 🎯 NUOVA DASHBOARD TOPICS */}
     {activeView === "topics" && (
-      <div style={{ padding: "20px", maxWidth: "900px", margin: "0 auto" }}>
+      <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto" }}>
         <h2 style={{ fontSize: "24px", marginBottom: "20px", fontWeight: "600" }}>
-          📚 Centro di Controllo Argomenti
+          <img
+            src="/icons/topic-dashboard.svg"
+            alt=""
+            width={48}
+            height={48}
+          /> {translate('stats.Topic Dashboard')}
         </h2>
         <p style={{ color: "#9ca3af", marginBottom: "30px" }}>
           {translate('stats.Select a specific topic to start a targeted study session.')}
@@ -720,7 +725,12 @@ return (
           fontWeight: 600,
           fontSize: 24
         }}>
-          <HelpCircle size={48}/>
+          <img
+            src="/icons/ask.svg"
+            alt=""
+            width={48}
+            height={48}
+          />
           <p>{translate('stats.ASK A QUESTION')} </p>
         </div>
 
@@ -746,7 +756,12 @@ return (
           fontWeight: 600,
           fontSize: 24
         }}>
-          <Brain size={48}/>
+          <img
+            src="/icons/memory-check.svg"
+            alt=""
+            width={48}
+            height={48}
+          />
           <p>{translate('stats.MEMORY CHECK')}</p>
         </div>
 
@@ -782,7 +797,12 @@ return (
           fontWeight: 600,
           fontSize: 24
         }}>
-          <Layers3 size={48}/>
+          <img
+            src="/icons/flashcards.svg"
+            alt=""
+            width={48}
+            height={48}
+          />
           <p>{translate('stats.FLASHCARDS')}</p>
         </div>
 
@@ -892,7 +912,12 @@ return (
           fontWeight: 600,
           fontSize: 24
         }}>
-          <BrainCircuit size={48}/>
+          <img
+            src="/icons/study-session.svg"
+            alt=""
+            width={48}
+            height={48}
+          />
           <p>{translate('stats.STUDY SESSION')}</p>
         </div>
 
@@ -1023,7 +1048,12 @@ return (
               fontWeight: 600,
               fontSize: 24
             }}>
-              <ClipboardList size={48}/><p>{translate('stats.QUIZ GENERATION')}</p>
+              <img
+            src="/icons/quiz.svg"
+            alt=""
+            width={36}
+            height={36}
+          /><p>{translate('stats.QUIZ GENERATION')}</p>
             </div>
             <HintBox
               text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
@@ -1355,7 +1385,7 @@ return (
 
 const workspace = {
 flex:1,
-background:"#0f172a",
+background:"#080a10",
 color:"#e5e7eb",
 padding:"30px",
 overflowY:"auto" as const

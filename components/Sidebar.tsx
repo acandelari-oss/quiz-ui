@@ -73,7 +73,7 @@ export default function Sidebar({
 
       {/* PROJECT */}
       <div style={sectionTitle}>
-        <Folder size={16}/> {translate('stats.Project')}
+         {translate('stats.Project')}
       </div>
 
       <div style={menuItem} onClick={() => setActiveView("create_project")}>
@@ -98,14 +98,20 @@ export default function Sidebar({
         style={{...menuItem, color: activeView === "topics" ? "#22c55e" : "#e5e7eb", fontWeight: activeView === "topics" ? "600" : "400"}} 
         onClick={() => setActiveView("topics")}
       >
-        <Layers size={16} style={{marginRight: 8}}/> {translate('stats.Topics Dashboard')}
+        <img
+          src="/icons/topic-dashboard-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        />
+        {translate('stats.Topics Dashboard')}
       </div>
 
       <div style={divider} />
 
       {/* STUDY */}
       <div style={sectionTitle}>
-        <Brain size={16}/> {translate('stats.Study')}
+       {translate('stats.Study')}
       </div>
 
       <div
@@ -117,7 +123,12 @@ export default function Sidebar({
           setActiveView("ask_setup")
         }}
       >
-        <HelpCircle size={16}/> {translate('stats.Ask question')}
+        <img
+          src="/icons/ask-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        /> {translate('stats.Ask question')}
       </div>
 
       <div
@@ -129,7 +140,12 @@ export default function Sidebar({
         setActiveView("study_session_setup")
       }}
             >
-      <Brain size={16}/> {translate('stats.Study Session')}
+      <img
+        src="/icons/study-session-side.svg"
+        alt=""
+        width={24}
+        height={24}
+      /> {translate('stats.Study Session')}
       </div>
 
       <div
@@ -141,7 +157,12 @@ export default function Sidebar({
           setActiveView("active_recall_setup")
         }}
       >
-        <Brain size={16}/> {translate('stats.Memory check')}
+        <img
+          src="/icons/memory-check-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        /> {translate('stats.Memory check')}
       </div>
 
       <div
@@ -153,7 +174,12 @@ export default function Sidebar({
           setActiveView("generate_flashcards")
         }}
       >
-        <Layers size={16}/> {translate('stats.Generate flashcards')}
+        <img
+          src="/icons/flashcards-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        /> {translate('stats.Generate flashcards')}
       </div>
 
   
@@ -179,23 +205,18 @@ export default function Sidebar({
         }
       }}
     >
-      <Layers size={16}/> {translate('stats.Load flashcards')}
+      <img
+        src="/icons/flashcard-library-side.svg"
+        alt=""
+        width={24}
+        height={24}
+      /> {translate('stats.Load flashcards')}
       <span style={{ marginLeft: 6, color: "#9ca3af" }}>
         ({availableFlashcards || 0})
       </span>
     </div>
- 
 
-      
-
-      <div style={divider} />
-
-      {/* QUIZ */}
-      <div style={sectionTitle}>
-        <ClipboardList size={16}/> {translate('stats.Quiz')}
-      </div>
-
-      <div
+    <div
         style={menuItem}
         onClick={() => {
           setStarted(false)
@@ -204,7 +225,12 @@ export default function Sidebar({
           setActiveView("quiz")
         }}
       >
-        <ClipboardList size={16}/> {translate('stats.Generate quiz')}
+        <img
+          src="/icons/quiz-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        /> {translate('stats.Generate quiz')}
       </div>
 
       <div
@@ -223,17 +249,39 @@ export default function Sidebar({
 
         }}
       >
-        <History size={16}/> {translate('stats.Previous quizzes')}
+        <img
+          src="/icons/quiz-history-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        />{translate('stats.Previous quizzes')}
         <span style={{marginLeft:6,color:"#9ca3af"}}>
           ({previousQuizzes?.length || 0})
         </span>
       </div>
+ 
+
+      
+
+      <div style={divider} />
+
+      {/* QUIZ */}
+      <div style={sectionTitle}>
+        {translate('stats.Stats & Planner')}
+      </div>
+
+      
 
       <div
         style={menuItem}
         onClick={() => setActiveView("planner")}
       >
-        <Calendar size={16}/>{translate('stats.Study planner')}
+        <img
+          src="/icons/study-planner-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        />{translate('stats.Study planner')}
       </div>
 
       <div
@@ -253,7 +301,12 @@ export default function Sidebar({
           setActiveView("results_summary")
         }}
       >
-        <BarChart3 size={16}/> {translate('stats.Results & Summary')}
+        <img
+          src="/icons/summary-side.svg"
+          alt=""
+          width={24}
+          height={24}
+        /> {translate('stats.Results & Summary')}
       </div>
 
       
@@ -304,13 +357,13 @@ export default function Sidebar({
 
 const sidebar = {
   width: 260,
-  background: "#020617",
+  background: "#080a10",
   color: "#e5e7eb",
   borderRight: "1px solid #1f2937",
   display: "flex",
   flexDirection: "column" as const,
   padding: 20,
-  fontSize: 14
+  fontSize: 16
 };
 
 const logoBox = {
@@ -327,7 +380,8 @@ const sectionTitle = {
   fontWeight: 600,
   marginTop: 10,
   marginBottom: 8,
-  color: "#9ca3af"
+  color: "#36f2ed",
+  fontSize: 18
 };
 
 const menuItem = {

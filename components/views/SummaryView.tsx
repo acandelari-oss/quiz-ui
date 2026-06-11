@@ -68,6 +68,20 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
   }
 
   const topics = resultsData?.topics_detail || [];
+  const focusTopics = [...topics]
+    .filter(t => t.accuracy < 50)
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, 5)
+
+  const improvingTopics = [...topics]
+    .filter(t => t.accuracy >= 50 && t.accuracy < 80)
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, 5)
+
+  const masteredTopics = [...topics]
+    .filter(t => t.accuracy >= 80)
+    .sort((a, b) => b.accuracy - a.accuracy)
+    .slice(0, 5)
 
   return (
     <div style={{ padding: 20,  }}>
@@ -75,32 +89,26 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
 
       <h2 style={title}>{translate('stats.Study Summary')}</h2>
 
-      {/* ================= SEZIONE TOPIC MASTERY (Ex ResultsView) ================= */}
-      <div style={section}>
-        <h3 style={{ marginBottom: 15, color: "#22c55e" }}>🎯 {translate('stats.Topic Mastery')}</h3>
-        {topicMastery.length > 0 ? (
-          topicMastery.map((t, i) => (
-            <div key={i} style={topicRow}>
-              <div style={{ color: "white" }}>{t.topic}</div>
-              <div style={{ fontWeight: "bold", display: "flex", gap: 6 }}>
-                <span style={{ color: "#22c55e" }}>{t.correct}</span>
-                <span style={{ color: "#9ca3af" }}>/</span>
-                <span style={{ color: "#ef4444" }}>{t.total - t.correct}</span>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p style={{ color: "#9ca3af", fontSize: 14 }}>{translate('stats.No topic data available.')}</p>
-        )}
-      </div>
+      
 
       {/* ================= QUIZ PERFORMANCE ================= */}
 
       <h3 style={sectionTitle}>
-        🧠 {translate('stats.Quiz Performance')}
+        <img
+            src="/icons/quiz-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> {translate('stats.Quiz Performance')}
       </h3>
 
-      <div style={grid}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr 2fr",
+          gap: 15
+        }}
+      >
 
         {/* QUIZ TAKEN */}
         <div style={card}>
@@ -144,51 +152,69 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </div>
 
         {/* WEAK AREAS */}
-        <div style={card}>
-          <h3 style={cardLabel}>
-            ⚠️ {translate('stats.Weak Areas')}
-          </h3>
+          <div style={card}>
+            <h3 style={cardLabel}>
+              ⚠️ {translate('stats.Weak Areas')}
+            </h3>
 
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              marginTop: 10
-            }}
-          >
-            {(resultsData.weak_areas || [])
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 10
+              }}
+            >
+              {(resultsData.weak_areas || [])
                 .sort((a, b) => a.accuracy - b.accuracy)
                 .slice(0, 3)
                 .map((t, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: 12,
-                  color: "white"
-                }}
-              >
-                <div>{t.topic}</div>
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: 10,
+                      fontSize: 14,
+                      color: "white"
+                    }}
+                  >
+                    <span
+                      style={{
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {t.topic}
+                    </span>
 
-                <div
-                  style={{
-                    color: "#ef4444",
-                    fontSize: 11
-                  }}
-                >
-                  {t.accuracy}%
-                </div>
-              </div>
-            ))}
+                    <span
+                      style={{
+                        color: "#ef4444",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        flexShrink: 0
+                      }}
+                    >
+                      {t.accuracy}%
+                    </span>
+                  </div>
+                ))}
+            </div>
           </div>
-        </div>
-
       </div>
-      
       {/* ================= FLASHCARD PERFORMANCE ================= */}
 
       <h3 style={sectionTitle}>
-        📚 {translate('stats.Flashcard Performance')}
+        <img
+            src="/icons/flashcards-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> {translate('stats.Flashcard Performance')}
       </h3>
 
       <div style={grid}>
@@ -217,7 +243,7 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
 
         <div style={card}>
           <h3 style={cardLabel}>
-            Due Today
+            {translate('stats.Due Today')}
           </h3>
 
           <p style={cardValue}>
@@ -226,76 +252,117 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </div>
 
       </div>
-
       <h3 style={sectionTitle}>
-  🧠 Weak Retention Topics
+        <img
+            src="/icons/summary-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> Learning Insights
       </h3>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 20,
+          marginTop: 20
+        }}
+      >
+      <div style={columnStyle}>
+        <h4
+          style={{
+            color: "#ef4444",
+            marginBottom: 15
+          }}
+        >
+          <img
+            src="/icons/focus-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> {translate('stats.Topics You Should Focus On')}
+        </h4>
 
-      <div style={section}>
+        {focusTopics.map((t, i) => (
+          <div key={i} style={miniCardStyle}>
+            {t.topic}
 
-        {(resultsData.forgotten_topics || []).length > 0 ? (
-
-          resultsData.forgotten_topics.map((t, i) => (
-
-            <div
-              key={i}
-              style={topicRow}
+            <span
+              style={{
+                float: "right",
+                color: "#ef4444"
+              }}
             >
-              <div style={{ color: "white" }}>
-                {t.topic}
-              </div>
-
-              <div style={{
-                color: "#ef4444",
-                fontWeight: "bold"
-              }}>
-                {t.accuracy}%
-              </div>
-            </div>
-
-          ))
-
-        ) : (
-
-          <p style={{ color: "#9ca3af" }}>
-            No weak retention topics yet.
-          </p>
-
-        )}
-
+              {t.accuracy}%
+            </span>
+          </div>
+        ))}
       </div>
+      <div style={columnStyle}>
+        <h4
+          style={{
+            color: "#eab308",
+            marginBottom: 15
+          }}
+        >
+          <img
+            src="/icons/doubt-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> {translate('stats.Topics You Still Have Some Doubts')}
+        </h4>
 
-      {/* ================= TOPIC BREAKDOWN (Colonne) ================= */}
-      <h3 style={sectionTitle}>{translate('stats.Topic Breakdown')}</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "20px" }}>
-        
-        {/* COLONNA CRITICAL */}
-        <div style={columnStyle}>
-          <h4 style={{ color: "#ef4444", fontSize: "12px", marginBottom: 10 }}>{translate('stats.Critical')} {"(< 50%)"}</h4>
-          {topics.filter(t => t.accuracy < 50).map((t, i) => (
-            <div key={i} style={miniCardStyle}>{t.topic} ({t.accuracy}%)</div>
-          ))}
-        </div>
+        {improvingTopics.map((t, i) => (
+          <div key={i} style={miniCardStyle}>
+            {t.topic}
 
-        {/* COLONNA IMPROVING */}
-        <div style={columnStyle}>
-          <h4 style={{ color: "#eab308", fontSize: "12px", marginBottom: 10 }}>{translate('stats.Improving')} {"(50-80%)"}</h4>
-          {topics.filter(t => t.accuracy >= 50 && t.accuracy < 80).map((t, i) => (
-            <div key={i} style={miniCardStyle}>{t.topic} ({t.accuracy}%)</div>
-          ))}
-        </div>
-
-        {/* COLONNA MASTERED */}
-        <div style={columnStyle}>
-          <h4 style={{ color: "#22c55e", fontSize: "12px", marginBottom: 10 }}>{translate('stats.Mastered')} {"> 80%"}</h4>
-          {topics.filter(t => t.accuracy >= 80).map((t, i) => (
-            <div key={i} style={miniCardStyle}>
-               {t.topic}
-               <span style={{ display: 'block', fontSize: '11px', opacity: 0.7 }}>{t.accuracy}% accuracy</span>
-            </div>
-          ))}
-        </div>
+            <span
+              style={{
+                float: "right",
+                color: "#eab308"
+              }}
+            >
+              {t.accuracy}%
+            </span>
+          </div>
+        ))}
       </div>
+      <div style={columnStyle}>
+        <h4
+          style={{
+            color: "#22c55e",
+            marginBottom: 15
+          }}
+        >
+          <img
+            src="/icons/master-side.svg"
+            alt=""
+            width={24}
+            height={24}
+          /> {translate('stats.Wow, You Master This Topic')}
+        </h4>
+
+        {masteredTopics.map((t, i) => (
+          <div key={i} style={miniCardStyle}>
+            {t.topic}
+
+            <span
+              style={{
+                float: "right",
+                color: "#22c55e"
+              }}
+            >
+              {t.accuracy}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+
+     
+
+     
 
       {/* ================= PROGRESS & QUIZ ================= */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
@@ -304,8 +371,13 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
             <p style={cardValue}>{resultsData.topics_count ?? 0}</p>
           </div>
           <div style={card}>
-            <h3 style={cardLabel}>{translate('stats.Average Score')}</h3>
-            <p style={cardValue}>{resultsData.avg_score ?? 0}%%</p>
+            <h3 style={cardLabel}>
+              Topics Requiring Attention
+            </h3>
+
+            <p style={cardValue}>
+              {focusTopics.length}
+            </p>
           </div>
       </div>
     </div>
@@ -317,9 +389,9 @@ const title = { color: "white", marginBottom: 20, fontSize: "24px" };
 const section = { background: "#111827", border: "1px solid #374151", padding: 20, borderRadius: 12, marginBottom: 30 };
 const topicRow = { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #1f2937" };
 const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 15 };
-const card = { background: "#111827", border: "1px solid #374151", padding: 20, borderRadius: 12, textAlign: "center" as const };
+const card = { background: "#080a10", border: "1px solid #374151", padding: 20, borderRadius: 12, textAlign: "center" as const };
 const cardLabel = { color: "#9ca3af", fontSize: "12px", marginBottom: 8, textTransform: "uppercase" as const };
 const cardValue = { color: "white", fontSize: "20px", fontWeight: "bold" };
 const sectionTitle = { color: "#9ca3af", marginTop: 30, marginBottom: 15, fontSize: "13px", textTransform: "uppercase" as const, letterSpacing: 1 };
-const columnStyle = { background: "#111827", border: "1px solid #374151", borderRadius: "12px", padding: "15px", minHeight: "200px" };
-const miniCardStyle = { background: "#1f2937", padding: "10px", borderRadius: "8px", fontSize: "12px", color: "white", marginBottom: "8px", borderLeft: "3px solid #3b82f6" };
+const columnStyle = { background: "#080a10", border: "1px solid #374151", borderRadius: "12px", padding: "15px", minHeight: "200px" };
+const miniCardStyle = { background: "#1f2937", padding: "10px", borderRadius: "8px", fontSize: "14px", color: "white", marginBottom: "8px", borderLeft: "3px solid #3b82f6" };

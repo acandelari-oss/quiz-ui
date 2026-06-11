@@ -409,38 +409,41 @@ setDocuments(data.documents||[])
 
 }
 async function uploadFiles(){
+  console.log("UPLOAD CLICK");
+  console.log("projectId:", projectId);
+  console.log("files:", files);
 
-if(!projectId) return
-if(!files || files.length === 0) return
+  if(!projectId) return
+  if(!files || files.length === 0) return
 
-setUploading(true)
-setUploadStatus("Uploading...")
+  setUploading(true)
+  setUploadStatus("Uploading...")
 
-try{
+  try{
 
-const docs = []
+  const docs = []
 
-for(const file of Array.from(files)){
+  for(const file of Array.from(files)){
 
-const base64 = await new Promise((resolve,reject)=>{
+  const base64 = await new Promise((resolve,reject)=>{
 
-const reader = new FileReader()
+  const reader = new FileReader()
 
-reader.onload = () => {
-const result = reader.result.split(",")[1]
-resolve(result)
-}
+  reader.onload = () => {
+  const result = reader.result.split(",")[1]
+  resolve(result)
+  }
 
-reader.onerror = reject
+  reader.onerror = reject
 
-reader.readAsDataURL(file)
+  reader.readAsDataURL(file)
 
-})
+  })
 
-docs.push({
-title:file.name,
-file_bytes:base64
-})
+  docs.push({
+  title:file.name,
+  file_bytes:base64
+  })
 
 }
 
@@ -1481,7 +1484,7 @@ function extractTopicIds(topics: any[]) {
   }
     
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#0f172a" }}>
+    <div style={{ display: "flex", height: "100vh", background: "#080a10" }}>
       <Sidebar
         activeView={activeView}
         setActiveView={setActiveView}

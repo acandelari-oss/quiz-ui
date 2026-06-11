@@ -88,40 +88,85 @@ setQuestionStyle,
     <div style={panel}>
       
       {projectName && (
-        <div style={{
-          position: "sticky",
-          top: 0,
+      <div
+        style={{
           background: "#111827",
-          padding: "10px",
-          borderBottom: "1px solid #374151",
-          marginBottom: 12,
-          zIndex: 10
-        }}>
-          <div style={{
-            fontSize: 11,
-            color: "#9ca3af",
-            letterSpacing: 1
-          }}>
-            {translate('stats.ACTIVE PROJECT')}
-          </div>
-
-          <div style={{
+          border: "1px solid #374151",
+          borderRadius: 12,
+          padding: 10,
+          marginBottom: 16
+        }}
+      >
+        <div
+          style={{
             fontSize: 14,
             fontWeight: 600,
-            color: "#e5e7eb"
-          }}>
-            📂 {projectName}
+            color: "#36f2ed",
+            letterSpacing: 1,
+            textTransform: "uppercase"
+          }}
+        >
+          Active Project
+        </div>
+
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 18,
+            fontWeight: 700,
+            color: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            gap: 8
+          }}
+        >
+           {projectName}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            marginTop: 12
+          }}
+        >
+          <div
+            style={{
+              background: "#1f2937",
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontSize: 12,
+              color: "#d1d5db"
+            }}
+          >
+           <img
+            src="/icons/document.svg"
+            width={18}
+            height={18}
+            alt=""
+          /> uploaded files: {documents?.length || 0}
           </div>
 
-          <div style={{
-            fontSize: 11,
-            color: "#9ca3af",
-            marginTop: 4
-          }}>
-            {documents?.length || 0} {translate('stats.documents')} • {topics?.length || 0} {translate('stats.topics')}
+          <div
+            style={{
+              background: "#1f2937",
+              borderRadius: 8,
+              padding: "6px 10px",
+              fontSize: 12,
+              color: "#d1d5db"
+            }}
+          >
+          <img
+            src="/icons/category-topic-side.svg"
+            width={18}
+            height={18}
+            alt=""
+          />
+          Topics: {topics?.length || 0}
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* ========================= */}
       {/* CREATE PROJECT */}
@@ -1292,7 +1337,7 @@ setQuestionStyle,
 
 const panel: React.CSSProperties = {
   width: 320,
-  background: "#020617",
+  background: "#080a10",
   borderRight: "1px solid #1f2937",
   padding: 20,
   height: "100vh",
