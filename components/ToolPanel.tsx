@@ -1,7 +1,13 @@
 import TopicsView from "./views/TopicsView"
 import React, { useState } from "react"
 import { useTranslation } from 'react-i18next';
-import SelectedTopicsBanner from "./SelectedTopicsBanner"
+import { shellHeaderCell } from "./layoutStyles"
+import {
+  getTopicScopeKey,
+  logCategoryScope,
+  resolveCategoryTopicObjects,
+  TopicScopeItem
+} from "../utils/topics"
 
 export default function ToolPanel({
 
@@ -82,7 +88,132 @@ setQuestionStyle,
     recall: 3,
     quiz: 5
   })
- 
+
+  const categoryGroups = React.useMemo(() => {
+    const groups = new Map<string, TopicScopeItem[]>()
+
+    for (const topic of (topics || []) as TopicScopeItem[]) {
+      const category = topic.category || "General"
+      const categoryTopics = groups.get(category) || []
+      categoryTopics.push(topic)
+      groups.set(category, categoryTopics)
+    }
+
+    return Array.from(groups.entries()).map(
+      ([category, categoryTopics]) => ({
+        category,
+        topics: categoryTopics
+      })
+    )
+  }, [topics])
+
+  const selectedTopicKeys = new Set(
+    (selectedTopics || [])
+      .map(getTopicScopeKey)
+      .filter(Boolean)
+  )
+
+  const isCategorySelected = (
+    categoryTopics: TopicScopeItem[]
+  ) => {
+    const topicKeys = categoryTopics
+      .map(getTopicScopeKey)
+      .filter(Boolean)
+
+    return (
+      topicKeys.length > 0
+      && topicKeys.every((key: string) => selectedTopicKeys.has(key))
+    )
+  }
+
+  const toggleCategory = (
+    category: string
+  ) => {
+    const categoryTopics = resolveCategoryTopicObjects(
+      category,
+      topics || []
+    )
+    const categoryTopicKeys = new Set(
+      categoryTopics
+        .map(getTopicScopeKey)
+        .filter(Boolean)
+    )
+
+    if (isCategorySelected(categoryTopics)) {
+      setSelectedTopics(
+        (selectedTopics || []).filter(
+          (topic: string | TopicScopeItem) =>
+            !categoryTopicKeys.has(getTopicScopeKey(topic))
+        )
+      )
+      console.log("CATEGORY SELECTED:", category)
+      console.log("RESOLVED TOPIC COUNT:", 0)
+      console.log("RESOLVED TOPIC IDS COUNT:", 0)
+      return
+    }
+
+    const additions = categoryTopics
+      .filter(
+        topic => !selectedTopicKeys.has(getTopicScopeKey(topic))
+      )
+
+    setSelectedTopics([
+      ...(selectedTopics || []),
+      ...additions
+    ])
+    logCategoryScope(category, categoryTopics)
+  }
+
+  const renderCategorySelector = (
+    label: string,
+    accentColor = "#22c55e"
+  ) => (
+    <div style={{ marginBottom: 20 }}>
+      <label style={{
+        fontSize: 11,
+        color: "#9ca3af",
+        letterSpacing: 0.5,
+        marginBottom: 8,
+        display: "block"
+      }}>
+        {label}
+      </label>
+
+      <div style={{
+        maxHeight: "250px",
+        overflowY: "auto",
+        padding: "10px"
+      }}>
+        {categoryGroups.map(({ category, topics: categoryTopics }) => {
+          const selected = isCategorySelected(categoryTopics)
+
+          return (
+            <label
+              key={category}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "6px 0",
+                cursor: "pointer",
+                fontSize: "13px",
+                color: selected ? accentColor : "#cbd5e1"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => toggleCategory(category)}
+                style={{ accentColor }}
+              />
+
+              {category}
+            </label>
+          )
+        })}
+      </div>
+    </div>
+  )
 
   return (
     <div style={panel}>
@@ -90,6 +221,10 @@ setQuestionStyle,
       {projectName && (
       <div
         style={{
+          ...shellHeaderCell,
+          flexDirection: "column",
+          alignItems: "stretch",
+          justifyContent: "center",
           background: "#111827",
           border: "1px solid #374151",
           borderRadius: 12,
@@ -126,12 +261,16 @@ setQuestionStyle,
         <div
           style={{
             display: "flex",
+            alignItems: "center",
             gap: 10,
             marginTop: 12
           }}
         >
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
               background: "#1f2937",
               borderRadius: 8,
               padding: "6px 10px",
@@ -149,6 +288,9 @@ setQuestionStyle,
 
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
               background: "#1f2937",
               borderRadius: 8,
               padding: "6px 10px",
@@ -396,152 +538,16 @@ setQuestionStyle,
           }}>
             Ask AI Tutor
           </h3>
-          {selectedTopics.length === 0 && (
-            <p style={{
-              color: "#9ca3af",
-              fontSize: 13,
-              marginBottom: 14,
-              lineHeight: 1.5
-            }}>
-              Select one or more topics to focus your AI conversation.
+          <p style={{
+            color: "#9ca3af",
+            fontSize: 13,
+            marginBottom: 14,
+            lineHeight: 1.5
+          }}>
+            Select one or more categories to focus your AI conversation.
           </p>
-        )}
-          {/* SELECTED TOPICS BANNER */}
 
-          {selectedTopics && selectedTopics.length > 0 && (
-            <div style={{
-              marginBottom: 12,
-              padding: "8px 10px",
-              background: "rgba(34, 197, 94, 0.1)",
-              border: "1px solid #22c55e",
-              borderRadius: 6,
-              fontSize: 13,
-              color: "#e5e7eb"
-            }}>
-
-              <b>Selected topics:</b>
-
-              <div style={{
-                color: "#22c55e",
-                marginTop: 4,
-                display: "flex",
-                flexDirection: "column",
-                gap: 4
-              }}>
-                {selectedTopics.map((t:any, i:number) => (
-
-                  <div key={i}>
-                    • {
-                      typeof t === "string"
-                        ? t
-                        : t.topic
-                    }
-                  </div>
-
-                ))}
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedTopics([])
-                  setSelectedTopic(null)
-                }}
-                style={{
-                  marginTop: 10,
-                  padding: "6px 10px",
-                  background: "transparent",
-                  border: "1px solid #22c55e",
-                  borderRadius: 6,
-                  color: "#22c55e",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: 600
-                }}
-              >
-                ✏ Change topics
-              </button>
-              
-
-            </div>
-            
-          )}
-          {selectedTopics.length === 0 && (
-
-            <div style={{ marginBottom: 20 }}>
-
-              <label style={{
-                fontSize: 11,
-                color: "#9ca3af",
-                letterSpacing: 0.5,
-                marginBottom: 8,
-                display: "block"
-              }}>
-                SELECT TOPICS TO FOCUS
-              </label>
-
-              <div style={{
-                maxHeight: "250px",
-                overflowY: "auto",
-                padding: "10px"
-              }}>
-
-                {topics && topics.map((t:any) => (
-
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "6px 0",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: selectedTopics.includes(t.topic)
-                        ? "#22c55e"
-                        : "#cbd5e1"
-                    }}
-                  >
-
-                    <input
-                      type="checkbox"
-                      checked={selectedTopics.includes(t.topic)}
-
-                      onChange={() => {
-
-                        if (selectedTopics.includes(t.topic)) {
-
-                          setSelectedTopics(
-                            selectedTopics.filter(
-                              (item:string) => item !== t.topic
-                            )
-                          )
-
-                        } else {
-
-                          setSelectedTopics([
-                            ...selectedTopics,
-                            t.topic
-                          ])
-
-                        }
-
-                      }}
-
-                      style={{
-                        accentColor: "#22c55e"
-                      }}
-                    />
-
-                    {t.topic}
-
-                  </label>
-
-                ))}
-
-              </div>
-
-            </div>
-
-          )}
+          {renderCategorySelector("SELECT CATEGORIES TO FOCUS")}
           <button
             onClick={() => setActiveView("ask")}
             style={{
@@ -577,94 +583,7 @@ setQuestionStyle,
             {translate('stats.Generate Flashcards')}
           </h3>
 
-          {/* SELECTED TOPICS BANNER */}
-
-          <SelectedTopicsBanner
-            selectedTopics={selectedTopics}
-            setSelectedTopics={setSelectedTopics}
-            setSelectedTopic={setSelectedTopic}
-          />
-
-          {/* TOPIC SELECTOR */}
-
-          {selectedTopics.length === 0 && (
-
-            <div style={{ marginBottom: 20 }}>
-
-              <label style={{
-                fontSize: 11,
-                color: "#9ca3af",
-                letterSpacing: 0.5,
-                marginBottom: 8,
-                display: "block"
-              }}>
-                {translate('stats.SELECT TOPICS TO COVER')}
-              </label>
-
-              <div style={{
-                maxHeight: "250px",
-                overflowY: "auto",
-                padding: "10px"
-              }}>
-
-                {topics && topics.map((t:any) => (
-
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "6px 0",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: selectedTopics.includes(t.topic)
-                        ? "#22c55e"
-                        : "#cbd5e1"
-                    }}
-                  >
-
-                    <input
-                      type="checkbox"
-                      checked={selectedTopics.includes(t.topic)}
-
-                      onChange={() => {
-
-                        if (selectedTopics.includes(t.topic)) {
-
-                          setSelectedTopics(
-                            selectedTopics.filter(
-                              (item:string) => item !== t.topic
-                            )
-                          )
-
-                        } else {
-
-                          setSelectedTopics([
-                            ...selectedTopics,
-                            t.topic
-                          ])
-
-                        }
-
-                      }}
-
-                      style={{
-                        accentColor: "#22c55e"
-                      }}
-                    />
-
-                    {t.topic}
-
-                  </label>
-
-                ))}
-
-              </div>
-
-            </div>
-
-          )}
+          {renderCategorySelector("SELECT CATEGORIES TO COVER")}
 
           <div style={{
             fontSize: 13,
@@ -713,93 +632,7 @@ setQuestionStyle,
             {translate('stats.Flashcard Settings')}
           </h3>
 
-          {/* Banner Topic se presente (dal tuo codice originale) */}
-          <SelectedTopicsBanner
-            selectedTopics={selectedTopics}
-            setSelectedTopics={setSelectedTopics}
-            setSelectedTopic={setSelectedTopic}
-          />
-
-          {/* LOGICA SELEZIONE MODALITÀ */}
-          <div style={{ marginBottom: 20 }}>
-
-            {selectedTopics.length === 0 && (
-
-              <>
-                <label style={{
-                  fontSize: 11,
-                  color: "#9ca3af",
-                  letterSpacing: 0.5,
-                  marginBottom: 8,
-                  display: "block"
-                }}>
-                  SELECT TOPICS TO REVIEW
-                </label>
-
-                <div style={{
-                  maxHeight: "250px",
-                  overflowY: "auto",
-                  padding: "10px"
-                }}>
-
-                  {topics && topics.map((t:any) => (
-
-                    <label
-                      key={t.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "6px 0",
-                        cursor: "pointer",
-                        fontSize: "13px",
-                        color: selectedTopics.includes(t.topic)
-                          ? "#22c55e"
-                          : "#cbd5e1"
-                      }}
-                    >
-
-                      <input
-                        type="checkbox"
-                        checked={selectedTopics.includes(t.topic)}
-
-                        onChange={() => {
-
-                          if (selectedTopics.includes(t.topic)) {
-
-                            setSelectedTopics(
-                              selectedTopics.filter(
-                                (item:string) => item !== t.topic
-                              )
-                            )
-
-                          } else {
-
-                            setSelectedTopics([
-                              ...selectedTopics,
-                              t.topic
-                            ])
-
-                          }
-
-                        }}
-
-                        style={{
-                          accentColor: "#22c55e"
-                        }}
-                      />
-
-                      {t.topic}
-
-                    </label>
-
-                  ))}
-
-                </div>
-              </>
-            )}
-
-          </div>
+          {renderCategorySelector("SELECT CATEGORIES TO REVIEW")}
 
           <div style={{ fontSize: 13, marginBottom: 8 }}>
             Number of flashcards
@@ -845,89 +678,7 @@ setQuestionStyle,
             Active Recall Session
           </h3>
 
-          <SelectedTopicsBanner
-            selectedTopics={selectedTopics}
-            setSelectedTopics={setSelectedTopics}
-            setSelectedTopic={setSelectedTopic}
-          />
-
-          <div style={{ marginBottom: 20 }}>
-            {selectedTopics.length === 0 && (
-            <label style={{
-              fontSize: 11,
-              color: "#9ca3af",
-              letterSpacing: 0.5,
-              marginBottom: 8,
-              display: "block"
-            }}>
-              SELECT TOPICS TO PRACTICE
-            </label>
-            )}
-            <div style={{
-              maxHeight: "250px",
-              overflowY: "auto",
-              padding: "10px"
-            }}>
-              {selectedTopics.length === 0 && (
-                <>
-                {topics && topics.map((t:any) => (
-
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "6px 0",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: selectedTopics.includes(t.topic)
-                        ? "#22c55e"
-                        : "#cbd5e1"
-                    }}
-                  >
-
-                    <input
-                      type="checkbox"
-                      checked={selectedTopics.includes(t.topic)}
-
-                      onChange={() => {
-
-                        if (selectedTopics.includes(t.topic)) {
-
-                          setSelectedTopics(
-                            selectedTopics.filter(
-                              (item:string) => item !== t.topic
-                            )
-                          )
-
-                        } else {
-
-                          setSelectedTopics([
-                            ...selectedTopics,
-                            t.topic
-                          ])
-
-                        }
-
-                      }}
-
-                      style={{
-                        accentColor: "#22c55e"
-                      }}
-                    />
-
-                    {t.topic}
-
-                  </label>
-
-                ))}
-                </>
-              )}
-
-            </div>
-
-          </div>
+          {renderCategorySelector("SELECT CATEGORIES TO PRACTICE")}
 
           <div style={{
             fontSize: 13,
@@ -969,42 +720,16 @@ setQuestionStyle,
             }}>
               Guided Study Session
             </h3>
-            <SelectedTopicsBanner
-              selectedTopics={selectedTopics}
-              setSelectedTopics={setSelectedTopics}
-              setSelectedTopic={setSelectedTopic}
-            />
             <p style={{
               color: "#9ca3af",
               fontSize: 13,
               marginBottom: 16,
               lineHeight: 1.5
             }}>
-              Create an adaptive study session focused on your selected topics.
+              Create an adaptive study session focused on your selected categories.
             </p>
 
-            <div style={{ marginBottom: 20 }}>
-              {selectedTopics.length === 0 && (
-              <label style={{
-                fontSize: 11,
-                color: "#9ca3af",
-                letterSpacing: 0.5,
-                marginBottom: 8,
-                display: "block"
-              }}>
-                SELECT TOPICS TO STUDY
-              </label>
-              )}
-              <div style={{
-                maxHeight: "250px",
-                overflowY: "auto",
-                padding: "10px"
-              }}>
-               
-             
-              </div>
-
-            </div>
+            {renderCategorySelector("SELECT CATEGORIES TO STUDY")}
 
             <div style={{
               fontSize: 13,
@@ -1167,90 +892,7 @@ setQuestionStyle,
         <>
           <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Quiz')}</h3>
 
-          {/* FOCUS MODE PER QUIZ */}
-          <SelectedTopicsBanner
-            selectedTopics={selectedTopics}
-            setSelectedTopics={setSelectedTopics}
-            setSelectedTopic={setSelectedTopic}
-          />
-          {selectedTopics.length === 0 && (
-
-            <div style={{ marginBottom: 20 }}>
-
-              <label style={{
-                fontSize: 11,
-                color: "#9ca3af",
-                letterSpacing: 0.5,
-                marginBottom: 8,
-                display: "block"
-              }}>
-                SELECT TOPICS TO COVER
-              </label>
-
-              <div style={{
-                maxHeight: "250px",
-                overflowY: "auto",
-                padding: "10px"
-              }}>
-
-                {topics && topics.map((t:any) => (
-
-                  <label
-                    key={t.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "6px 0",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      color: selectedTopics.includes(t.topic)
-                        ? "#22c55e"
-                        : "#cbd5e1"
-                    }}
-                  >
-
-                    <input
-                      type="checkbox"
-                      checked={selectedTopics.includes(t.topic)}
-
-                      onChange={() => {
-
-                        if (selectedTopics.includes(t.topic)) {
-
-                          setSelectedTopics(
-                            selectedTopics.filter(
-                              (item:string) => item !== t.topic
-                            )
-                          )
-
-                        } else {
-
-                          setSelectedTopics([
-                            ...selectedTopics,
-                            t.topic
-                          ])
-
-                        }
-
-                      }}
-
-                      style={{
-                        accentColor: "#22c55e"
-                      }}
-                    />
-
-                    {t.topic}
-
-                  </label>
-
-                ))}
-
-              </div>
-              
-            </div>
-
-          )}
+          {renderCategorySelector("SELECT CATEGORIES TO COVER")}
 
           <div style={{ fontSize: 13, marginBottom: 4 }}>{translate('stats.Questions')}</div>
           <input

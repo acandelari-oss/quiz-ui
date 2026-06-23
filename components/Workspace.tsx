@@ -11,6 +11,7 @@ import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
 import { useTranslation } from 'react-i18next';
 import HintBox from "@/components/ui/HintBox";
+import { shellHeaderCell } from "./layoutStyles"
 import {
   BarChart3,
   Calendar,
@@ -111,8 +112,8 @@ const [currentStep, setCurrentStep] = useState(0);
   // Controlla che queste variabili siano quelle che attivano il caricamento nel tuo codice
   if (uploading || generatingFlashcards || generatingQuiz) {
     interval = setInterval(() => {
-      setCurrentStep((prev) => (prev + 1) % 4); // Ruota da 0 a 3
-    }, 3000);
+      setCurrentStep((prev) => Math.min(prev + 1, 3));
+    }, 5000);
   } else {
     setCurrentStep(0);
   }
@@ -248,11 +249,9 @@ return (
   <div style={{ ...workspace, position: "relative" }}>
     <div
       style={{
-        height: 40,
-        
-        display: "flex",
+        ...shellHeaderCell,
+        marginTop: 20,
         justifyContent: "flex-end",
-        alignItems: "center",
         gap: 12,
         padding: "0 12px",
         borderBottom: "1px solid #1f2937",
@@ -294,7 +293,8 @@ return (
       </button>
 
     </div>
-    
+
+    <div style={{ padding: 30 }}>
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {uploading ||
     generatingFlashcards ||
@@ -908,16 +908,11 @@ return (
           justifyContent: "center",
           gap: 10,
           marginBottom: 20,
-          color: "#ffffff",
+          color: "#36F2ED",
           fontWeight: 600,
           fontSize: 24
         }}>
-          <img
-            src="/icons/study-session.svg"
-            alt=""
-            width={48}
-            height={48}
-          />
+          <BrainCircuit size={48}/>
           <p>{translate('stats.STUDY SESSION')}</p>
         </div>
 
@@ -940,7 +935,7 @@ return (
             justifyContent: "center",
             gap: 10,
             marginBottom: 20,
-            color: "#22c55e",
+            color: "#36F2ED",
             fontWeight: 600,
             fontSize: 24
           }}>
@@ -1376,6 +1371,7 @@ return (
   </>
 )}   
 
+</div>
 </div>  
 
 )
@@ -1387,7 +1383,6 @@ const workspace = {
 flex:1,
 background:"#080a10",
 color:"#e5e7eb",
-padding:"30px",
 overflowY:"auto" as const
 }
 

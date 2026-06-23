@@ -13,15 +13,15 @@ const { t: translate } = useTranslation();
       marginBottom: 20,
       padding: 14,
       borderRadius: 10,
-      background: "rgba(34,197,94,0.08)",
-      border: "1px solid rgba(34,197,94,0.25)",
+      background: "#052b2a",
+      border: "1px solid #0e6c69",
       color: "#ffffff",
       fontSize: 18,
       lineHeight: 1.6
     }}>
 
       <b style={{
-        color: "#22c55e"
+        color: "#36F2ED"
       }}>
         {translate('stats.💡 Study tip')}
       </b>

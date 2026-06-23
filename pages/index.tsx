@@ -236,7 +236,7 @@ useEffect(() => {
     setLoaderStep(0); 
     interval = setInterval(() => {
       setLoaderStep((prev) => (prev < 4 ? prev + 1 : prev));
-    }, 3500);
+    }, 5000);
   }
   return () => { if (interval) clearInterval(interval); };
 }, [isGenerating]);
@@ -599,6 +599,7 @@ async function pollTopicStatus(projectId:string){
   pollingRef.current = setInterval(async () => {
 
     attempts += 1
+    console.log("🔢 POLLING ATTEMPT:", attempts)
     try {
     console.log("🧠 POLLING PROJECT ID:", projectId)
     
@@ -647,19 +648,28 @@ async function pollTopicStatus(projectId:string){
 
         console.log("🧪 STARTING loadTopics")
 
+        setUploading(false)
+        setUploadLog("")
+        setUploadStatus("Topics ready!")
+
         await loadTopics(projectId)
 
         console.log("🧪 loadTopics FINISHED")
-
         console.log("✅ TOPICS LOADED")
 
         setStatus("Project loaded successfully")
 
-        setUploadStatus("Topics ready!")
+        setTimeout(() => {
+          setStatus("")
+        }, 1200)
 
       } catch(err){
 
         console.error("❌ FINAL LOAD TOPICS FAILED:", err)
+        setUploading(false)
+        setUploadLog("")
+        setUploadStatus("Topics ready, but loading topics failed")
+        setStatus("")
 
       }
 
@@ -684,7 +694,8 @@ async function pollTopicStatus(projectId:string){
     }
 
     if(attempts >= maxAttempts){
-
+      console.log("⏰ POLLING TIMEOUT REACHED")
+      console.log("🔢 FINAL ATTEMPT:", attempts)
       clearInterval(pollingRef.current)
 
       pollingRef.current = null
@@ -907,11 +918,14 @@ async function loadStudyFlashcards() {
   // FILTER BY TOPICS
   if (selectedTopics && selectedTopics.length > 0) {
 
-    const normalizedTopics = selectedTopics.map((t: any) =>
-      normalizeTopic(
-        typeof t === "string" ? t : t.topic
-      )
+    const selectedTopicIds = extractTopicIds(selectedTopics)
+    const selectedTopicNames = extractTopicNames(selectedTopics)
+    const normalizedTopics = selectedTopicNames.map(topic =>
+      normalizeTopic(topic)
     )
+
+    console.log("PAYLOAD TOPIC_IDS COUNT:", selectedTopicIds.length)
+    console.log("PAYLOAD TOPICS COUNT:", selectedTopicNames.length)
 
     filtered = previousFlashcards.filter(card =>
       normalizedTopics.includes(
@@ -1025,6 +1039,7 @@ async function selectProject(id: string) {
 }
 
 async function generateQuiz() {
+
     console.log("🚨 GENERATE QUIZ CLICKED");
     console.log("GENERATE QUIZ FUNCTION RUNNING")
     if (!projectId) return
@@ -1065,6 +1080,22 @@ async function generateQuiz() {
           ? "Italian"
           : "English"
       )
+      const payloadTopicIds =
+        selectedTopics && selectedTopics.length > 0
+          ? extractTopicIds(selectedTopics)
+          : selectedTopic?.id
+            ? [String(selectedTopic.id)]
+            : []
+      const payloadTopicNames =
+        selectedTopics && selectedTopics.length > 0
+          ? extractTopicNames(selectedTopics)
+          : selectedTopic?.topic
+            ? [selectedTopic.topic]
+            : []
+
+      console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
+      console.log("PAYLOAD TOPICS COUNT:", payloadTopicNames.length)
+
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`,
         {
@@ -1085,19 +1116,8 @@ async function generateQuiz() {
 
             question_style: questionStyle,
 
-            topic_ids:
-              selectedTopics && selectedTopics.length > 0
-                ? extractTopicIds(selectedTopics)
-                : selectedTopic?.id
-                  ? [selectedTopic.id]
-                  : [],
-
-            topics:
-              selectedTopics && selectedTopics.length > 0
-                ? extractTopicNames(selectedTopics)
-                : selectedTopic?.topic
-                  ? [selectedTopic.topic]
-                  : [],
+            topic_ids: payloadTopicIds,
+            topics: payloadTopicNames,
           })
         }
       )
@@ -1150,40 +1170,6 @@ async function generateQuiz() {
     }
 }
 
-function extractTopicNames(topics: any[]) {
-
-  if (!Array.isArray(topics)) return []
-
-  return topics
-    .map(t => {
-
-      if(typeof t === "string"){
-        return t
-      }
-
-      if(typeof t === "object" && t?.topic){
-        return t.topic
-      }
-
-      return null
-    })
-    .filter(Boolean)
-
-}
-
-function extractTopicIds(topics: any[]) {
-
-  if (!Array.isArray(topics)) return []
-
-  return topics
-    .map(t =>
-      typeof t === "object" && t?.id
-        ? t.id
-        : null
-    )
-    .filter(Boolean)
-
-}
   // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
   async function generateFlashcards() {
     console.log("GENERATE FLASHCARDS FUNCTION RUNNING");
@@ -1223,6 +1209,15 @@ function extractTopicIds(topics: any[]) {
                 ? [selectedTopic.topic.trim()]
                 : []
           );
+    const payloadTopicIds =
+      selectedTopics && selectedTopics.length > 0
+        ? extractTopicIds(selectedTopics)
+        : selectedTopic?.id
+          ? [String(selectedTopic.id)]
+          : []
+
+    console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
+    console.log("PAYLOAD TOPICS COUNT:", finalTopics.length)
 
     try {
       const res = await fetch(
@@ -1235,12 +1230,7 @@ function extractTopicIds(topics: any[]) {
           },
           body: JSON.stringify({
 
-            topic_ids:
-              selectedTopics && selectedTopics.length > 0
-                ? extractTopicIds(selectedTopics)
-                : selectedTopic?.id
-                  ? [selectedTopic.id]
-                  : [],
+            topic_ids: payloadTopicIds,
 
             topics: finalTopics,
 
@@ -1288,6 +1278,12 @@ function extractTopicIds(topics: any[]) {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData.session?.access_token
 
+      const payloadTopicIds = extractTopicIds(selectedTopics || [])
+      const payloadTopicNames = extractTopicNames(selectedTopics || [])
+
+      console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
+      console.log("PAYLOAD TOPICS COUNT:", payloadTopicNames.length)
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
         method: "POST",
         headers: {
@@ -1297,9 +1293,7 @@ function extractTopicIds(topics: any[]) {
         body: JSON.stringify({
           project_id: projectId,
           question: askQuestion,
-          topics: (selectedTopics || []).map((t) =>
-            typeof t === "string" ? t : t.topic
-          ),
+          topics: payloadTopicNames,
           history: chatMessages.slice(-6)
         })
       })

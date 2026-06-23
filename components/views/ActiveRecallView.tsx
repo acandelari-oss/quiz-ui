@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
 import jsPDF from "jspdf"
+import {
+  extractTopicIds,
+  extractTopicNames
+} from "../../utils/topics"
 
 
 export default function ActiveRecallView({
@@ -217,6 +221,15 @@ export default function ActiveRecallView({
           ? "Italian"
           : "English"
       };
+      const payloadTopicIds = isAllMode
+        ? []
+        : extractTopicIds(selectedTopics || [])
+      const payloadTopicNames = isAllMode
+        ? []
+        : extractTopicNames(selectedTopics || [])
+
+      console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
+      console.log("PAYLOAD TOPICS COUNT:", payloadTopicNames.length)
       console.log(
         "🌍 ACTIVE RECALL LANGUAGE:",
         i18n.language
@@ -551,6 +564,19 @@ export default function ActiveRecallView({
             Download PDF
           </button>
         </div>
+        {questionCount >= maxQuestions && (
+          <div style={{
+            padding: "14px 18px",
+            background: "#052b2a",
+            border: "1px solid #0e6c69",
+            borderRadius: 8,
+            color: "#36F2ED",
+            textAlign: "center",
+            fontWeight: 600
+          }}>
+            🎉 Active Recall completed! Press Next to continue to Quiz.
+          </div>
+        )}
       </div>
     </div>
   )

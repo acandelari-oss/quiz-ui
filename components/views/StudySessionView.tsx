@@ -4,6 +4,11 @@ import FlashcardsView from "./FlashcardsView"
 import ActiveRecallView from "./ActiveRecallView"
 import QuizView from "./QuizView"
 import { useTranslation } from 'react-i18next';
+import {
+  extractTopicIds,
+  extractTopicNames,
+  TopicScopeItem
+} from "../../utils/topics"
 
 const description = {
   color: "#9ca3af",
@@ -23,8 +28,11 @@ const stepBox = {
 }
 
 const button = {
-  marginTop: 20,
+  margin: "20px auto 0",
   padding: "10px",
+  width: 300,
+  maxWidth: "100%",
+  display: "block",
   background: "#2563eb",
   border: "none",
   color: "white",
@@ -67,13 +75,24 @@ const loaderSubtitle = {
   color: "#9ca3af"
 }
 
+const completionMessage = {
+  marginTop: 20,
+  padding: "14px 18px",
+  background: "#052b2a",
+  border: "1px solid #0e6c69",
+  borderRadius: 8,
+  color: "#36F2ED",
+  textAlign: "center" as const,
+  fontWeight: 600
+}
+
 export default function StudySessionView({
   projectId,
   selectedTopics,
   studyConfig
 }: {
   projectId: string,
-  selectedTopics?: string[] | null,
+  selectedTopics?: Array<string | TopicScopeItem> | null,
   studyConfig?: {
     flashcards: number,
     recall: number,
@@ -92,6 +111,8 @@ export default function StudySessionView({
       .trim()
 
   });
+  const selectedTopicIds = extractTopicIds(selectedTopics || [])
+  const selectedTopicNames = extractTopicNames(selectedTopics || [])
 
 console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
   const [step, setStep] = useState(0)
@@ -225,6 +246,8 @@ async function generateQuiz() {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
+    console.log("PAYLOAD TOPIC_IDS COUNT:", selectedTopicIds.length)
+    console.log("PAYLOAD TOPICS COUNT:", selectedTopicNames.length)
 
     // 1. L'URL deve essere /generate_quiz (come nel backend) e non /quiz
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/generate_quiz`, {
@@ -237,7 +260,8 @@ async function generateQuiz() {
       body: JSON.stringify({
         num_questions: studyConfig?.quiz || 5,
         difficulty: "medium",
-        topics: normalizedSelectedTopics || [],
+        topic_ids: selectedTopicIds,
+        topics: selectedTopicNames,
         language: "english"
       })
       });
@@ -278,6 +302,8 @@ async function generateQuiz() {
     let url = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_session`
 
     const query = normalizedSelectedTopics.join(",")
+    console.log("PAYLOAD TOPIC_IDS COUNT:", selectedTopicIds.length)
+    console.log("PAYLOAD TOPICS COUNT:", selectedTopicNames.length)
 
     if (query.length > 0) {
       url += `?topics=${encodeURIComponent(query)}`
@@ -343,7 +369,7 @@ async function generateQuiz() {
       <div style={progressContainer}>
         {steps.map((label, i) => (
           <div key={i} style={{ flex: 1, textAlign: "center", color: step >= i ? "white" : "#6b7280", fontWeight: step === i ? 600 : 400 }}>
-            <div style={{ height: 6, background: step >= i ? "#22c55e" : "#374151", marginBottom: 6, borderRadius: 4 }} />
+            <div style={{ height: 6, background: step >= i ? "#2b7dcb" : "#374151", marginBottom: 6, borderRadius: 4 }} />
             {label}
           </div>
         ))}
@@ -365,18 +391,26 @@ async function generateQuiz() {
 
         <div style={progress}>
           {steps.map((s, i) => (
-            <div key={i} style={{ ...stepBox, background: step === i ? "#22c55e" : "#1f2937" }}>{s}</div>
+            <div key={i} style={{ ...stepBox, background: step === i ? "#2b7dcb" : "#1f2937" }}>{s}</div>
           ))}
         </div>
 
         {step === 0 && (
-          <FlashcardsView
-            flashcards={flashcards}
-            openCard={openCard}
-            setOpenCard={setOpenCard}
-            onReview={handleReview}
-            onFlashcardsComplete={handleFlashcardsComplete}
-          />
+          <>
+            <FlashcardsView
+              flashcards={flashcards}
+              openCard={openCard}
+              setOpenCard={setOpenCard}
+              onReview={handleReview}
+              onFlashcardsComplete={handleFlashcardsComplete}
+            />
+            {flashcards.length > 0
+              && reviewedCount >= flashcards.length && (
+              <div style={completionMessage}>
+                🎉 Flashcards completed! Press Next to continue to Active Recall.
+              </div>
+            )}
+          </>
         )}
 
         {step === 1 && (
@@ -398,14 +432,15 @@ async function generateQuiz() {
         
 
         {step === 2 && (
-          <QuizView 
-            quiz={quizData}
-            answers={quizAnswers}
-            started={quizStarted}
-            finished={quizFinished}
-            projectId={projectId}
-            selectAnswer={(idx: number, val: string) => setQuizAnswers(prev => ({ ...prev, [idx]: val }))}
-            submitQuiz={async () => {
+          <>
+            <QuizView
+              quiz={quizData}
+              answers={quizAnswers}
+              started={quizStarted}
+              finished={quizFinished}
+              projectId={projectId}
+              selectAnswer={(idx: number, val: string) => setQuizAnswers(prev => ({ ...prev, [idx]: val }))}
+              submitQuiz={async () => {
               console.log("🔥 STUDY SESSION SUBMIT CHIAMATO")
               setQuizFinished(true)
 
@@ -473,6 +508,12 @@ async function generateQuiz() {
             setExpanded={() => {}} // Se non lo usi, passa una funzione vuota
             expanded={true}
           />
+            {quizFinished && (
+              <div style={completionMessage}>
+                🎉 Quiz completed! Press Next to view your Study Summary.
+              </div>
+            )}
+          </>
         )}
 
         {step === 3 && (

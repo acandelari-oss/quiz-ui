@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from "../../lib/supabase"; // Il percorso potrebbe variare in base alla tua cartella
 import { useTranslation } from 'react-i18next';
 import { normalizeTopic } from "../../utils/topic";
+import {
+  logCategoryScope,
+  resolveCategoryTopicObjects
+} from "../../utils/topics";
 export default function TopicsView({
   
   topics,
   loadingTopics,
   topicsOpen,
   setTopicsOpen,
-  selectedTopics,
   setSelectedTopics,
   previousFlashcards,
   setSelectedTopic,
@@ -87,6 +90,22 @@ export default function TopicsView({
   console.log("🧠 TOPICS RAW:", topics);
   console.log("🔥 RESULTS DATA:", resultsData)
   console.log("🔑 RESULTS KEYS:", Object.keys(resultsData || {}))
+
+  const launchCategoryFeature = (
+    category: string,
+    destination: string
+  ) => {
+    const resolvedTopics = resolveCategoryTopicObjects(
+      category,
+      topics || []
+    )
+
+    logCategoryScope(category, resolvedTopics)
+    setSelectedTopics(resolvedTopics)
+    setSelectedTopic(null)
+    setActiveView(destination)
+  }
+
   return (
     <div style={box}>
       <h3
@@ -303,16 +322,7 @@ export default function TopicsView({
                             return;
                           }
 
-                          console.log("🧠 QUIZ CATEGORY TOPICS:", categoryTopics)
-
-                          setSelectedTopics(categoryTopics);
-                          
-                          // 3. Prendiamo il nome della categoria dal primo topic disponibile
-                          // Invece di categoryName che non esiste, usiamo categoryTopics[0].category
-                          const currentCat = categoryTopics[0].category;
-                             
-
-                          setActiveView("quiz");
+                          launchCategoryFeature(category, "quiz")
                         }}
                         style={macroBtn("#2563eb")}
                       >
@@ -321,15 +331,10 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map(
-                            (t: any) => t.title || t.topic
+                          launchCategoryFeature(
+                            category,
+                            "generate_flashcards"
                           )
-
-                          setSelectedTopics(categoryTopics)
-
-                          setSelectedTopic(null)
-
-                          setActiveView("generate_flashcards")
 
                         }}
                         style={macroBtn("#0b9280")}
@@ -339,15 +344,10 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map(
-                            (t: any) => t.title || t.topic
+                          launchCategoryFeature(
+                            category,
+                            "active_recall_setup"
                           )
-
-                          console.log("🧠 MEMORY TOPICS:", topics)   // 👈 AGGIUNGI QUESTO
-
-                          setSelectedTopics(categoryTopics)
-                          setSelectedTopic(null)
-                          setActiveView("active_recall_setup")
                         }}
                         style={macroBtn("#f4970c")}
                       >
@@ -356,12 +356,10 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map(
-                            (t: any) => t.title || t.topic
+                          launchCategoryFeature(
+                            category,
+                            "ask_setup"
                           )
-                          setSelectedTopics(categoryTopics)
-                          setSelectedTopic(null)
-                          setActiveView("ask_setup")
                         }}
                         style={macroBtn("#0a6610")}
                       >
@@ -370,11 +368,10 @@ export default function TopicsView({
 
                       <button
                         onClick={() => {
-                          const topics = categoryTopics.map(
-                            (t: any) => t.title || t.topic
+                          launchCategoryFeature(
+                            category,
+                            "study_session_setup"
                           )
-                          setSelectedTopics(categoryTopics)
-                          setActiveView("study_session_setup")
                         }}
                         style={macroBtn("#8b5cf6")}
                       >
@@ -463,7 +460,7 @@ export default function TopicsView({
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "40px 1fr 90px 70px 70px 70px 70px 120px",
+                      gridTemplateColumns: "1fr 90px 70px 70px 70px 70px 120px",
                       gap: 12,
                       padding: "14px 20px",
                       borderBottom: "1px solid #1f2937",
@@ -474,12 +471,11 @@ export default function TopicsView({
                     }}
                   >
                     <div></div>
-                    <div></div>
                     <div style={{ textAlign: "center" }}>Quiz</div>
 
                     <div
                       style={{
-                        gridColumn: "4 / span 4",
+                        gridColumn: "3 / span 4",
                         textAlign: "center",
                         color: "#9ca3af",
                         fontSize: 11
@@ -490,7 +486,6 @@ export default function TopicsView({
 
                     <div style={{ textAlign: "center" }}>{translate('stats.Last Studied')}</div>
                     <div>Topic</div>
-                    <div></div>
                     
                     <div></div>
                     <div style={{ textAlign: "center" }}>{translate('stats.Wrong')}</div>
@@ -503,10 +498,6 @@ export default function TopicsView({
                     const topicObj = t;
 
                     const value = topicObj.topic || topicObj.title;
-
-                    const isSelected = selectedTopics?.some(
-                      (x: any) => x.id === t.id
-                    )
 
                     // --- LOG DI EMERGENZA (Apri la console F12 per vederli) ---
                     console.log("🔍 Verifico topic:", value);
@@ -532,6 +523,7 @@ export default function TopicsView({
                         normalizeTopic(q.topic || q.title) ===
                         normalizeTopic(value)
                     );
+                    const hasQuizAttempts = (quizStats?.total || 0) > 0;
                     console.log("🧪 TOPIC:", value);
                     console.log("🧪 QUIZ STATS:", quizStats);
                     return (
@@ -539,40 +531,13 @@ export default function TopicsView({
                         key={value}
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "40px 1fr 90px 70px 70px 70px 70px 120px",
+                          gridTemplateColumns: "1fr 90px 70px 70px 70px 70px 120px",
                           gap: 12,
                           alignItems: "center",
                           padding: "14px 20px",
                           borderBottom: "1px solid rgba(255,255,255,0.05)"
                         }}
                       >
-                        
-                        <div>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {
-
-                              if (isSelected) {
-
-                                setSelectedTopics(
-                                  selectedTopics.filter((x: any) => x.id !== t.id)
-                                )
-
-                              } else {
-
-                                setSelectedTopics([
-                                  ...selectedTopics,
-                                  t
-                                ])
-
-                              }
-
-                            }}
-                            style={{ cursor: "pointer" }}
-                          />
-                        </div>
-
                         <div
                           style={{
                             color: "white",
@@ -591,14 +556,18 @@ export default function TopicsView({
                             textAlign: "center",
                             borderRight: "1px solid rgba(255,255,255,0.08)",
                             color:
-                              (quizStats?.accuracy || 0) >= 80
+                              !hasQuizAttempts
+                                ? "#9ca3af"
+                                : (quizStats?.accuracy || 0) >= 80
                                 ? "#22c55e"
                                 : (quizStats?.accuracy || 0) >= 50
                                   ? "#eab308"
                                   : "#ef4444"
                           }}
                         >
-                          {Math.round(quizStats?.accuracy || 0)}%
+                          {hasQuizAttempts
+                            ? `${Math.round(quizStats?.accuracy || 0)}%`
+                            : "-"}
                         </div>
 
                         <div

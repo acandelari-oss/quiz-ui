@@ -2,6 +2,7 @@ import Image from "next/image";
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
 import { Calendar } from "lucide-react"
+import { shellHeaderCell } from "./layoutStyles";
 
 import {
   Folder,
@@ -68,8 +69,6 @@ export default function Sidebar({
           alt="Do U no logo"
         />
       </div>
-
-      <div style={divider} />
 
       {/* PROJECT */}
       <div style={sectionTitle}>
@@ -367,10 +366,11 @@ const sidebar = {
 };
 
 const logoBox = {
+  ...shellHeaderCell,
   display: "flex",
   justifyContent: "center",
-  marginBottom: 20,
-  marginTop: 10
+  alignItems: "center",
+  borderBottom: "1px solid #1f2937"
 };
 
 const sectionTitle = {
