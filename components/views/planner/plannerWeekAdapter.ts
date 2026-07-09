@@ -54,7 +54,7 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
     calendar,
     weeklyBriefing: {
       studyLanguage: week.study_language || null,
-      selectedCategoriesReason: week.weekly_briefing || fallbackStudyPlanBriefing(week),
+      selectedCategoriesReason: generatedProfessorText(week.weekly_briefing) || "",
       objective: inferWeeklyObjective(week),
       lowerPriorityCategories: inferAdditionalModulesMessage(week)
     },
@@ -83,23 +83,24 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
     debriefs: completedDays
       .map(day => dailyPlanEntriesByKey.get(`${day.day}-${day.date}`))
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .filter(entry => Boolean(generatedProfessorText(entry.plan.summary?.professor_debrief)))
       .map(entry => buildDebrief(entry.plan, entry.index)),
     homework: completedDays
       .map(day => dailyPlanEntriesByKey.get(`${day.day}-${day.date}`))
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-      .map(entry => ({
-        day: plannerModuleLabel(entry.index),
-        suggestion:
-          entry.plan.summary?.homework_recommendations?.[0]?.text
-          || "Homework recommendations will appear after this session."
-      })),
+      .flatMap(entry =>
+        (entry.plan.summary?.homework_recommendations || [])
+          .filter(recommendation => Boolean(generatedProfessorText(recommendation.text)))
+          .map(recommendation => ({
+            day: plannerModuleLabel(entry.index),
+            suggestion: generatedProfessorText(recommendation.text) || ""
+          }))
+      ),
     dailyPlans,
     todayPlan: dailyPlans[todayPlanIndex] || dailyPlans[0] || emptyDailyPlan(),
     weeklyReview: {
       title: "Study Plan Review",
-      message:
-        week.weekly_review
-        || "The Professor Study Plan review will be generated when this Study Plan is completed."
+      message: generatedProfessorText(week.weekly_review) || ""
     }
   }
 }
@@ -146,7 +147,7 @@ function buildStateOnlyPlannerData(
     todayPlan: emptyDailyPlan(),
     weeklyReview: {
       title: "Study Plan Review",
-      message: "Study Plan review will become available after completed Study Plans."
+      message: ""
     }
   }
 }
@@ -156,8 +157,8 @@ function emptyDailyPlan(): PlannerDailyPlan {
     day: "Module",
     date: "—",
     sessionIndex: 0,
-    objective: "No active Study Plan module is available.",
-    briefing: "No active Study Plan module is available.",
+    objective: "",
+    briefing: "",
     activities: [],
     summary: {
       sessionData: {
@@ -167,16 +168,10 @@ function emptyDailyPlan(): PlannerDailyPlan {
         time: "—",
         focus: "—"
       },
-      professorDebrief: "No debrief is available yet.",
+      professorDebrief: "",
       homeworkRecommendations: [],
-      activeRecall: {
-        title: "Optional Active Recall",
-        message: "Available in a later Study Plan step."
-      },
-      officeHours: {
-        title: "Ask the Professor",
-        message: "Available in a later Study Plan step."
-      }
+      activeRecall: undefined,
+      officeHours: undefined
     }
   }
 }
@@ -216,29 +211,30 @@ function buildDailyPlan(
     day: plannerModuleLabel(index),
     date: formatPlannerDate(plan.date),
     sessionIndex: index,
-    objective: plan.objective || "The Professor daily objective will appear here.",
-    briefing: plan.briefing || "The Professor daily briefing will appear here.",
+    objective: generatedProfessorText(plan.objective) || "",
+    briefing: generatedProfessorText(plan.briefing) || "",
     activities: plan.activities.map(buildActivity),
     summary: {
       sessionData: buildSessionData(plan),
-      professorDebrief:
-        plan.summary?.professor_debrief
-        || "The Professor debrief will appear after this session.",
+      professorDebrief: generatedProfessorText(plan.summary?.professor_debrief) || "",
       homeworkRecommendations:
-        plan.summary?.homework_recommendations?.map(item => item.text)
-        || ["Homework recommendations will appear after this session."],
-      activeRecall: {
-        title: "Optional Active Recall",
-        message:
-          plan.summary?.active_recall_offer?.context
-          || "Active Recall will become available after this session."
-      },
-      officeHours: {
-        title: "Office Hours",
-        message:
-          plan.summary?.office_hours_offer?.context
-          || "Office Hours will become available after this session."
-      }
+        plan.summary?.homework_recommendations
+          ?.map(item => item.text)
+          .map(generatedProfessorText)
+          .filter(hasText)
+        || [],
+      activeRecall: generatedProfessorText(plan.summary?.active_recall_offer?.context)
+        ? {
+            title: "Optional Active Recall",
+            message: generatedProfessorText(plan.summary?.active_recall_offer?.context) || ""
+          }
+        : undefined,
+      officeHours: generatedProfessorText(plan.summary?.office_hours_offer?.context)
+        ? {
+            title: "Ask the Professor",
+            message: generatedProfessorText(plan.summary?.office_hours_offer?.context) || ""
+          }
+        : undefined
     }
   }
 }
@@ -278,9 +274,7 @@ function buildActivity(activity: PlannerWeekResponse["daily_plans"][number]["act
 function buildDebrief(plan: PlannerWeekResponse["daily_plans"][number], index: number) {
   return {
     day: plannerModuleLabel(index),
-    professorDebrief:
-      plan.summary?.professor_debrief
-      || "The Professor debrief will appear after this session.",
+    professorDebrief: generatedProfessorText(plan.summary?.professor_debrief) || "",
     sessionData: buildSessionData(plan)
   }
 }
@@ -425,12 +419,6 @@ function inferAdditionalModulesMessage(week: PlannerWeekResponse) {
     : "Once this Study Plan is complete, the next step should follow the evidence collected here, preserving continuity rather than starting again from zero."
 }
 
-function fallbackStudyPlanBriefing(week: PlannerWeekResponse) {
-  return isItalianStudyLanguage(week)
-    ? "Il Professore introdurrà questo Piano di Studio nella lingua scelta per lo studio."
-    : "The Professor will introduce this Study Plan in the selected study language."
-}
-
 function isItalianStudyLanguage(week: PlannerWeekResponse) {
   return String(week.study_language || "")
     .trim()
@@ -486,4 +474,40 @@ function plannerModuleLabel(index: number) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)))
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function generatedProfessorText(value: unknown): string | undefined {
+  if (!hasText(value)) {
+    return undefined
+  }
+
+  const text = value.trim()
+
+  if (isProfessorPlaceholderText(text)) {
+    return undefined
+  }
+
+  return text
+}
+
+function isProfessorPlaceholderText(text: string) {
+  const normalized = text.toLowerCase()
+
+  return (
+    (
+      normalized.startsWith("this ")
+      && (
+        normalized.includes(" will be generated ")
+        || normalized.includes(" will be generated after ")
+      )
+    )
+    || (
+      normalized.startsWith("available after completing ")
+      && normalized.endsWith(" session.")
+    )
+  )
 }

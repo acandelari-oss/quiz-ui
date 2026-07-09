@@ -16,7 +16,9 @@ export default function SessionSummaryStep({
       <section style={heroCard}>
         <div style={eyebrow}>{translate("stats.Module Summary")}</div>
         <h2 style={title}>{translate("stats.Module completed", { module: dailyPlan.day })}</h2>
-        <p style={paragraph}>{summary.professorDebrief}</p>
+        {summary.professorDebrief && (
+          <p style={paragraph}>{summary.professorDebrief}</p>
+        )}
       </section>
 
       <section style={card}>
@@ -29,26 +31,34 @@ export default function SessionSummaryStep({
         </div>
       </section>
 
-      <section style={card}>
-        <div style={sectionTitle}>{translate("stats.Homework Recommendations")}</div>
-        <ul style={homeworkList}>
-          {summary.homeworkRecommendations.map(item => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </section>
-
-      <div style={twoColumn}>
-        <section style={infoBox}>
-          <div style={boxTitle}>{summary.activeRecall.title}</div>
-          <p style={boxText}>{summary.activeRecall.message}</p>
+      {summary.homeworkRecommendations.length > 0 && (
+        <section style={card}>
+          <div style={sectionTitle}>{translate("stats.Homework Recommendations")}</div>
+          <ul style={homeworkList}>
+            {summary.homeworkRecommendations.map(item => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </section>
+      )}
 
-        <section style={infoBox}>
-          <div style={boxTitle}>{summary.officeHours.title}</div>
-          <p style={boxText}>{summary.officeHours.message}</p>
-        </section>
-      </div>
+      {(summary.activeRecall || summary.officeHours) && (
+        <div style={twoColumn}>
+          {summary.activeRecall && (
+            <section style={infoBox}>
+              <div style={boxTitle}>{translate("stats.Optional Active Recall")}</div>
+              <p style={boxText}>{summary.activeRecall.message}</p>
+            </section>
+          )}
+
+          {summary.officeHours && (
+            <section style={infoBox}>
+              <div style={boxTitle}>{translate("stats.Ask the Professor")}</div>
+              <p style={boxText}>{summary.officeHours.message}</p>
+            </section>
+          )}
+        </div>
+      )}
 
       <button onClick={onBackToDashboard} style={primaryButton}>
         {translate("stats.Back to Study Plan")}

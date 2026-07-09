@@ -94,6 +94,7 @@ launchPlannerActivity,
 onPlannerFlashcardReview,
 continuePlannerActivity,
 returnToPlannerDashboard,
+plannerActivityDebriefs,
 
 
 
@@ -311,11 +312,13 @@ return (
     status === "Loading project..." ||
     status === "Loading previous material..." ||
     status === "Project loaded successfully" ||
+    status === "Project upload completed" ||
     status === "Processing topics..." ? (
       <div style={loaderContainer}>
         
         {/* 1. SPINNER O CHECK DI SUCCESSO */}
-        {status === "Project loaded successfully" ? (
+        {status === "Project loaded successfully" ||
+        status === "Project upload completed" ? (
           <div style={{
             width: 40,
             height: 40,
@@ -350,6 +353,7 @@ return (
             status === "Loading project..." ? translate('stats.Loading project') :
             status === "Loading previous material..." ? translate('stats.Loading previous material') :
             status === "Project loaded successfully" ? translate('stats.Project loaded successfully') :
+            status === "Project upload completed" ? translate('stats.Project upload completed') :
             status === "Processing topics..."
               ? translate('stats.We are organizing your material into study topics')
               :status
@@ -369,6 +373,8 @@ return (
             translate('stats.We are extracting key concepts and preparing your flashcards.')
           ) : status === "Processing topics..." ? (
             translate('stats.We are organizing your material into study topics.')
+          ) : status === "Project upload completed" ? (
+            translate('stats.Your material is ready. Choose the next action from the sidebar.')
           ) : (
             translate('stats.Preparing your learning workspace.')
           )
@@ -865,19 +871,24 @@ return (
         ) : flashcards && flashcards.length > 0 ? (
           /* 3. Visualizzazione Flashcards (Se i dati sono pronti) */
           <>
-            {plannerRuntime?.mode === "activity_review" && (
-              <PlannerActivityReviewCheckpoint
-                title="Flashcards completed"
-                message="Review the completed flashcards, then continue when you are ready."
-                onContinue={continuePlannerActivity}
-              />
-            )}
             <FlashcardsView
               flashcards={flashcards}
               openCard={openCard}
               setOpenCard={setOpenCard}
               onReview={onPlannerFlashcardReview}
             />
+            {plannerRuntime?.mode === "activity_review" && (
+              <PlannerActivityReviewCheckpoint
+                title="Flashcards completed"
+                message="Review the completed flashcards, then continue when you are ready."
+                professorDebrief={
+                  plannerActivityDebriefs?.[
+                    String(plannerRuntime?.dailyPlan?.activities?.[plannerRuntime?.activityIndex]?.id || "")
+                  ]
+                }
+                onContinue={continuePlannerActivity}
+              />
+            )}
           </>
         ) : (
           /* 4. Schermata di Benvenuto/Generate (Contenuto ripristinato) */
@@ -1072,13 +1083,6 @@ return (
             <HintBox
               text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
             />
-            {plannerRuntime?.mode === "activity_review" && (
-              <PlannerActivityReviewCheckpoint
-                title="Quiz review"
-                message="Review your answers, explanations, sources, and question chat before continuing."
-                onContinue={continuePlannerActivity}
-              />
-            )}
             <QuizView
               quiz={quiz}
               answers={answers}
@@ -1095,6 +1099,18 @@ return (
               projectId={projectId}
               quizId={quizId}
             />
+            {plannerRuntime?.mode === "activity_review" && (
+              <PlannerActivityReviewCheckpoint
+                title="Quiz review"
+                message="Review your answers, explanations, sources, and question chat before continuing."
+                professorDebrief={
+                  plannerActivityDebriefs?.[
+                    String(plannerRuntime?.dailyPlan?.activities?.[plannerRuntime?.activityIndex]?.id || "")
+                  ]
+                }
+                onContinue={continuePlannerActivity}
+              />
+            )}
           </>
         )}
       </div>
@@ -1306,10 +1322,12 @@ return (
 function PlannerActivityReviewCheckpoint({
   title,
   message,
+  professorDebrief,
   onContinue
 }: {
   title: string
   message: string
+  professorDebrief?: string
   onContinue: () => void
 }) {
   return (
@@ -1317,6 +1335,9 @@ function PlannerActivityReviewCheckpoint({
       <div>
         <div style={plannerReviewTitle}>🎉 {title}</div>
         <div style={plannerReviewMessage}>{message}</div>
+        {professorDebrief && (
+          <div style={plannerReviewProfessorDebrief}>{professorDebrief}</div>
+        )}
       </div>
       <button
         onClick={onContinue}
@@ -1371,7 +1392,8 @@ background: "#052b2a",
 border: "1px solid #0e6c69",
 borderRadius: 14,
 padding: 18,
-marginBottom: 20,
+marginTop: 24,
+marginBottom: 0,
 display: "flex",
 alignItems: "center",
 justifyContent: "space-between",
@@ -1390,6 +1412,15 @@ const plannerReviewMessage = {
 color: "#cbd5e1",
 fontSize: 14,
 lineHeight: 1.5
+}
+
+const plannerReviewProfessorDebrief = {
+marginTop: 14,
+paddingTop: 14,
+borderTop: "1px solid rgba(54, 242, 237, 0.18)",
+color: "#e5e7eb",
+fontSize: 15,
+lineHeight: 1.65
 }
 
 const plannerReviewButton = {

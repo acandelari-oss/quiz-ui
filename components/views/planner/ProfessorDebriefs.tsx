@@ -9,6 +9,10 @@ export default function ProfessorDebriefs({
 }) {
   const { t: translate } = useTranslation()
 
+  if (debriefs.length === 0) {
+    return null
+  }
+
   return (
     <section style={section}>
       <div style={sectionLabel}>{translate("stats.Professor Daily Debriefs")}</div>

@@ -147,3 +147,71 @@ export async function generatePlannerWeek(
 
   return response.json()
 }
+
+async function postPlannerProfessorDebrief(
+  projectId: string,
+  path: string,
+  payload: Record<string, unknown>
+): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/professor/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner Professor debrief request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return typeof data.debrief === "string" ? data.debrief : ""
+}
+
+export async function generatePlannerActivityDebrief(
+  projectId: string,
+  moduleIndex: number,
+  activityResult: Record<string, unknown>,
+  studyLanguage?: "English" | "Italian"
+): Promise<string> {
+  return postPlannerProfessorDebrief(projectId, "activity-debrief", {
+    module_index: moduleIndex,
+    activity_result: activityResult,
+    study_language: studyLanguage
+  })
+}
+
+export async function generatePlannerModuleDebrief(
+  projectId: string,
+  moduleIndex: number,
+  moduleResults: Record<string, unknown>,
+  studyLanguage?: "English" | "Italian"
+): Promise<string> {
+  return postPlannerProfessorDebrief(projectId, "module-debrief", {
+    module_index: moduleIndex,
+    module_results: moduleResults,
+    study_language: studyLanguage
+  })
+}
+
+export async function generatePlannerStudyPlanDebrief(
+  projectId: string,
+  studyPlanResults: Record<string, unknown>,
+  studyLanguage?: "English" | "Italian"
+): Promise<string> {
+  return postPlannerProfessorDebrief(projectId, "study-plan-debrief", {
+    study_plan_results: studyPlanResults,
+    study_language: studyLanguage
+  })
+}

@@ -11,6 +11,7 @@ import type {
   PlannerCompletedSessionResults,
   PlannerDailyPlan,
   PlannerDay,
+  PlannerModuleDebriefs,
   PlannerMockData,
   PlannerSessionResults
 } from "./planner/PlannerTypes"
@@ -34,6 +35,8 @@ export default function PlannerView({
     todaySessionCompleted: boolean
     sessionResults: PlannerSessionResults
     completedSessionResults: PlannerCompletedSessionResults
+    moduleDebriefs: PlannerModuleDebriefs
+    studyPlanDebrief: string
   }
   openPlannerDailySession: (dailyPlan: PlannerDailyPlan) => void
   launchPlannerActivity: (
@@ -113,7 +116,10 @@ export default function PlannerView({
       plannerData.dailyPlans[day.sessionIndex]
       || plannerData.todayPlan
 
-    openPlannerDailySession(selectedDailyPlan)
+    openPlannerDailySession({
+      ...selectedDailyPlan,
+      studyPlanModuleCount: plannerData.dailyPlans.length
+    })
   }
 
   const plannerDataWithLocalSessionState = applyRuntimeSessionResults(
@@ -122,6 +128,8 @@ export default function PlannerView({
     plannerRuntime.todaySessionCompleted,
     plannerRuntime.dailyPlan?.sessionIndex,
     plannerRuntime.completedSessionResults,
+    plannerRuntime.moduleDebriefs,
+    plannerRuntime.studyPlanDebrief,
     translate
   )
 
@@ -197,8 +205,14 @@ export default function PlannerView({
       <div style={container}>
         <section style={heroCard}>
           <div style={eyebrow}>{translate("stats.Professor Study Plan Review")}</div>
-          <h2 style={title}>{plannerData.weeklyReview.title}</h2>
-          <p style={paragraph}>{plannerData.weeklyReview.message}</p>
+          <h2 style={title}>
+            {translate(`stats.${plannerData.weeklyReview.title}`, {
+              defaultValue: plannerData.weeklyReview.title
+            })}
+          </h2>
+          {plannerData.weeklyReview.message && (
+            <p style={paragraph}>{plannerData.weeklyReview.message}</p>
+          )}
         </section>
 
         <section style={card}>
@@ -249,7 +263,8 @@ export default function PlannerView({
       <PlannerDailySession
         dailyPlan={applyRuntimeResultsToDailyPlan(
           plannerRuntime.dailyPlan,
-          plannerRuntime.sessionResults
+          plannerRuntime.sessionResults,
+          plannerRuntime.moduleDebriefs[plannerRuntime.dailyPlan.sessionIndex]
         )}
         mode="summary"
         onStartSession={() => {}}
@@ -272,6 +287,8 @@ function applyRuntimeSessionResults(
   sessionCompleted: boolean,
   completedSessionIndex?: number,
   completedSessionResults: PlannerCompletedSessionResults = {},
+  moduleDebriefs: PlannerModuleDebriefs = {},
+  studyPlanDebrief = "",
   translate: (key: string) => string = key => key
 ): PlannerMockData {
   const completedSessionIndexes = new Set(
@@ -296,9 +313,31 @@ function applyRuntimeSessionResults(
         : day
     ),
     statistics: buildRuntimeStatistics(weeklyResults, translate),
+    debriefs: plannerData.dailyPlans
+      .filter(plan => completedSessionIndexes.has(plan.sessionIndex))
+      .filter(plan => Boolean(moduleDebriefs[plan.sessionIndex] || plan.summary.professorDebrief))
+      .map(plan => {
+        const runtimePlan = applyRuntimeResultsToDailyPlan(
+          plan,
+          completedSessionResults[plan.sessionIndex],
+          moduleDebriefs[plan.sessionIndex]
+        )
+
+        return {
+          day: runtimePlan.day,
+          professorDebrief: runtimePlan.summary.professorDebrief || "",
+          sessionData: runtimePlan.summary.sessionData
+        }
+      }),
     todayPlan: sessionCompleted && completedSessionIndex !== undefined
       ? applyRuntimeResultsToDailyPlan(plannerData.todayPlan, results)
-      : plannerData.todayPlan
+      : plannerData.todayPlan,
+    weeklyReview: studyPlanDebrief
+      ? {
+          ...plannerData.weeklyReview,
+          message: studyPlanDebrief
+        }
+      : plannerData.weeklyReview
   }
 }
 
@@ -311,6 +350,10 @@ function aggregatePlannerSessionResults(
       quizzesCompleted: total.quizzesCompleted + result.quizzesCompleted,
       quizQuestions: total.quizQuestions + result.quizQuestions,
       quizCorrect: total.quizCorrect + result.quizCorrect,
+      activityResults: [
+        ...(total.activityResults || []),
+        ...(result.activityResults || [])
+      ],
       startedAtMs: earliestTimestamp(total.startedAtMs, result.startedAtMs),
       completedAtMs: latestTimestamp(total.completedAtMs, result.completedAtMs)
     }),
@@ -319,6 +362,7 @@ function aggregatePlannerSessionResults(
       quizzesCompleted: 0,
       quizQuestions: 0,
       quizCorrect: 0,
+      activityResults: [],
       startedAtMs: null,
       completedAtMs: null
     }
@@ -327,12 +371,14 @@ function aggregatePlannerSessionResults(
 
 function applyRuntimeResultsToDailyPlan(
   dailyPlan: PlannerDailyPlan,
-  results: PlannerSessionResults
+  results: PlannerSessionResults,
+  moduleDebrief = ""
 ): PlannerDailyPlan {
   return {
     ...dailyPlan,
     summary: {
       ...dailyPlan.summary,
+      professorDebrief: moduleDebrief || dailyPlan.summary.professorDebrief,
       sessionData: {
         ...dailyPlan.summary.sessionData,
         flashcards: results.flashcardsReviewed || dailyPlan.summary.sessionData.flashcards,

@@ -9,6 +9,10 @@ export default function HomeworkAccordion({
 }) {
   const { t: translate } = useTranslation()
 
+  if (homework.length === 0) {
+    return null
+  }
+
   return (
     <section style={section}>
       <div style={sectionLabel}>{translate("stats.Homework")}</div>

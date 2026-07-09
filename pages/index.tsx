@@ -16,9 +16,16 @@ import {
   resolveCategoryTopicObjects
 } from "../utils/topics";
 import { isCorrectQuizOption } from "../utils/quizAnswers";
+import {
+  generatePlannerActivityDebrief,
+  generatePlannerModuleDebrief,
+  generatePlannerStudyPlanDebrief
+} from "../services/plannerApi";
 import type {
+  PlannerActivityDebriefs,
   PlannerCompletedSessionResults,
   PlannerDailyPlan,
+  PlannerModuleDebriefs,
   PlannerSessionResults
 } from "../components/views/planner/PlannerTypes";
 import { dispatchPlannerActivity } from "../components/views/planner/plannerActivityDispatcher";
@@ -39,11 +46,15 @@ type PlannerRuntimeState = {
   todaySessionCompleted: boolean
   sessionResults: PlannerSessionResults
   completedSessionResults: PlannerCompletedSessionResults
+  activityDebriefs: PlannerActivityDebriefs
+  moduleDebriefs: PlannerModuleDebriefs
+  studyPlanDebrief: string
 }
 
 export default function Home() {
 const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
+const pollingRunRef = useRef(0)
 const router = useRouter()
 
 
@@ -173,7 +184,10 @@ const [plannerRuntime, setPlannerRuntime] =
     activityIndex: 0,
     todaySessionCompleted: false,
     sessionResults: emptyPlannerSessionResults(),
-    completedSessionResults: {}
+    completedSessionResults: {},
+    activityDebriefs: {},
+    moduleDebriefs: {},
+    studyPlanDebrief: ""
   })
 const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
 const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
@@ -614,10 +628,13 @@ async function pollTopicStatus(projectId:string): Promise<void>{
 
     console.log("🛑 CLEARING EXISTING POLL")
 
-    clearInterval(pollingRef.current)
+    clearTimeout(pollingRef.current)
 
     pollingRef.current = null
   }
+
+  const pollRunId = pollingRunRef.current + 1
+  pollingRunRef.current = pollRunId
 
   const { data:sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
@@ -632,6 +649,15 @@ async function pollTopicStatus(projectId:string): Promise<void>{
   console.log("🚨 STARTING TOPIC POLLING")
 
   return new Promise((resolve) => {
+  let resolved = false
+
+  const resolvePolling = () => {
+    if (resolved) return
+
+    resolved = true
+    resolve()
+  }
+
   const stopPolling = () => {
     if (pollingRef.current) {
       clearTimeout(pollingRef.current)
@@ -640,7 +666,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
   }
 
   const checkTopicStatus = async () => {
-    if (isPolling) return
+    if (resolved || pollRunId !== pollingRunRef.current || isPolling) return
     isPolling = true
 
     attempts += 1
@@ -664,7 +690,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
 
       console.error("TOPIC STATUS FAILED")
 
-      resolve()
+      resolvePolling()
       return
     }
 
@@ -681,6 +707,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
     ){
 
       stopPolling()
+      pollingRunRef.current = pollRunId + 1
 
       console.log("🛑 POLLING STOPPED")
 
@@ -700,12 +727,8 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         console.log("🧪 loadTopics FINISHED")
         console.log("✅ TOPICS LOADED")
 
-        setStatus("Project loaded successfully")
-
-        setTimeout(() => {
-          setStatus("")
-        }, 1200)
-        resolve()
+        setStatus("Project upload completed")
+        resolvePolling()
 
       } catch(err){
 
@@ -714,7 +737,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         setUploadLog("")
         setUploadStatus("Topics ready, but loading topics failed")
         setStatus("")
-        resolve()
+        resolvePolling()
 
       }
 
@@ -730,9 +753,10 @@ async function pollTopicStatus(projectId:string): Promise<void>{
     ){
 
       stopPolling()
+      pollingRunRef.current = pollRunId + 1
 
       setActiveView("upload_error")
-      resolve()
+      resolvePolling()
 
       return
     }
@@ -743,7 +767,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
       stopPolling()
 
       setUploadStatus("Topic generation timeout")
-      resolve()
+      resolvePolling()
     }
     } catch(err){
 
@@ -753,7 +777,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
       isPolling = false
     }
 
-    if (pollingRef.current) {
+    if (!resolved && pollRunId === pollingRunRef.current) {
       pollingRef.current = setTimeout(checkTopicStatus, 3000)
     }
   }
@@ -1392,6 +1416,106 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     })
   }
 
+  async function requestPlannerActivityDebrief(
+    dailyPlan: PlannerDailyPlan,
+    activityIndex: number,
+    activityResult: Record<string, unknown>
+  ) {
+    const activity = dailyPlan.activities[activityIndex]
+
+    if (!projectId || !activity) {
+      return ""
+    }
+
+    try {
+      const debrief = await generatePlannerActivityDebrief(
+        projectId,
+        dailyPlan.sessionIndex + 1,
+        activityResult,
+        plannerStudyLanguage(i18n.language)
+      )
+
+      if (debrief) {
+        setPlannerRuntime(prev => ({
+          ...prev,
+          activityDebriefs: {
+            ...prev.activityDebriefs,
+            [String(activity.id)]: debrief
+          }
+        }))
+      }
+
+      return debrief
+    } catch (error) {
+      console.error("PLANNER ACTIVITY DEBRIEF ERROR:", error)
+      return ""
+    }
+  }
+
+  async function requestPlannerModuleDebrief(
+    dailyPlan: PlannerDailyPlan,
+    moduleResults: PlannerSessionResults
+  ) {
+    if (!projectId) {
+      return ""
+    }
+
+    try {
+      const debrief = await generatePlannerModuleDebrief(
+        projectId,
+        dailyPlan.sessionIndex + 1,
+        {
+          activity_results: moduleResults.activityResults || [],
+          flashcards_reviewed: moduleResults.flashcardsReviewed,
+          quizzes_completed: moduleResults.quizzesCompleted,
+          quiz_questions: moduleResults.quizQuestions,
+          quiz_correct: moduleResults.quizCorrect,
+          accuracy: moduleResults.quizQuestions > 0
+            ? moduleResults.quizCorrect / moduleResults.quizQuestions
+            : null
+        },
+        plannerStudyLanguage(i18n.language)
+      )
+
+      return debrief
+    } catch (error) {
+      console.error("PLANNER MODULE DEBRIEF ERROR:", error)
+      return ""
+    }
+  }
+
+  async function requestPlannerStudyPlanDebrief(
+    completedSessionResults: PlannerCompletedSessionResults
+  ) {
+    if (!projectId) {
+      return ""
+    }
+
+    try {
+      const moduleResults = Object.entries(completedSessionResults)
+        .sort(([left], [right]) => Number(left) - Number(right))
+        .map(([, result]) => ({
+          activity_results: result.activityResults || [],
+          flashcards_reviewed: result.flashcardsReviewed,
+          quizzes_completed: result.quizzesCompleted,
+          quiz_questions: result.quizQuestions,
+          quiz_correct: result.quizCorrect,
+          accuracy: result.quizQuestions > 0
+            ? result.quizCorrect / result.quizQuestions
+            : null
+        }))
+
+      return await generatePlannerStudyPlanDebrief(
+        projectId,
+        { module_results: moduleResults },
+        plannerStudyLanguage(i18n.language)
+      )
+    } catch (error) {
+      console.error("PLANNER STUDY PLAN DEBRIEF ERROR:", error)
+      return ""
+    }
+  }
+
   async function completePlannerActivity() {
     const dailyPlan = plannerRuntime.dailyPlan
 
@@ -1406,26 +1530,41 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       return
     }
 
-    setPlannerRuntime(prev => {
-      const completedAtMs = Date.now()
-      const completedResults = {
-        ...prev.sessionResults,
-        completedAtMs
-      }
-      const completedSessionIndex =
-        prev.dailyPlan?.sessionIndex ?? dailyPlan.sessionIndex
+    const completedAtMs = Date.now()
+    const completedResults = {
+      ...plannerRuntime.sessionResults,
+      completedAtMs
+    }
+    const completedSessionIndex = dailyPlan.sessionIndex
+    const moduleDebrief = await requestPlannerModuleDebrief(
+      dailyPlan,
+      completedResults
+    )
+    const completedSessionResults = {
+      ...plannerRuntime.completedSessionResults,
+      [completedSessionIndex]: completedResults
+    }
+    const allModulesCompleted =
+      Boolean(dailyPlan.studyPlanModuleCount)
+      && Object.keys(completedSessionResults).length >= (dailyPlan.studyPlanModuleCount || 0)
+    const studyPlanDebrief = allModulesCompleted
+      ? await requestPlannerStudyPlanDebrief(completedSessionResults)
+      : ""
 
-      return {
-        ...prev,
-        mode: "summary",
-        todaySessionCompleted: true,
-        sessionResults: completedResults,
-        completedSessionResults: {
-          ...prev.completedSessionResults,
-          [completedSessionIndex]: completedResults
-        }
-      }
-    })
+    setPlannerRuntime(prev => ({
+      ...prev,
+      mode: "summary",
+      todaySessionCompleted: true,
+      sessionResults: completedResults,
+      completedSessionResults,
+      moduleDebriefs: moduleDebrief
+        ? {
+            ...prev.moduleDebriefs,
+            [completedSessionIndex]: moduleDebrief
+          }
+        : prev.moduleDebriefs,
+      studyPlanDebrief: studyPlanDebrief || prev.studyPlanDebrief
+    }))
     setActiveView("planner_view")
   }
 
@@ -1451,7 +1590,24 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     ) {
       const activityId = String(activity.id)
       if (!plannerCompletedActivityIdsRef.current.has(activityId)) {
+        if (!plannerRuntime.dailyPlan) {
+          return
+        }
+
         plannerCompletedActivityIdsRef.current.add(activityId)
+        const reviewedCount = plannerReviewedFlashcardsRef.current.size
+        const activityResult = {
+          activity_id: activity.id,
+          activity_type: "flashcards",
+          completed: true,
+          cards: reviewedCount,
+          num_cards: reviewedCount
+        }
+        await requestPlannerActivityDebrief(
+          plannerRuntime.dailyPlan,
+          plannerRuntime.activityIndex,
+          activityResult
+        )
         setPlannerRuntime(prev => ({
           ...prev,
           mode: "activity_review",
@@ -1459,7 +1615,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
             ...prev.sessionResults,
             flashcardsReviewed:
               prev.sessionResults.flashcardsReviewed
-              + plannerReviewedFlashcardsRef.current.size
+              + reviewedCount,
+            activityResults: [
+              ...(prev.sessionResults.activityResults || []),
+              activityResult
+            ]
           }
         }))
       }
@@ -1480,6 +1640,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       quizzesCompleted: 0,
       quizQuestions: 0,
       quizCorrect: 0,
+      activityResults: [],
       startedAtMs: null,
       completedAtMs: null
     }
@@ -1679,8 +1840,27 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         ) {
           const activityId = String(plannerActivity.id)
           if (!plannerCompletedActivityIdsRef.current.has(activityId)) {
+            if (!plannerRuntime.dailyPlan) {
+              return
+            }
+
             plannerCompletedActivityIdsRef.current.add(activityId)
             const correctCount = calculateScore()
+            const activityResult = {
+              activity_id: plannerActivity.id,
+              activity_type: "quiz",
+              completed: true,
+              correct: correctCount,
+              total: quiz.length,
+              questions: quiz.length,
+              num_questions: quiz.length,
+              accuracy: quiz.length > 0 ? correctCount / quiz.length : null
+            }
+            await requestPlannerActivityDebrief(
+              plannerRuntime.dailyPlan,
+              plannerRuntime.activityIndex,
+              activityResult
+            )
             setPlannerRuntime(prev => ({
               ...prev,
               mode: "activity_review",
@@ -1688,7 +1868,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
                 ...prev.sessionResults,
                 quizzesCompleted: prev.sessionResults.quizzesCompleted + 1,
                 quizQuestions: prev.sessionResults.quizQuestions + quiz.length,
-                quizCorrect: prev.sessionResults.quizCorrect + correctCount
+                quizCorrect: prev.sessionResults.quizCorrect + correctCount,
+                activityResults: [
+                  ...(prev.sessionResults.activityResults || []),
+                  activityResult
+                ]
               }
             }))
           }
@@ -1697,6 +1881,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       } catch (err) {
           console.error("❌ CRASH nella funzione submitQuiz:", err);
       }
+  }
+
+  function plannerStudyLanguage(language: string): "English" | "Italian" {
+    return language.toLowerCase().startsWith("it") ? "Italian" : "English"
   }
     
   return (
@@ -1840,6 +2028,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         onPlannerFlashcardReview={handlePlannerFlashcardReview}
         continuePlannerActivity={completePlannerActivity}
         returnToPlannerDashboard={returnToPlannerDashboard}
+        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
         
         
       />

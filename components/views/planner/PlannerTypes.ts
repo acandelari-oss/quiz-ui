@@ -69,6 +69,7 @@ export type PlannerDailyPlan = {
   day: string
   date: string
   sessionIndex: number
+  studyPlanModuleCount?: number
   objective: string
   briefing: string
   activities: PlannerActivity[]
@@ -80,13 +81,13 @@ export type PlannerDailyPlan = {
       time: string
       focus: string
     }
-    professorDebrief: string
+    professorDebrief?: string
     homeworkRecommendations: string[]
-    activeRecall: {
+    activeRecall?: {
       title: string
       message: string
     }
-    officeHours: {
+    officeHours?: {
       title: string
       message: string
     }
@@ -98,11 +99,16 @@ export type PlannerSessionResults = {
   quizzesCompleted: number
   quizQuestions: number
   quizCorrect: number
+  activityResults?: Array<Record<string, unknown>>
   startedAtMs?: number | null
   completedAtMs?: number | null
 }
 
 export type PlannerCompletedSessionResults = Record<number, PlannerSessionResults>
+
+export type PlannerActivityDebriefs = Record<string, string>
+
+export type PlannerModuleDebriefs = Record<number, string>
 
 export type PlannerMockData = {
   state: PlannerUiState

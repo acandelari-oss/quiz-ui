@@ -15,8 +15,12 @@ export default function WeeklyStatistics({
         {statistics.map(stat => (
           <div key={stat.label} style={statCard}>
             <div style={statValue}>{stat.value}</div>
-            <div style={statLabel}>{stat.label}</div>
-            <div style={statDetail}>{stat.detail}</div>
+            <div style={statLabel}>
+              {translate(`stats.${stat.label}`, { defaultValue: stat.label })}
+            </div>
+            <div style={statDetail}>
+              {translate(`stats.${stat.detail}`, { defaultValue: stat.detail })}
+            </div>
           </div>
         ))}
       </div>
