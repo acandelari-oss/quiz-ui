@@ -6,6 +6,7 @@ import SummaryViewNew from "./views/SummaryView"
 import ActiveRecallView from "./views/ActiveRecallView"
 import { useState, useEffect } from "react"
 import StudySessionView from "./views/StudySessionView"
+import PlannerView from "./views/PlannerView"
 import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
@@ -85,6 +86,14 @@ setUseGlobalKnowledge,
 toolMode,
 setToolMode,
 studyConfig,
+generateQuiz,
+generateFlashcards,
+plannerRuntime,
+openPlannerDailySession,
+launchPlannerActivity,
+onPlannerFlashcardReview,
+continuePlannerActivity,
+returnToPlannerDashboard,
 
 
 
@@ -855,11 +864,21 @@ return (
           </div>
         ) : flashcards && flashcards.length > 0 ? (
           /* 3. Visualizzazione Flashcards (Se i dati sono pronti) */
-          <FlashcardsView
-            flashcards={flashcards}
-            openCard={openCard}
-            setOpenCard={setOpenCard}
-          />
+          <>
+            {plannerRuntime?.mode === "activity_review" && (
+              <PlannerActivityReviewCheckpoint
+                title="Flashcards completed"
+                message="Review the completed flashcards, then continue when you are ready."
+                onContinue={continuePlannerActivity}
+              />
+            )}
+            <FlashcardsView
+              flashcards={flashcards}
+              openCard={openCard}
+              setOpenCard={setOpenCard}
+              onReview={onPlannerFlashcardReview}
+            />
+          </>
         ) : (
           /* 4. Schermata di Benvenuto/Generate (Contenuto ripristinato) */
           <div style={{
@@ -1053,6 +1072,13 @@ return (
             <HintBox
               text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
             />
+            {plannerRuntime?.mode === "activity_review" && (
+              <PlannerActivityReviewCheckpoint
+                title="Quiz review"
+                message="Review your answers, explanations, sources, and question chat before continuing."
+                onContinue={continuePlannerActivity}
+              />
+            )}
             <QuizView
               quiz={quiz}
               answers={answers}
@@ -1242,114 +1268,14 @@ return (
     {/* ========================= */}
 
     {activeView === "planner_view" && (
-
-      <div style={{
-        padding: 30,
-        color: "white"
-      }}>
-
-        <h2 style={{
-          fontSize: 28,
-          fontWeight: 700,
-          marginBottom: 24
-        }}>
-          📅 Weekly Study Planner
-        </h2>
-
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 18
-        }}>
-
-          {[
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday"
-          ].map((day, i) => (
-
-            <div
-              key={i}
-              style={{
-                background: "#111827",
-                border: "1px solid #374151",
-                borderRadius: 12,
-                padding: 18,
-                minHeight: 240,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between"
-              }}
-            >
-
-              <div>
-
-                <div style={{
-                  fontSize: 14,
-                  color: "#9ca3af",
-                  marginBottom: 12
-                }}>
-                  {day}
-                </div>
-
-                <div style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  marginBottom: 10
-                }}>
-                  Biochemistry
-                </div>
-
-                <div style={{
-                  fontSize: 13,
-                  color: "#cbd5e1",
-                  marginBottom: 16
-                }}>
-                  ~ 45 min
-                </div>
-
-                <div style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  fontSize: 13,
-                  color: "#e5e7eb"
-                }}>
-
-                  <div>• Flashcards</div>
-                  <div>• Recall</div>
-                  <div>• Quiz</div>
-
-                </div>
-
-              </div>
-
-              <button
-                style={{
-                  marginTop: 20,
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #22c55e",
-                  background: "transparent",
-                  color: "#22c55e",
-                  cursor: "pointer",
-                  fontWeight: 600
-                }}
-              >
-                Start Daily Session
-              </button>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </div>
-
+      <PlannerView
+        projectId={projectId}
+        topics={topics}
+        plannerRuntime={plannerRuntime}
+        openPlannerDailySession={openPlannerDailySession}
+        launchPlannerActivity={launchPlannerActivity}
+        returnToPlannerDashboard={returnToPlannerDashboard}
+      />
     )}
     {/* RESULTS */}
     {/* RESULTS & SUMMARY UNITI */}
@@ -1374,7 +1300,32 @@ return (
 </div>
 </div>  
 
-)
+  )
+}
+
+function PlannerActivityReviewCheckpoint({
+  title,
+  message,
+  onContinue
+}: {
+  title: string
+  message: string
+  onContinue: () => void
+}) {
+  return (
+    <div style={plannerReviewCheckpoint}>
+      <div>
+        <div style={plannerReviewTitle}>🎉 {title}</div>
+        <div style={plannerReviewMessage}>{message}</div>
+      </div>
+      <button
+        onClick={onContinue}
+        style={plannerReviewButton}
+      >
+        Continue to next exercise
+      </button>
+    </div>
+  )
 }
 
 
@@ -1413,6 +1364,42 @@ fontWeight:600
 const loaderSubtitle = {
 color:"#9ca3af",
 marginTop:6
+}
+
+const plannerReviewCheckpoint = {
+background: "#052b2a",
+border: "1px solid #0e6c69",
+borderRadius: 14,
+padding: 18,
+marginBottom: 20,
+display: "flex",
+alignItems: "center",
+justifyContent: "space-between",
+gap: 16,
+flexWrap: "wrap" as const
+}
+
+const plannerReviewTitle = {
+color: "#36F2ED",
+fontSize: 18,
+fontWeight: 900,
+marginBottom: 4
+}
+
+const plannerReviewMessage = {
+color: "#cbd5e1",
+fontSize: 14,
+lineHeight: 1.5
+}
+
+const plannerReviewButton = {
+background: "#2b7dcb",
+border: "none",
+borderRadius: 10,
+color: "white",
+cursor: "pointer",
+fontWeight: 800,
+padding: "12px 18px"
 }
 
 const styleSheet = typeof document !== "undefined" && document.createElement("style")

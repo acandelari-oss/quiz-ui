@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { isCorrectQuizOption } from "@/utils/quizAnswers"
 
 export default function QuizView({
   quiz,
@@ -139,15 +140,7 @@ ${input}
               const selected = answers[i] === opt
               console.log("finished:", finished)
 
-              const correctRaw = (q.correct ?? "").toString().trim()
-              const optTextNorm = opt?.toString().trim().toLowerCase()
-              const correctTextNorm = correctRaw.toLowerCase()
-              const optLetter = String.fromCharCode(65 + j)
-
-              const correct =
-                correctTextNorm === optTextNorm ||
-                correctRaw === optLetter ||
-                String(Number(correctRaw)) === String(j)
+              const correct = isCorrectQuizOption(q, j)
 
               let background = "#020617"
 

@@ -73,6 +73,7 @@ uploadStatus,
 toolMode,
 questionStyle,
 setQuestionStyle,
+plannerSessionActive = false,
 
 
 }: any) {
@@ -309,6 +310,12 @@ setQuestionStyle,
         </div>
       </div>
     )}
+
+      {plannerSessionActive && (
+        <div style={plannerSessionNotice}>
+          You are currently following a Planner session.
+        </div>
+      )}
 
       {/* ========================= */}
       {/* CREATE PROJECT */}
@@ -573,7 +580,7 @@ setQuestionStyle,
       {/* GENERATE FLASHCARDS VIEW  */}
       {/* ========================= */}
       
-      {activeView === "generate_flashcards" && (
+      {activeView === "generate_flashcards" && !plannerSessionActive && (
         <>
           <h3 style={{
             fontSize: 15,
@@ -626,7 +633,7 @@ setQuestionStyle,
       {/* ========================= */}
       {/* STUDY FLASHCARDS VIEW     */}
       {/* ========================= */}
-      {activeView === "flashcards" && (
+      {activeView === "flashcards" && !plannerSessionActive && (
         <div style={{ padding: "0px" }}> {/* Rimosso padding extra per allineare allo stile */}
           <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
             {translate('stats.Flashcard Settings')}
@@ -832,63 +839,9 @@ setQuestionStyle,
           </>
         )}
       {/* ========================= */}
-      {/* PLANNER SETUP */}
-      {/* ========================= */}
-
-      {activeView === "planner" && (
-        <>
-          <h3 style={{
-            fontSize: 15,
-            fontWeight: 600,
-            marginBottom: 12
-          }}>
-            Weekly Study Planner
-          </h3>
-
-          <p style={{
-            color: "#9ca3af",
-            fontSize: 13,
-            lineHeight: 1.6,
-            marginBottom: 20
-          }}>
-            Generate a fixed weekly study plan based on your weakest topics and study progress.
-          </p>
-
-          <div style={{
-            padding: 12,
-            border: "1px solid #374151",
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.03)",
-            marginBottom: 20
-          }}>
-
-            <div style={{
-              fontSize: 13,
-              marginBottom: 8
-            }}>
-              Weekly intensity
-            </div>
-
-            <select style={input}>
-              <option>Light</option>
-              <option>Balanced</option>
-              <option>Intensive</option>
-            </select>
-
-          </div>
-
-          <button
-            onClick={() => setActiveView("planner_view")}
-            style={button}
-          >
-            Generate Weekly Plan
-          </button>
-        </>
-      )}
-      {/* ========================= */}
       {/* QUIZ */}
       {/* ========================= */}
-      {activeView === "quiz" && (
+      {activeView === "quiz" && !plannerSessionActive && (
         <>
           <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>{translate('stats.Generate Quiz')}</h3>
 
@@ -963,6 +916,16 @@ setQuestionStyle,
           </button>
         </>
       )}
+
+      {plannerSessionActive && (
+        activeView === "generate_flashcards"
+        || activeView === "flashcards"
+        || activeView === "quiz"
+      ) && (
+        <div style={plannerSessionMutedBox}>
+          Quiz and flashcard controls are paused while the Planner is guiding this session.
+        </div>
+      )}
       
 
       {status && (
@@ -986,6 +949,28 @@ const panel: React.CSSProperties = {
   overflowY: "auto" as const,
   color: "white",
   zIndex: 2
+}
+
+const plannerSessionNotice: React.CSSProperties = {
+  background: "#052b2a",
+  border: "1px solid #0e6c69",
+  color: "#36F2ED",
+  borderRadius: 10,
+  padding: "10px 12px",
+  fontSize: 13,
+  fontWeight: 700,
+  lineHeight: 1.5,
+  marginBottom: 16
+}
+
+const plannerSessionMutedBox: React.CSSProperties = {
+  background: "#111827",
+  border: "1px solid #374151",
+  color: "#9ca3af",
+  borderRadius: 10,
+  padding: 14,
+  fontSize: 13,
+  lineHeight: 1.6
 }
 
 const input: React.CSSProperties = {

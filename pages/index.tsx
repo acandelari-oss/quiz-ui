@@ -12,8 +12,34 @@ import { useTranslation } from "react-i18next";
 import {
   extractTopicIds,
   extractTopicNames,
-  normalizeTopic
+  normalizeTopic,
+  resolveCategoryTopicObjects
 } from "../utils/topics";
+import { isCorrectQuizOption } from "../utils/quizAnswers";
+import type {
+  PlannerCompletedSessionResults,
+  PlannerDailyPlan,
+  PlannerSessionResults
+} from "../components/views/planner/PlannerTypes";
+import { dispatchPlannerActivity } from "../components/views/planner/plannerActivityDispatcher";
+
+type LearningGenerationOverrides = {
+  selectedTopics?: any[]
+  selectedTopic?: any
+  numQuestions?: number
+  numCards?: number
+  difficulty?: string
+  questionStyle?: string
+}
+
+type PlannerRuntimeState = {
+  mode: "dashboard" | "daily_briefing" | "external_activity" | "activity_review" | "summary"
+  dailyPlan: PlannerDailyPlan | null
+  activityIndex: number
+  todaySessionCompleted: boolean
+  sessionResults: PlannerSessionResults
+  completedSessionResults: PlannerCompletedSessionResults
+}
 
 export default function Home() {
 const { i18n } = useTranslation();
@@ -140,6 +166,17 @@ const [studyConfig, setStudyConfig] = useState({
 })
 const [questionStyle, setQuestionStyle] =
   useState("balanced")
+const [plannerRuntime, setPlannerRuntime] =
+  useState<PlannerRuntimeState>({
+    mode: "dashboard",
+    dailyPlan: null,
+    activityIndex: 0,
+    todaySessionCompleted: false,
+    sessionResults: emptyPlannerSessionResults(),
+    completedSessionResults: {}
+  })
+const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
+const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
 
 const loaderMessages = {
   quiz: [
@@ -496,9 +533,9 @@ const res = await fetch(
     setUploading(false);
     setUploadStatus("Files uploaded successfully! Processing topics...");
 
-    // Carichiamo i documenti e i topic (in ordine)
+    // Topic processing is the completion signal for upload ingestion.
+    await pollTopicStatus(projectId);
     await loadDocuments(projectId);
-    await pollTopicStatus(projectId); 
 
     // Pulizia estetica del log dopo un po'
     setTimeout(() => {
@@ -570,7 +607,7 @@ async function loadTopics(projectId:string){
   }
 }
 
-async function pollTopicStatus(projectId:string){
+async function pollTopicStatus(projectId:string): Promise<void>{
   console.log("🧨 pollTopicStatus CALLED")
 
   if (pollingRef.current) {
@@ -594,9 +631,17 @@ async function pollTopicStatus(projectId:string){
 
   console.log("🚨 STARTING TOPIC POLLING")
 
-  console.log("🚀 STARTING NEW POLLING INTERVAL")
+  return new Promise((resolve) => {
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current)
+      pollingRef.current = null
+    }
+  }
 
-  pollingRef.current = setInterval(async () => {
+  const checkTopicStatus = async () => {
+    if (isPolling) return
+    isPolling = true
 
     attempts += 1
     console.log("🔢 POLLING ATTEMPT:", attempts)
@@ -615,11 +660,11 @@ async function pollTopicStatus(projectId:string){
 
     if(!res.ok){
 
-      clearInterval(pollingRef.current)
-      pollingRef.current = null
+      stopPolling()
 
       console.error("TOPIC STATUS FAILED")
 
+      resolve()
       return
     }
 
@@ -635,11 +680,9 @@ async function pollTopicStatus(projectId:string){
         .toLowerCase() === "completed"
     ){
 
-      clearInterval(pollingRef.current)
+      stopPolling()
 
       console.log("🛑 POLLING STOPPED")
-
-      pollingRef.current = null
 
       console.log("🟢 TOPIC GENERATION COMPLETED")
       console.log("🧪 ENTERED COMPLETED BLOCK")
@@ -662,6 +705,7 @@ async function pollTopicStatus(projectId:string){
         setTimeout(() => {
           setStatus("")
         }, 1200)
+        resolve()
 
       } catch(err){
 
@@ -670,6 +714,7 @@ async function pollTopicStatus(projectId:string){
         setUploadLog("")
         setUploadStatus("Topics ready, but loading topics failed")
         setStatus("")
+        resolve()
 
       }
 
@@ -684,11 +729,10 @@ async function pollTopicStatus(projectId:string){
         .toLowerCase() === "error"
     ){
 
-      clearInterval(pollingRef.current)
-
-      pollingRef.current = null
+      stopPolling()
 
       setActiveView("upload_error")
+      resolve()
 
       return
     }
@@ -696,19 +740,27 @@ async function pollTopicStatus(projectId:string){
     if(attempts >= maxAttempts){
       console.log("⏰ POLLING TIMEOUT REACHED")
       console.log("🔢 FINAL ATTEMPT:", attempts)
-      clearInterval(pollingRef.current)
-
-      pollingRef.current = null
+      stopPolling()
 
       setUploadStatus("Topic generation timeout")
+      resolve()
     }
     } catch(err){
 
       console.error("❌ POLLING LOOP ERROR:", err)
 
+    } finally {
+      isPolling = false
     }
-  }, 3000)
-      }
+
+    if (pollingRef.current) {
+      pollingRef.current = setTimeout(checkTopicStatus, 3000)
+    }
+  }
+
+  pollingRef.current = setTimeout(checkTopicStatus, 0)
+  })
+}
 
 async function loadPreviousQuizzes(projectId: string) {
   const { data: sessionData } = await supabase.auth.getSession()
@@ -1038,7 +1090,7 @@ async function selectProject(id: string) {
   }
 }
 
-async function generateQuiz() {
+async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
     console.log("🚨 GENERATE QUIZ CLICKED");
     console.log("GENERATE QUIZ FUNCTION RUNNING")
@@ -1063,11 +1115,26 @@ async function generateQuiz() {
       setGeneratingQuiz(false)
       return
     }
-    console.log("🧠 SELECTED TOPICS RAW:", selectedTopics)
+    const effectiveSelectedTopics =
+      Object.prototype.hasOwnProperty.call(overrides, "selectedTopics")
+        ? overrides.selectedTopics || []
+        : selectedTopics
+    const effectiveSelectedTopic =
+      Object.prototype.hasOwnProperty.call(overrides, "selectedTopic")
+        ? overrides.selectedTopic
+        : selectedTopic
+    const effectiveNumQuestions =
+      overrides.numQuestions ?? numQuestions
+    const effectiveDifficulty =
+      overrides.difficulty ?? difficulty
+    const effectiveQuestionStyle =
+      overrides.questionStyle ?? questionStyle
 
-    if (selectedTopics?.length > 0) {
-      console.log("🧠 FIRST TOPIC:", selectedTopics[0])
-      console.log("🧠 TYPE:", typeof selectedTopics[0])
+    console.log("🧠 SELECTED TOPICS RAW:", effectiveSelectedTopics)
+
+    if (effectiveSelectedTopics?.length > 0) {
+      console.log("🧠 FIRST TOPIC:", effectiveSelectedTopics[0])
+      console.log("🧠 TYPE:", typeof effectiveSelectedTopics[0])
     }
     try {
 
@@ -1081,16 +1148,16 @@ async function generateQuiz() {
           : "English"
       )
       const payloadTopicIds =
-        selectedTopics && selectedTopics.length > 0
-          ? extractTopicIds(selectedTopics)
-          : selectedTopic?.id
-            ? [String(selectedTopic.id)]
+        effectiveSelectedTopics && effectiveSelectedTopics.length > 0
+          ? extractTopicIds(effectiveSelectedTopics)
+          : effectiveSelectedTopic?.id
+            ? [String(effectiveSelectedTopic.id)]
             : []
       const payloadTopicNames =
-        selectedTopics && selectedTopics.length > 0
-          ? extractTopicNames(selectedTopics)
-          : selectedTopic?.topic
-            ? [selectedTopic.topic]
+        effectiveSelectedTopics && effectiveSelectedTopics.length > 0
+          ? extractTopicNames(effectiveSelectedTopics)
+          : effectiveSelectedTopic?.topic
+            ? [effectiveSelectedTopic.topic]
             : []
 
       console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
@@ -1105,16 +1172,16 @@ async function generateQuiz() {
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
-            num_questions: numQuestions,
+            num_questions: effectiveNumQuestions,
 
-            difficulty: difficulty,
+            difficulty: effectiveDifficulty,
             
             language:
               i18n.language.startsWith("it")
                 ? "Italian"
                 : "English",
 
-            question_style: questionStyle,
+            question_style: effectiveQuestionStyle,
 
             topic_ids: payloadTopicIds,
             topics: payloadTopicNames,
@@ -1171,7 +1238,7 @@ async function generateQuiz() {
 }
 
   // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
-  async function generateFlashcards() {
+  async function generateFlashcards(overrides: LearningGenerationOverrides = {}) {
     console.log("GENERATE FLASHCARDS FUNCTION RUNNING");
     if (!projectId) return;
 
@@ -1199,21 +1266,32 @@ async function generateQuiz() {
     // LOGICA DI SELEZIONE TOPIC: 
     // Se c'è un topic selezionato nella dashboard (filtro attivo), usa solo quello.
     // Altrimenti usa la lista di topic selezionati manualmente.
+    const effectiveSelectedTopics =
+      Object.prototype.hasOwnProperty.call(overrides, "selectedTopics")
+        ? overrides.selectedTopics || []
+        : selectedTopics
+    const effectiveSelectedTopic =
+      Object.prototype.hasOwnProperty.call(overrides, "selectedTopic")
+        ? overrides.selectedTopic
+        : selectedTopic
+    const effectiveNumCards =
+      overrides.numCards ?? overrides.numQuestions ?? numQuestions
+
     const finalTopics =
-      selectedTopics && selectedTopics.length > 0
-        ? extractTopicNames(selectedTopics)
+      effectiveSelectedTopics && effectiveSelectedTopics.length > 0
+        ? extractTopicNames(effectiveSelectedTopics)
         : (
-            typeof selectedTopic === "string"
-              ? [selectedTopic.trim()]
-              : selectedTopic?.topic
-                ? [selectedTopic.topic.trim()]
+            typeof effectiveSelectedTopic === "string"
+              ? [effectiveSelectedTopic.trim()]
+              : effectiveSelectedTopic?.topic
+                ? [effectiveSelectedTopic.topic.trim()]
                 : []
           );
     const payloadTopicIds =
-      selectedTopics && selectedTopics.length > 0
-        ? extractTopicIds(selectedTopics)
-        : selectedTopic?.id
-          ? [String(selectedTopic.id)]
+      effectiveSelectedTopics && effectiveSelectedTopics.length > 0
+        ? extractTopicIds(effectiveSelectedTopics)
+        : effectiveSelectedTopic?.id
+          ? [String(effectiveSelectedTopic.id)]
           : []
 
     console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
@@ -1234,7 +1312,7 @@ async function generateQuiz() {
 
             topics: finalTopics,
 
-            num_cards: numQuestions || 10
+            num_cards: effectiveNumCards || 10
 
           })
         }
@@ -1268,6 +1346,144 @@ async function generateQuiz() {
       setIsGenerating(false);
     }
 }
+
+  function openPlannerDailySession(dailyPlan: PlannerDailyPlan) {
+    plannerReviewedFlashcardsRef.current = new Set()
+    plannerCompletedActivityIdsRef.current = new Set()
+    setPlannerRuntime(prev => ({
+      ...prev,
+      mode: "daily_briefing",
+      dailyPlan,
+      activityIndex: 0,
+      todaySessionCompleted: false,
+      sessionResults: emptyPlannerSessionResults()
+    }))
+    setActiveView("planner_view")
+  }
+
+  async function launchPlannerActivity(
+    dailyPlan: PlannerDailyPlan,
+    activityIndex: number
+  ) {
+    const activity = dailyPlan.activities[activityIndex]
+
+    if (!activity) {
+      return
+    }
+
+    setPlannerRuntime(prev => ({
+      ...prev,
+      mode: "external_activity",
+      dailyPlan,
+      activityIndex,
+      sessionResults: {
+        ...prev.sessionResults,
+        startedAtMs: prev.sessionResults.startedAtMs || Date.now()
+      }
+    }))
+
+    await dispatchPlannerActivity({
+      activity,
+      generateFlashcards,
+      generateQuiz,
+      onFlashcardsStart: () => {
+        plannerReviewedFlashcardsRef.current = new Set()
+      }
+    })
+  }
+
+  async function completePlannerActivity() {
+    const dailyPlan = plannerRuntime.dailyPlan
+
+    if (!dailyPlan) {
+      return
+    }
+
+    const nextActivityIndex = plannerRuntime.activityIndex + 1
+
+    if (nextActivityIndex < dailyPlan.activities.length) {
+      await launchPlannerActivity(dailyPlan, nextActivityIndex)
+      return
+    }
+
+    setPlannerRuntime(prev => {
+      const completedAtMs = Date.now()
+      const completedResults = {
+        ...prev.sessionResults,
+        completedAtMs
+      }
+      const completedSessionIndex =
+        prev.dailyPlan?.sessionIndex ?? dailyPlan.sessionIndex
+
+      return {
+        ...prev,
+        mode: "summary",
+        todaySessionCompleted: true,
+        sessionResults: completedResults,
+        completedSessionResults: {
+          ...prev.completedSessionResults,
+          [completedSessionIndex]: completedResults
+        }
+      }
+    })
+    setActiveView("planner_view")
+  }
+
+  async function handlePlannerFlashcardReview(
+    flashcardId: string | number
+  ) {
+    const activity = plannerRuntime.dailyPlan
+      ?.activities[plannerRuntime.activityIndex]
+
+    if (
+      plannerRuntime.mode !== "external_activity"
+      || activity?.type !== "flashcards"
+      || !flashcardId
+    ) {
+      return
+    }
+
+    plannerReviewedFlashcardsRef.current.add(String(flashcardId))
+
+    if (
+      plannerReviewedFlashcardsRef.current.size >= flashcards.length
+      && flashcards.length > 0
+    ) {
+      const activityId = String(activity.id)
+      if (!plannerCompletedActivityIdsRef.current.has(activityId)) {
+        plannerCompletedActivityIdsRef.current.add(activityId)
+        setPlannerRuntime(prev => ({
+          ...prev,
+          mode: "activity_review",
+          sessionResults: {
+            ...prev.sessionResults,
+            flashcardsReviewed:
+              prev.sessionResults.flashcardsReviewed
+              + plannerReviewedFlashcardsRef.current.size
+          }
+        }))
+      }
+    }
+  }
+
+  function returnToPlannerDashboard() {
+    setPlannerRuntime(prev => ({
+      ...prev,
+      mode: "dashboard"
+    }))
+    setActiveView("planner_view")
+  }
+
+  function emptyPlannerSessionResults(): PlannerSessionResults {
+    return {
+      flashcardsReviewed: 0,
+      quizzesCompleted: 0,
+      quizQuestions: 0,
+      quizCorrect: 0,
+      startedAtMs: null,
+      completedAtMs: null
+    }
+  }
 
   async function askDocuments() {
     if (!projectId) return
@@ -1322,16 +1538,8 @@ async function generateQuiz() {
     let s = 0
     quiz.forEach((q, i) => {
       const userAnswer = answers[i]
-      const correctRaw = (q.correct ?? "").toString().trim()
       q.options.forEach((opt: string, j: number) => {
-        const optTextNorm = opt.toLowerCase()
-        const correctTextNorm = correctRaw.toLowerCase()
-        const optLetter = String.fromCharCode(65 + j)
-        const correct =
-          correctTextNorm === optTextNorm ||
-          correctRaw === optLetter ||
-          String(Number(correctRaw)) === String(j)
-        if (correct && userAnswer === opt) s++
+        if (isCorrectQuizOption(q, j) && userAnswer === opt) s++
       })
     })
     return s
@@ -1354,23 +1562,13 @@ async function generateQuiz() {
         const answersArray = quiz.map((q, index) => {
           
           const userAnswer = answers[index]
-          const correctRaw = (q.correct ?? "").toString().trim()
 
           let isCorrect = false
           
           console.log("🧩 OPTIONS:", q.options);
 
           ;(Array.isArray(q.options) ? q.options : []).forEach((opt: string, j: number) => {
-            const optTextNorm = opt.toLowerCase()
-            const correctTextNorm = correctRaw.toLowerCase()
-            const optLetter = String.fromCharCode(65 + j)
-
-            const correct =
-              correctTextNorm === optTextNorm ||
-              correctRaw === optLetter ||
-              String(Number(correctRaw)) === String(j)
-
-            if (correct && userAnswer === opt) {
+            if (isCorrectQuizOption(q, j) && userAnswer === opt) {
               isCorrect = true
             }
           })
@@ -1471,6 +1669,30 @@ async function generateQuiz() {
 
         setFinished(true)
         await loadQuizStats(projectId) // 🔥 QUI
+
+        const plannerActivity = plannerRuntime.dailyPlan
+          ?.activities[plannerRuntime.activityIndex]
+
+        if (
+          plannerRuntime.mode === "external_activity"
+          && plannerActivity?.type === "quiz"
+        ) {
+          const activityId = String(plannerActivity.id)
+          if (!plannerCompletedActivityIdsRef.current.has(activityId)) {
+            plannerCompletedActivityIdsRef.current.add(activityId)
+            const correctCount = calculateScore()
+            setPlannerRuntime(prev => ({
+              ...prev,
+              mode: "activity_review",
+              sessionResults: {
+                ...prev.sessionResults,
+                quizzesCompleted: prev.sessionResults.quizzesCompleted + 1,
+                quizQuestions: prev.sessionResults.quizQuestions + quiz.length,
+                quizCorrect: prev.sessionResults.quizCorrect + correctCount
+              }
+            }))
+          }
+        }
         
       } catch (err) {
           console.error("❌ CRASH nella funzione submitQuiz:", err);
@@ -1552,6 +1774,7 @@ async function generateQuiz() {
         setStudyConfig={setStudyConfig}
         questionStyle={questionStyle}
         setQuestionStyle={setQuestionStyle}
+        plannerSessionActive={plannerRuntime.mode !== "dashboard"}
       />
 
       <Workspace
@@ -1609,6 +1832,14 @@ async function generateQuiz() {
         setUseGlobalKnowledge={setUseGlobalKnowledge}
         toolMode={toolMode}
         setToolMode={setToolMode}
+        generateQuiz={generateQuiz}
+        generateFlashcards={generateFlashcards}
+        plannerRuntime={plannerRuntime}
+        openPlannerDailySession={openPlannerDailySession}
+        launchPlannerActivity={launchPlannerActivity}
+        onPlannerFlashcardReview={handlePlannerFlashcardReview}
+        continuePlannerActivity={completePlannerActivity}
+        returnToPlannerDashboard={returnToPlannerDashboard}
         
         
       />

@@ -6,6 +6,18 @@ import {
   logCategoryScope,
   resolveCategoryTopicObjects
 } from "../../utils/topics";
+import {
+  EDUCATIONAL_UNIT_THRESHOLD,
+  type EducationalUnitChapter
+} from "../../utils/educationalUnitTitles";
+
+type TopicNavigationGroup = {
+  key: string
+  title: string
+  showTitle: boolean
+  items: [string, any][]
+}
+
 export default function TopicsView({
   
   topics,
@@ -20,7 +32,7 @@ export default function TopicsView({
   resultsData,
   projectId
 }: any) {
-  const { t: translate } = useTranslation();
+  const { t: translate, i18n } = useTranslation();
   const topicCounts: { [key: string]: number } = {};
   function normalizeTopic(t) {
   return (t || "")
@@ -39,6 +51,7 @@ export default function TopicsView({
   }
   
   const [flashcardDetailedStats, setFlashcardDetailedStats] = React.useState<any>({});
+  const [topicNavigationGroups, setTopicNavigationGroups] = React.useState<TopicNavigationGroup[]>([]);
 
   // --- AGGIUNGI QUESTO BLOCCO QUI ---
   React.useEffect(() => {
@@ -106,6 +119,84 @@ export default function TopicsView({
     setActiveView(destination)
   }
 
+  const categorizedTopicEntries = React.useMemo(
+    () => Object.entries(
+      (topics || []).reduce((acc: any, curr: any) => {
+        const cat = curr.category || "General";
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(curr);
+        return acc;
+      }, {})
+    ),
+    [topics]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false
+
+    async function fetchEducationalUnits() {
+      const categories = categorizedTopicEntries.map(([category]) => String(category))
+
+      if (categories.length < EDUCATIONAL_UNIT_THRESHOLD) {
+        if (!cancelled) {
+          setTopicNavigationGroups([
+            {
+              key: "categories",
+              title: "Categories",
+              showTitle: false,
+              items: categorizedTopicEntries as [string, any][]
+            }
+          ])
+        }
+
+        return
+      }
+
+      try {
+        const response = await fetch("/api/educational-units", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            categories,
+            language: translate("stats.study_language_value")
+          })
+        })
+        const data = response.ok ? await response.json() : null
+        const educationalUnits = Array.isArray(data?.educational_units)
+          ? data.educational_units as EducationalUnitChapter[]
+          : []
+
+        if (!cancelled) {
+          setTopicNavigationGroups(
+            mapEducationalUnitsToTopicGroups(
+              educationalUnits,
+              categorizedTopicEntries as [string, any][]
+            )
+          )
+        }
+      } catch {
+        if (!cancelled) {
+          setTopicNavigationGroups([
+            {
+              key: "categories",
+              title: "Categories",
+              showTitle: false,
+              items: categorizedTopicEntries as [string, any][]
+            }
+          ])
+        }
+      }
+    }
+
+    fetchEducationalUnits()
+
+    return () => {
+      cancelled = true
+    }
+  }, [categorizedTopicEntries, translate]);
+
   return (
     <div style={box}>
       <h3
@@ -127,7 +218,7 @@ export default function TopicsView({
           </span>
         </div>
         <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400, marginTop: 4 }}>
-          {translate('stats%.Select one or more topics to focus your study.')}
+          {translate('stats.Select one or more topics to focus your study.')}
         </span>
       </h3>
 
@@ -140,14 +231,19 @@ export default function TopicsView({
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Categorization Logic */}
-              {Object.entries(
-                topics.reduce((acc: any, curr: any) => {
-                  const cat = curr.category || "General";
-                  if (!acc[cat]) acc[cat] = [];
-                  acc[cat].push(curr);
-                  return acc;
-                }, {})
-              ).map(([category, categoryTopics]: [string, any]) => {
+              {topicNavigationGroups.map(group => (
+                <div
+                  key={group.key}
+                  style={group.showTitle ? educationalUnitCard : plainCategoryGroup}
+                >
+                  {group.showTitle && (
+                    <div style={educationalUnitTitle}>
+                      {group.title}
+                    </div>
+                  )}
+
+                  <div style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
+                  {group.items.map(([category, categoryTopics]: [string, any]) => {
 
                 const totalQuizQuestions = categoryTopics.reduce(
                   (sum: number, topic: any) => {
@@ -318,7 +414,7 @@ export default function TopicsView({
                       <button
                         onClick={() => {
                           if (!categoryTopics || categoryTopics.length === 0) {
-                            alert("No topics found");
+                            alert(translate('stats.No topics found'));
                             return;
                           }
 
@@ -326,7 +422,7 @@ export default function TopicsView({
                         }}
                         style={macroBtn("#2563eb")}
                       >
-                        Quiz
+                        {translate('stats.Quiz')}
                       </button>
 
                       <button
@@ -339,7 +435,7 @@ export default function TopicsView({
                         }}
                         style={macroBtn("#0b9280")}
                       >
-                        Flashcards
+                        {translate('stats.Flashcards')}
                       </button>
 
                       <button
@@ -416,7 +512,7 @@ export default function TopicsView({
                         alt=""
                         width={24}
                         height={24}
-                      /> {totalFlashcards} Flashcards
+                      /> {totalFlashcards} {translate('stats.Flashcards')}
                     </span>
 
                     <span
@@ -471,7 +567,7 @@ export default function TopicsView({
                     }}
                   >
                     <div></div>
-                    <div style={{ textAlign: "center" }}>Quiz</div>
+                    <div style={{ textAlign: "center" }}>{translate('stats.Quiz')}</div>
 
                     <div
                       style={{
@@ -481,11 +577,11 @@ export default function TopicsView({
                         fontSize: 11
                       }}
                     >
-                      FLASHCARDS
+                      {translate('stats.FLASHCARDS')}
                     </div>
 
                     <div style={{ textAlign: "center" }}>{translate('stats.Last Studied')}</div>
-                    <div>Topic</div>
+                    <div>{translate('stats.Topic')}</div>
                     
                     <div></div>
                     <div style={{ textAlign: "center" }}>{translate('stats.Wrong')}</div>
@@ -627,6 +723,9 @@ export default function TopicsView({
                 </div>
               )
             })}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>
@@ -647,6 +746,42 @@ const box = {
   marginBottom: 20
 };
 
+const plainCategoryGroup = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 20
+};
+
+const plainCategoryStack = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 20
+};
+
+const educationalUnitCard = {
+  background: "#0b111d",
+  border: "1px solid #1f2937",
+  borderRadius: 18,
+  padding: 18,
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 18
+};
+
+const educationalUnitCategoryStack = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 16
+};
+
+const educationalUnitTitle = {
+  color: "#36F2ED",
+  fontSize: 24,
+  fontWeight: 900,
+  lineHeight: 1.2,
+  margin: "2px 0 4px"
+};
+
 const macroBtn = (color: string) => ({
   padding: "10px 10px",
   fontSize: "13px",
@@ -656,3 +791,53 @@ const macroBtn = (color: string) => ({
   borderRadius: "8px",
   cursor: "pointer"
 })
+
+function mapEducationalUnitsToTopicGroups(
+  educationalUnits: EducationalUnitChapter[],
+  categoryEntries: [string, any][]
+): TopicNavigationGroup[] {
+  const entriesByCategory = new Map(
+    categoryEntries.map(entry => [String(entry[0]), entry])
+  )
+  const usedCategories = new Set<string>()
+  const groups = educationalUnits
+    .map((unit, index) => {
+      const items = unit.categories
+        .map(category => entriesByCategory.get(category))
+        .filter((entry): entry is [string, any] => Boolean(entry))
+
+      items.forEach(([category]) => usedCategories.add(String(category)))
+
+      return {
+        key: `${index + 1}:${unit.title}:${unit.categories.join("|")}`,
+        title: unit.title,
+        showTitle: true,
+        items
+      }
+    })
+    .filter(group => group.items.length > 0)
+
+  const remainingItems = categoryEntries.filter(
+    ([category]) => !usedCategories.has(String(category))
+  )
+
+  if (remainingItems.length > 0) {
+    groups.push({
+      key: "remaining-categories",
+      title: "Categories",
+      showTitle: false,
+      items: remainingItems
+    })
+  }
+
+  return groups.length > 0
+    ? groups
+    : [
+      {
+        key: "categories",
+        title: "Categories",
+        showTitle: false,
+        items: categoryEntries
+      }
+    ]
+}

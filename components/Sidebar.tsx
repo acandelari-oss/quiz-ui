@@ -273,7 +273,7 @@ export default function Sidebar({
 
       <div
         style={menuItem}
-        onClick={() => setActiveView("planner")}
+        onClick={() => setActiveView("planner_view")}
       >
         <img
           src="/icons/study-planner-side.svg"
