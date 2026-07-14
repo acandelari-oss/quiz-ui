@@ -1,6 +1,9 @@
 import DailyBriefingStep from "./DailyBriefingStep"
 import SessionSummaryStep from "./SessionSummaryStep"
-import type { PlannerDailyPlan } from "./PlannerTypes"
+import type {
+  PlannerDailyPlan,
+  PlannerProfessorConversationMessage
+} from "./PlannerTypes"
 
 type DailySessionStep =
   | "briefing"
@@ -10,12 +13,17 @@ export default function PlannerDailySession({
   dailyPlan,
   mode,
   onStartSession,
-  onBackToDashboard
+  onBackToDashboard,
+  onAskProfessor
 }: {
   dailyPlan: PlannerDailyPlan
   mode: DailySessionStep
   onStartSession: () => void
   onBackToDashboard: () => void
+  onAskProfessor?: (
+    question: string,
+    conversation: PlannerProfessorConversationMessage[]
+  ) => Promise<string>
 }) {
   if (mode === "briefing") {
     return (
@@ -31,6 +39,7 @@ export default function PlannerDailySession({
     <SessionSummaryStep
       dailyPlan={dailyPlan}
       onBackToDashboard={onBackToDashboard}
+      onAskProfessor={onAskProfessor}
     />
   )
 }

@@ -1353,9 +1353,14 @@ function PlannerActivityReviewCheckpoint({
 
 const workspace = {
 flex:1,
+minWidth:0,
 background:"#080a10",
 color:"#e5e7eb",
-overflowY:"auto" as const
+overflowY:"auto" as const,
+overflowX:"hidden" as const,
+height:"100%",
+boxSizing:"border-box" as const,
+WebkitOverflowScrolling:"touch" as const
 }
 
 const loaderContainer = {

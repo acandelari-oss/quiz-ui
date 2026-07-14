@@ -4,28 +4,40 @@ import { useTranslation } from "react-i18next"
 export default function WeeklyCalendar({
   weekLabel,
   days,
+  planType = "study_plan",
   onDayClick
 }: {
   weekLabel: string
   days: PlannerDay[]
+  planType?: string
   onDayClick: (day: PlannerDay) => void
 }) {
   const { t: translate } = useTranslation()
   const completed = days.filter(day => day.status === "completed").length
   const currentModule = days.find(day => day.status === "today")
   const remaining = days.filter(day => day.status !== "completed").length
+  const isAssessmentPlan = planType === "assessment"
 
   return (
     <section style={section} aria-label={weekLabel}>
       <div style={topRow}>
         <div>
-          <div style={eyebrow}>{translate("stats.Current plan")}</div>
-          <h2 style={title}>{translate("stats.Study Plan")}</h2>
+          <div style={eyebrow}>
+            {translate(isAssessmentPlan ? "stats.Current Assessment" : "stats.Current plan")}
+          </div>
+          <h2 style={title}>
+            {translate(isAssessmentPlan ? "stats.Professor Assessment" : "stats.Study Plan")}
+          </h2>
         </div>
 
         <div style={summaryRow}>
           <StatusPill label={translate("stats.Completed")} value={String(completed)} />
-          <StatusPill label={translate("stats.Current module")} value={currentModule?.day || "—"} />
+          <StatusPill
+            label={translate(isAssessmentPlan
+              ? "stats.Current assessment module"
+              : "stats.Current module")}
+            value={currentModule?.day || "—"}
+          />
           <StatusPill label={translate("stats.Remaining")} value={String(remaining)} />
         </div>
       </div>
@@ -53,7 +65,13 @@ export default function WeeklyCalendar({
                   ? day.categories.map(category => (
                     <div key={category} style={categoryText}>{category}</div>
                   ))
-                  : <div style={categoryText}>{translate("stats.Open study module")}</div>}
+                  : (
+                    <div style={categoryText}>
+                      {translate(isAssessmentPlan
+                        ? "stats.Open assessment module"
+                        : "stats.Open study module")}
+                    </div>
+                  )}
               </div>
             </button>
           )

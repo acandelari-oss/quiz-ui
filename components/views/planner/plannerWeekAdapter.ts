@@ -19,24 +19,23 @@ export function adaptPlannerStateToUi(response: PlannerStateResponse): PlannerMo
 }
 
 export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData {
-  const calendar = buildCalendar(week)
-  const dailyPlans = week.daily_plans.map(buildDailyPlan)
-  const todayDay = calendar.find(day => day.status === "today") || calendar[0]
-  const todayPlanIndex = Math.max(
-    week.daily_plans.findIndex(plan => formatPlannerDate(plan.date) === todayDay?.date),
-    0
+  const planType = week.plan_type || "study_plan"
+  const completedSessionIndexes = completedSessionIndexesFromWeek(week)
+  const calendar = buildCalendar(week, completedSessionIndexes)
+  const dailyPlans = week.daily_plans.map((plan, index) =>
+    buildDailyPlan(plan, index, planType)
   )
-
-  const completedDays = calendar.filter(day => day.status === "completed")
-  const dailyPlanEntriesByKey = new Map(
-    week.daily_plans.map((plan, index) => [
-      `${plannerModuleLabel(index)}-${formatPlannerDate(plan.date)}`,
-      { plan, index }
-    ])
+  const recommendedPlanIndex = recommendedModuleIndex(
+    week.daily_plans.length,
+    completedSessionIndexes
   )
+  const completedPlanEntries = week.daily_plans
+    .map((plan, index) => ({ plan, index }))
+    .filter(entry => completedSessionIndexes.has(entry.index))
 
   return {
     state: "ACTIVE_WEEK",
+    planType,
     weekLabel: formatWeekLabel(week.start_date, week.end_date),
     todaySessionCompleted: false,
     onboarding: {
@@ -62,32 +61,38 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
       {
         label: "Quizzes completed",
         value: String(week.weekly_statistics?.sessions_completed ?? 0),
-        detail: "No completed Study Plan quiz yet"
+        detail: planType === "assessment"
+          ? "No completed Assessment quiz yet"
+          : "No completed Study Plan quiz yet"
       },
       {
         label: "Flashcards reviewed",
         value: formatOptionalPercent(week.weekly_statistics?.flashcard_completion),
-        detail: "No completed Study Plan flashcards yet"
+        detail: planType === "assessment"
+          ? "No completed Assessment flashcards yet"
+          : "No completed Study Plan flashcards yet"
       },
       {
-        label: "Study Plan accuracy",
+        label: planType === "assessment"
+          ? "Assessment accuracy"
+          : "Study Plan accuracy",
         value: formatOptionalPercent(week.weekly_statistics?.quiz_accuracy),
-        detail: "No Study Plan quiz result yet"
+        detail: planType === "assessment"
+          ? "No Assessment quiz result yet"
+          : "No Study Plan quiz result yet"
       },
       {
         label: "Study time",
         value: formatStudyTime(week.weekly_statistics?.study_time),
-        detail: "No completed Study Plan module yet"
+        detail: planType === "assessment"
+          ? "No completed Assessment module yet"
+          : "No completed Study Plan module yet"
       }
     ],
-    debriefs: completedDays
-      .map(day => dailyPlanEntriesByKey.get(`${day.day}-${day.date}`))
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    debriefs: completedPlanEntries
       .filter(entry => Boolean(generatedProfessorText(entry.plan.summary?.professor_debrief)))
       .map(entry => buildDebrief(entry.plan, entry.index)),
-    homework: completedDays
-      .map(day => dailyPlanEntriesByKey.get(`${day.day}-${day.date}`))
-      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    homework: completedPlanEntries
       .flatMap(entry =>
         (entry.plan.summary?.homework_recommendations || [])
           .filter(recommendation => Boolean(generatedProfessorText(recommendation.text)))
@@ -97,7 +102,7 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
           }))
       ),
     dailyPlans,
-    todayPlan: dailyPlans[todayPlanIndex] || dailyPlans[0] || emptyDailyPlan(),
+    todayPlan: dailyPlans[recommendedPlanIndex] || dailyPlans[0] || emptyDailyPlan(),
     weeklyReview: {
       title: "Study Plan Review",
       message: generatedProfessorText(week.weekly_review) || ""
@@ -111,6 +116,7 @@ function buildStateOnlyPlannerData(
 ): PlannerMockData {
   return {
     state,
+    planType: "study_plan",
     weekLabel: "Study Planner",
     todaySessionCompleted: false,
     onboarding: {
@@ -157,6 +163,7 @@ function emptyDailyPlan(): PlannerDailyPlan {
     day: "Module",
     date: "—",
     sessionIndex: 0,
+    planType: "study_plan",
     objective: "",
     briefing: "",
     activities: [],
@@ -176,18 +183,21 @@ function emptyDailyPlan(): PlannerDailyPlan {
   }
 }
 
-function buildCalendar(week: PlannerWeekResponse): PlannerDay[] {
-  const todayIso = localIsoDate(new Date())
-  const todayIndex = week.daily_plans.findIndex(plan => plan.date === todayIso)
-  const fallbackTodayIndex = week.daily_plans.findIndex(plan => plan.planned_allocations.length > 0)
-  const activeIndex = todayIndex >= 0 ? todayIndex : Math.max(fallbackTodayIndex, 0)
+function buildCalendar(
+  week: PlannerWeekResponse,
+  completedSessionIndexes: Set<number>
+): PlannerDay[] {
+  const activeIndex = recommendedModuleIndex(
+    week.daily_plans.length,
+    completedSessionIndexes
+  )
 
   return week.daily_plans.map((plan, index) => ({
     day: plannerModuleLabel(index),
     date: formatPlannerDate(plan.date),
     sessionIndex: index,
     status:
-      index < activeIndex
+      completedSessionIndexes.has(index)
         ? "completed"
         : index === activeIndex
           ? "today"
@@ -203,14 +213,52 @@ function buildCalendar(week: PlannerWeekResponse): PlannerDay[] {
   }))
 }
 
+function completedSessionIndexesFromWeek(week: PlannerWeekResponse) {
+  return new Set(
+    week.daily_plans
+      .map((plan, index) => ({ plan, index }))
+      .filter(({ plan }) => isCompletedPlan(plan))
+      .map(({ index }) => index)
+  )
+}
+
+function isCompletedPlan(plan: PlannerWeekResponse["daily_plans"][number]) {
+  if (String(plan.status || "").toUpperCase() === "COMPLETED") {
+    return true
+  }
+
+  return (
+    plan.activities.length > 0
+    && plan.activities.every(activity =>
+      String(activity.execution?.status || "").toUpperCase() === "COMPLETED"
+    )
+  )
+}
+
+function recommendedModuleIndex(
+  moduleCount: number,
+  completedSessionIndexes: Set<number>
+) {
+  if (moduleCount <= 0) {
+    return 0
+  }
+
+  const nextIndex = Array.from({ length: moduleCount }, (_, index) => index)
+    .find(index => !completedSessionIndexes.has(index))
+
+  return nextIndex ?? moduleCount - 1
+}
+
 function buildDailyPlan(
   plan: PlannerWeekResponse["daily_plans"][number],
-  index: number
+  index: number,
+  planType = "study_plan"
 ): PlannerDailyPlan {
   return {
     day: plannerModuleLabel(index),
     date: formatPlannerDate(plan.date),
     sessionIndex: index,
+    planType,
     objective: generatedProfessorText(plan.objective) || "",
     briefing: generatedProfessorText(plan.briefing) || "",
     activities: plan.activities.map(buildActivity),
@@ -459,13 +507,6 @@ function formatPlannerDate(value: string) {
     day: "numeric",
     month: "short"
   })
-}
-
-function localIsoDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
 }
 
 function plannerModuleLabel(index: number) {

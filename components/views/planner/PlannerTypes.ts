@@ -70,6 +70,7 @@ export type PlannerDailyPlan = {
   date: string
   sessionIndex: number
   studyPlanModuleCount?: number
+  planType?: string
   objective: string
   briefing: string
   activities: PlannerActivity[]
@@ -110,8 +111,16 @@ export type PlannerActivityDebriefs = Record<string, string>
 
 export type PlannerModuleDebriefs = Record<number, string>
 
+export type PlannerModuleHomework = Record<number, string>
+
+export type PlannerProfessorConversationMessage = {
+  role: "student" | "professor"
+  content: string
+}
+
 export type PlannerMockData = {
   state: PlannerUiState
+  planType?: string
   weekLabel: string
   todaySessionCompleted: boolean
   onboarding: {

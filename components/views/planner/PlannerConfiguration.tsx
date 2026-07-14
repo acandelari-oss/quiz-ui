@@ -12,6 +12,7 @@ type PlannerConfigurationProps = {
   showLearningSurvey: boolean
   categories: string[]
   onGenerate: (configuration: PlannerGenerationConfiguration) => Promise<void> | void
+  onGenerateAssessment?: (configuration: PlannerGenerationConfiguration) => Promise<void> | void
   generating?: boolean
 }
 
@@ -21,6 +22,8 @@ type SurveyCategoryGroup = {
   showTitle: boolean
   items: string[]
 }
+
+type NewProjectOnboardingStep = "choice" | "preferences" | "survey"
 
 const studyDurationOptions = [
   { value: "30 minutes", labelKey: "stats.30 minutes" },
@@ -63,6 +66,7 @@ export default function PlannerConfiguration({
   showLearningSurvey,
   categories,
   onGenerate,
+  onGenerateAssessment,
   generating = false
 }: PlannerConfigurationProps) {
   const { t: translate } = useTranslation()
@@ -76,9 +80,14 @@ export default function PlannerConfiguration({
   const [questionPace, setQuestionPace] = useState("90 sec/question")
   const [quizStyle, setQuizStyle] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [onboardingStep, setOnboardingStep] =
+    useState<NewProjectOnboardingStep>("choice")
+  const [selectedOnboardingPath, setSelectedOnboardingPath] =
+    useState<"self_assessment" | "professor_assessment" | null>(null)
 
   const surveyComplete =
     !showLearningSurvey
+    || selectedOnboardingPath === "professor_assessment"
     || (
       uniqueCategories.length > 0
       && uniqueCategories.every(category => Boolean(surveyAnswers[category]))
@@ -86,6 +95,7 @@ export default function PlannerConfiguration({
   const preferencesComplete = Boolean(studyDuration && questionPace && quizStyle)
   const isGenerating = generating || submitting
   const canGenerate = surveyComplete && preferencesComplete && !isGenerating
+  const canContinueFromSurvey = surveyComplete && !isGenerating
 
   const updateSurveyAnswer = (category: string, value: SurveyAnswer) => {
     setSurveyAnswers(current => ({
@@ -185,30 +195,31 @@ export default function PlannerConfiguration({
     setSubmitting(true)
 
     try {
-      await onGenerate({
-        survey: showLearningSurvey ? surveyAnswers : null,
+      const configuration = {
+        survey: (
+          showLearningSurvey
+          && selectedOnboardingPath !== "professor_assessment"
+        ) ? surveyAnswers : null,
         study_language: translate("stats.study_language_value"),
         preferences: {
           studyDurationMinutes: parseStudyDuration(studyDuration),
           questionPaceSeconds: parseQuestionPace(questionPace),
           questionStyle: parseQuizStyle(quizStyle)
         }
-      })
+      }
+
+      if (selectedOnboardingPath === "professor_assessment" && onGenerateAssessment) {
+        await onGenerateAssessment(configuration)
+      } else {
+        await onGenerate(configuration)
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
-  return (
-    <div style={container}>
-      <section style={heroCard}>
-        <div style={eyebrow}>{translate("stats.Professor Planner")}</div>
-        <h2 style={title}>{translate("stats.Configure your study plan")}</h2>
-        <p style={paragraph}>
-          {translate("stats.Choose the minimum planning information the Professor needs before generating your first study plan.")}
-        </p>
-      </section>
-
+  const renderSurvey = () => (
+    <>
       {showLearningSurvey && (
         <section style={card}>
           <div style={sectionTitle}>{translate("stats.Learning Survey")}</div>
@@ -302,7 +313,10 @@ export default function PlannerConfiguration({
           )}
         </section>
       )}
+    </>
+  )
 
+  const renderPreferences = () => (
       <section style={card}>
         <div style={sectionTitle}>{translate("stats.Study Plan Preferences")}</div>
 
@@ -330,20 +344,126 @@ export default function PlannerConfiguration({
           translate={translate}
         />
       </section>
+  )
 
-      <button
-        style={{
-          ...primaryButton,
-          ...(canGenerate ? {} : disabledButton)
-        }}
-        disabled={!canGenerate}
-        onClick={handleGenerate}
-        title={translate("stats.Complete the required choices to generate a Study Plan.")}
-      >
-        {isGenerating
-          ? translate("stats.Generating Study Plan…")
-          : translate("stats.Generate Study Plan")}
-      </button>
+  const learningPathSelected = showLearningSurvey && selectedOnboardingPath !== null
+
+  const renderOnboardingChoice = () => (
+    <section style={card}>
+      <div style={sectionTitle}>
+        {translate("stats.Choose how to build the first Study Plan")}
+      </div>
+      <div style={onboardingChoiceGrid}>
+        <button
+          type="button"
+          style={{
+            ...onboardingOptionCard,
+            ...(selectedOnboardingPath === "self_assessment"
+              ? selectedOnboardingOptionCard
+              : {}),
+            ...(learningPathSelected && selectedOnboardingPath !== "self_assessment"
+              ? disabledOnboardingOptionCard
+              : {})
+          }}
+          onClick={learningPathSelected ? undefined : () => {
+            setSelectedOnboardingPath("self_assessment")
+            setOnboardingStep("survey")
+          }}
+          aria-pressed={selectedOnboardingPath === "self_assessment"}
+        >
+          <div style={onboardingOptionTitle}>
+            {translate("stats.I already know part of the material")}
+          </div>
+          <p style={onboardingOptionDescription}>
+            {translate("stats.If you already know some topics better than others, tell the Professor where you feel confident and where you need more practice.")}
+          </p>
+          <span style={onboardingOptionAction}>
+            {translate("stats.Continue")}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          style={{
+            ...onboardingOptionCard,
+            ...(selectedOnboardingPath === "professor_assessment"
+              ? selectedOnboardingOptionCard
+              : {}),
+            ...(learningPathSelected && selectedOnboardingPath !== "professor_assessment"
+              ? disabledOnboardingOptionCard
+              : {})
+          }}
+          onClick={learningPathSelected ? undefined : () => {
+            setSelectedOnboardingPath("professor_assessment")
+            setOnboardingStep("preferences")
+          }}
+          aria-pressed={selectedOnboardingPath === "professor_assessment"}
+        >
+          <div style={onboardingOptionTitle}>
+            {translate("stats.Let the Professor assess me")}
+          </div>
+          <p style={onboardingOptionDescription}>
+            {translate("stats.The Professor will assess your initial preparation objectively before preparing your first Study Plan.")}
+          </p>
+          {!learningPathSelected && (
+            <span style={onboardingOptionAction}>
+              {translate("stats.Continue")}
+            </span>
+          )}
+        </button>
+      </div>
+    </section>
+  )
+
+  return (
+    <div style={container}>
+      <section style={heroCard}>
+        <div style={eyebrow}>{translate("stats.Professor Planner")}</div>
+        <h2 style={title}>{translate("stats.Configure your study plan")}</h2>
+        <p style={paragraph}>
+          {translate("stats.Choose the minimum planning information the Professor needs before generating your first study plan.")}
+        </p>
+      </section>
+
+      {!showLearningSurvey && renderPreferences()}
+
+      {showLearningSurvey && renderOnboardingChoice()}
+
+      {showLearningSurvey && onboardingStep === "survey" && renderSurvey()}
+
+      {showLearningSurvey && onboardingStep === "preferences" && renderPreferences()}
+
+      {showLearningSurvey && onboardingStep === "survey" ? (
+        <button
+          style={{
+            ...primaryButton,
+            ...(canContinueFromSurvey ? {} : disabledButton)
+          }}
+          disabled={!canContinueFromSurvey}
+          onClick={() => setOnboardingStep("preferences")}
+          title={translate("stats.Complete the required choices to continue.")}
+        >
+          {translate("stats.Continue")}
+        </button>
+      ) : (
+        (!showLearningSurvey || onboardingStep === "preferences") && (
+          <button
+            style={{
+              ...primaryButton,
+              ...(canGenerate ? {} : disabledButton)
+            }}
+            disabled={!canGenerate}
+            onClick={handleGenerate}
+            title={translate("stats.Complete the required choices to generate a Study Plan.")}
+          >
+            {isGenerating
+              ? translate("stats.Generating Study Plan…")
+              : selectedOnboardingPath === "professor_assessment"
+                ? translate("stats.Generate Assessment")
+                : translate("stats.Generate Study Plan")}
+          </button>
+        )
+      )}
     </div>
   )
 }
@@ -440,7 +560,10 @@ const card = {
   border: "1px solid #374151",
   borderRadius: 16,
   padding: 20,
-  marginBottom: 22
+  marginBottom: 22,
+  maxWidth: "100%",
+  boxSizing: "border-box" as const,
+  overflow: "hidden"
 }
 
 const sectionTitle = {
@@ -532,6 +655,83 @@ const selectedOptionLabel = {
 
 const radioInput = {
   accentColor: "#2b7dcb"
+}
+
+const onboardingChoiceGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+  gap: 16,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box" as const
+}
+
+const onboardingOptionCard = {
+  position: "relative" as const,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  minHeight: 220,
+  textAlign: "left" as const,
+  background: "#0b111d",
+  border: "1px solid #374151",
+  borderRadius: 16,
+  padding: 20,
+  color: "white",
+  cursor: "pointer",
+  display: "flex",
+  flexDirection: "column" as const,
+  justifyContent: "space-between" as const,
+  gap: 14,
+  boxSizing: "border-box" as const,
+  whiteSpace: "normal" as const,
+  overflowWrap: "anywhere" as const,
+  wordBreak: "normal" as const
+}
+
+const disabledOnboardingOptionCard = {
+  opacity: 0.55,
+  cursor: "not-allowed"
+}
+
+const selectedOnboardingOptionCard = {
+  border: "1px solid #36F2ED",
+  background: "#0f1f33",
+  boxShadow: "0 0 0 1px rgba(54, 242, 237, 0.18)"
+}
+
+const onboardingOptionTitle = {
+  color: "white",
+  fontSize: 20,
+  fontWeight: 900,
+  marginBottom: 8,
+  overflowWrap: "anywhere" as const
+}
+
+const onboardingOptionDescription = {
+  color: "#cbd5e1",
+  lineHeight: 1.65,
+  margin: 0,
+  overflowWrap: "anywhere" as const
+}
+
+const onboardingOptionAction = {
+  color: "#36F2ED",
+  fontWeight: 900
+}
+
+const comingSoonBadge = {
+  alignSelf: "flex-start" as const,
+  background: "#1f2937",
+  border: "1px solid #374151",
+  borderRadius: 999,
+  color: "#cbd5e1",
+  fontSize: 12,
+  fontWeight: 900,
+  padding: "5px 10px",
+  textTransform: "uppercase" as const,
+  letterSpacing: 0.7
 }
 
 const preferenceGroup = {

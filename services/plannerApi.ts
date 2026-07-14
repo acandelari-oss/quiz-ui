@@ -64,6 +64,7 @@ export type PlannerWeekResponse = {
   id: string
   start_date: string
   end_date: string
+  plan_type?: "assessment" | "study_plan" | string
   study_language?: string | null
   status: string
   weekly_briefing: string
@@ -148,6 +149,62 @@ export async function generatePlannerWeek(
   return response.json()
 }
 
+export async function generatePlannerAssessment(
+  projectId: string,
+  configuration: PlannerGenerationConfiguration
+): Promise<PlannerStateResponse> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/assessment/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(configuration)
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner assessment generation failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+export async function completePlannerAssessment(
+  projectId: string
+): Promise<PlannerStateResponse> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/assessment/complete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner assessment completion failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
 async function postPlannerProfessorDebrief(
   projectId: string,
   path: string,
@@ -203,6 +260,89 @@ export async function generatePlannerModuleDebrief(
     module_results: moduleResults,
     study_language: studyLanguage
   })
+}
+
+export async function generatePlannerHomeworkRecommendation(
+  projectId: string,
+  moduleIndex: number,
+  moduleResults: Record<string, unknown>,
+  studyLanguage?: "English" | "Italian"
+): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/professor/homework-recommendation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      module_index: moduleIndex,
+      module_results: moduleResults,
+      study_language: studyLanguage
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner Professor homework request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  const recommendation = data.homework_recommendation
+
+  return typeof recommendation?.text === "string" ? recommendation.text : ""
+}
+
+export type PlannerProfessorConversationMessage = {
+  role: "student" | "professor"
+  content: string
+}
+
+export async function askPlannerModuleProfessor(
+  projectId: string,
+  moduleIndex: number,
+  question: string,
+  moduleResults: Record<string, unknown>,
+  conversation: PlannerProfessorConversationMessage[],
+  studyLanguage?: "English" | "Italian"
+): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/professor/module-question`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      module_index: moduleIndex,
+      question,
+      module_results: moduleResults,
+      conversation,
+      study_language: studyLanguage
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner Professor question request failed: ${response.status}`)
+  }
+
+  const data = await response.json()
+  return typeof data.answer === "string" ? data.answer : ""
 }
 
 export async function generatePlannerStudyPlanDebrief(

@@ -4,6 +4,8 @@ import PlannerDailySession from "./planner/PlannerDailySession"
 import PlannerDashboard from "./planner/PlannerDashboard"
 import PlannerConfiguration from "./planner/PlannerConfiguration"
 import {
+  askPlannerModuleProfessor,
+  generatePlannerAssessment,
   generatePlannerWeek,
   type PlannerGenerationConfiguration
 } from "../../services/plannerApi"
@@ -11,8 +13,10 @@ import type {
   PlannerCompletedSessionResults,
   PlannerDailyPlan,
   PlannerDay,
+  PlannerModuleHomework,
   PlannerModuleDebriefs,
   PlannerMockData,
+  PlannerProfessorConversationMessage,
   PlannerSessionResults
 } from "./planner/PlannerTypes"
 import { usePlannerState } from "./planner/usePlannerState"
@@ -36,7 +40,9 @@ export default function PlannerView({
     sessionResults: PlannerSessionResults
     completedSessionResults: PlannerCompletedSessionResults
     moduleDebriefs: PlannerModuleDebriefs
+    moduleHomework: PlannerModuleHomework
     studyPlanDebrief: string
+    assessmentCompletedAt?: number | null
   }
   openPlannerDailySession: (dailyPlan: PlannerDailyPlan) => void
   launchPlannerActivity: (
@@ -45,7 +51,7 @@ export default function PlannerView({
   ) => Promise<void>
   returnToPlannerDashboard: () => void
 }) {
-  const { t: translate } = useTranslation()
+  const { t: translate, i18n } = useTranslation()
   const {
     plannerState,
     plannerData,
@@ -55,14 +61,24 @@ export default function PlannerView({
   } = usePlannerState(projectId)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [generatingStudyPlan, setGeneratingStudyPlan] = useState(false)
+  const [generationKind, setGenerationKind] =
+    useState<"study_plan" | "assessment">("study_plan")
   const [generationMessageIndex, setGenerationMessageIndex] = useState(0)
+  const [showAssessmentCompletion, setShowAssessmentCompletion] = useState(false)
 
-  const generationMessages = [
-    translate("stats.Reviewing your initial preparation..."),
-    translate("stats.Organizing the modules..."),
-    translate("stats.Defining the study sequence..."),
-    translate("stats.Preparing your Study Plan...")
-  ]
+  const generationMessages = generationKind === "assessment"
+    ? [
+        translate("stats.Preparing the objective assessment..."),
+        translate("stats.Organizing the assessment modules..."),
+        translate("stats.Preserving the topic order..."),
+        translate("stats.Preparing your Professor Assessment...")
+      ]
+    : [
+        translate("stats.Reviewing your initial preparation..."),
+        translate("stats.Organizing the modules..."),
+        translate("stats.Defining the study sequence..."),
+        translate("stats.Preparing your Study Plan...")
+      ]
 
   useEffect(() => {
     if (!generatingStudyPlan) {
@@ -78,6 +94,13 @@ export default function PlannerView({
 
     return () => clearInterval(interval)
   }, [generatingStudyPlan, generationMessages.length])
+
+  useEffect(() => {
+    if (plannerRuntime.assessmentCompletedAt) {
+      setShowAssessmentCompletion(true)
+      reload()
+    }
+  }, [plannerRuntime.assessmentCompletedAt, reload])
 
   if (loading) {
     return (
@@ -124,11 +147,10 @@ export default function PlannerView({
 
   const plannerDataWithLocalSessionState = applyRuntimeSessionResults(
     plannerData,
-    plannerRuntime.sessionResults,
     plannerRuntime.todaySessionCompleted,
-    plannerRuntime.dailyPlan?.sessionIndex,
     plannerRuntime.completedSessionResults,
     plannerRuntime.moduleDebriefs,
+    plannerRuntime.moduleHomework,
     plannerRuntime.studyPlanDebrief,
     translate
   )
@@ -144,6 +166,7 @@ export default function PlannerView({
     configuration: PlannerGenerationConfiguration
   ) => {
     setGenerationError(null)
+    setGenerationKind("study_plan")
     setGeneratingStudyPlan(true)
     setGenerationMessageIndex(0)
 
@@ -162,12 +185,52 @@ export default function PlannerView({
     }
   }
 
+  const handleGenerateProfessorAssessment = async (
+    configuration: PlannerGenerationConfiguration
+  ) => {
+    setGenerationError(null)
+    setGenerationKind("assessment")
+    setGeneratingStudyPlan(true)
+    setGenerationMessageIndex(0)
+
+    try {
+      await generatePlannerAssessment(projectId, {
+        ...configuration,
+        survey: null
+      })
+      await reload()
+    } catch (err) {
+      console.error("PLANNER ASSESSMENT GENERATION ERROR:", err)
+      setGenerationError(
+        err instanceof Error
+          ? err.message
+          : translate("stats.Unable to generate Study Plan.")
+      )
+    } finally {
+      setGeneratingStudyPlan(false)
+    }
+  }
+
   if (generatingStudyPlan) {
+    const generatingAssessment = generationKind === "assessment"
+
     return (
       <PlannerGenerationLoading
-        title={translate("stats.The Professor is preparing your Study Plan")}
-        body={translate("stats.I’m reviewing your answers and organizing the most suitable path for the available material.")}
+        title={translate(generatingAssessment
+          ? "stats.The Professor is preparing your Assessment"
+          : "stats.The Professor is preparing your Study Plan")}
+        body={translate(generatingAssessment
+          ? "stats.I’m preparing an objective first pass through the material so your future Study Plan can be based on evidence."
+          : "stats.I’m reviewing your answers and organizing the most suitable path for the available material.")}
         message={generationMessages[generationMessageIndex] || generationMessages[0]}
+      />
+    )
+  }
+
+  if (showAssessmentCompletion && plannerState === "READY_FOR_FIRST_PLAN") {
+    return (
+      <PlannerAssessmentCompletion
+        onCreateStudyPlan={() => setShowAssessmentCompletion(false)}
       />
     )
   }
@@ -180,6 +243,7 @@ export default function PlannerView({
           showLearningSurvey
           categories={projectCategories}
           onGenerate={handleGenerateWeeklyPlan}
+          onGenerateAssessment={handleGenerateProfessorAssessment}
           generating={generatingStudyPlan}
         />
       </>
@@ -259,16 +323,34 @@ export default function PlannerView({
     plannerRuntime.mode === "summary"
     && plannerRuntime.dailyPlan
   ) {
+    const summaryDailyPlan = applyRuntimeResultsToDailyPlan(
+      plannerRuntime.dailyPlan,
+      plannerRuntime.sessionResults,
+      plannerRuntime.moduleDebriefs[plannerRuntime.dailyPlan.sessionIndex],
+      plannerRuntime.moduleHomework[plannerRuntime.dailyPlan.sessionIndex]
+    )
+
     return (
       <PlannerDailySession
-        dailyPlan={applyRuntimeResultsToDailyPlan(
-          plannerRuntime.dailyPlan,
-          plannerRuntime.sessionResults,
-          plannerRuntime.moduleDebriefs[plannerRuntime.dailyPlan.sessionIndex]
-        )}
+        dailyPlan={summaryDailyPlan}
         mode="summary"
         onStartSession={() => {}}
         onBackToDashboard={returnToPlannerDashboard}
+        onAskProfessor={async (
+          question: string,
+          conversation: PlannerProfessorConversationMessage[]
+        ) => askPlannerModuleProfessor(
+          projectId,
+          summaryDailyPlan.sessionIndex + 1,
+          question,
+          buildProfessorModuleResultsPayload(
+            plannerRuntime.sessionResults,
+            summaryDailyPlan.summary.professorDebrief || "",
+            summaryDailyPlan.summary.homeworkRecommendations[0] || ""
+          ),
+          conversation,
+          plannerStudyLanguage(i18n.language)
+        )}
       />
     )
   }
@@ -283,11 +365,10 @@ export default function PlannerView({
 
 function applyRuntimeSessionResults(
   plannerData: PlannerMockData,
-  results: PlannerSessionResults,
   sessionCompleted: boolean,
-  completedSessionIndex?: number,
   completedSessionResults: PlannerCompletedSessionResults = {},
   moduleDebriefs: PlannerModuleDebriefs = {},
+  moduleHomework: PlannerModuleHomework = {},
   studyPlanDebrief = "",
   translate: (key: string) => string = key => key
 ): PlannerMockData {
@@ -300,38 +381,48 @@ function applyRuntimeSessionResults(
   }
 
   const weeklyResults = aggregatePlannerSessionResults(completedSessionResults)
+  const runtimeDailyPlans = plannerData.dailyPlans.map(plan =>
+    completedSessionIndexes.has(plan.sessionIndex)
+      ? applyRuntimeResultsToDailyPlan(
+          plan,
+          completedSessionResults[plan.sessionIndex],
+          moduleDebriefs[plan.sessionIndex],
+          moduleHomework[plan.sessionIndex]
+        )
+      : plan
+  )
+  const runtimeCalendar = buildCompletionDrivenCalendar(
+    plannerData.calendar,
+    completedSessionIndexes
+  )
+  const recommendedSessionIndex =
+    runtimeCalendar.find(day => day.status === "today")?.sessionIndex
+    ?? runtimeCalendar[0]?.sessionIndex
+    ?? 0
 
   return {
     ...plannerData,
     todaySessionCompleted: sessionCompleted,
-    calendar: plannerData.calendar.map(day =>
-      completedSessionIndexes.has(day.sessionIndex)
-        ? {
-            ...day,
-            status: "completed" as const
-          }
-        : day
-    ),
-    statistics: buildRuntimeStatistics(weeklyResults, translate),
-    debriefs: plannerData.dailyPlans
+    calendar: runtimeCalendar,
+    statistics: buildRuntimeStatistics(weeklyResults, translate, plannerData.planType),
+    debriefs: runtimeDailyPlans
       .filter(plan => completedSessionIndexes.has(plan.sessionIndex))
       .filter(plan => Boolean(moduleDebriefs[plan.sessionIndex] || plan.summary.professorDebrief))
-      .map(plan => {
-        const runtimePlan = applyRuntimeResultsToDailyPlan(
-          plan,
-          completedSessionResults[plan.sessionIndex],
-          moduleDebriefs[plan.sessionIndex]
-        )
-
-        return {
-          day: runtimePlan.day,
-          professorDebrief: runtimePlan.summary.professorDebrief || "",
-          sessionData: runtimePlan.summary.sessionData
-        }
-      }),
-    todayPlan: sessionCompleted && completedSessionIndex !== undefined
-      ? applyRuntimeResultsToDailyPlan(plannerData.todayPlan, results)
-      : plannerData.todayPlan,
+      .map(plan => ({
+        day: plan.day,
+        professorDebrief: plan.summary.professorDebrief || "",
+        sessionData: plan.summary.sessionData
+      })),
+    homework: runtimeDailyPlans
+      .filter(plan => completedSessionIndexes.has(plan.sessionIndex))
+      .flatMap(plan =>
+        plan.summary.homeworkRecommendations.map(suggestion => ({
+          day: plan.day,
+          suggestion
+        }))
+      ),
+    dailyPlans: runtimeDailyPlans,
+    todayPlan: runtimeDailyPlans[recommendedSessionIndex] || plannerData.todayPlan,
     weeklyReview: studyPlanDebrief
       ? {
           ...plannerData.weeklyReview,
@@ -339,6 +430,24 @@ function applyRuntimeSessionResults(
         }
       : plannerData.weeklyReview
   }
+}
+
+function buildCompletionDrivenCalendar(
+  calendar: PlannerMockData["calendar"],
+  completedSessionIndexes: Set<number>
+) {
+  const recommendedSessionIndex = calendar.find(day =>
+    !completedSessionIndexes.has(day.sessionIndex)
+  )?.sessionIndex
+
+  return calendar.map(day => ({
+    ...day,
+    status: completedSessionIndexes.has(day.sessionIndex)
+      ? "completed" as const
+      : day.sessionIndex === recommendedSessionIndex
+        ? "today" as const
+        : "remaining" as const
+  }))
 }
 
 function aggregatePlannerSessionResults(
@@ -372,13 +481,17 @@ function aggregatePlannerSessionResults(
 function applyRuntimeResultsToDailyPlan(
   dailyPlan: PlannerDailyPlan,
   results: PlannerSessionResults,
-  moduleDebrief = ""
+  moduleDebrief = "",
+  homeworkRecommendation = ""
 ): PlannerDailyPlan {
   return {
     ...dailyPlan,
     summary: {
       ...dailyPlan.summary,
       professorDebrief: moduleDebrief || dailyPlan.summary.professorDebrief,
+      homeworkRecommendations: homeworkRecommendation
+        ? [homeworkRecommendation]
+        : dailyPlan.summary.homeworkRecommendations,
       sessionData: {
         ...dailyPlan.summary.sessionData,
         flashcards: results.flashcardsReviewed || dailyPlan.summary.sessionData.flashcards,
@@ -390,38 +503,76 @@ function applyRuntimeResultsToDailyPlan(
   }
 }
 
+function buildProfessorModuleResultsPayload(
+  results: PlannerSessionResults,
+  moduleDebrief = "",
+  homeworkRecommendation = ""
+) {
+  return {
+    activity_results: results.activityResults || [],
+    flashcards_reviewed: results.flashcardsReviewed,
+    quizzes_completed: results.quizzesCompleted,
+    quiz_questions: results.quizQuestions,
+    quiz_correct: results.quizCorrect,
+    accuracy: results.quizQuestions > 0
+      ? results.quizCorrect / results.quizQuestions
+      : null,
+    professor_debrief: moduleDebrief,
+    homework_recommendation: homeworkRecommendation
+  }
+}
+
+function plannerStudyLanguage(language: string): "English" | "Italian" {
+  return language.toLowerCase().startsWith("it") ? "Italian" : "English"
+}
+
 function buildRuntimeStatistics(
   results: PlannerSessionResults,
-  translate: (key: string) => string
+  translate: (key: string) => string,
+  planType = "study_plan"
 ) {
+  const isAssessmentPlan = planType === "assessment"
+
   return [
     {
       label: translate("stats.Quizzes completed"),
       value: String(results.quizzesCompleted),
       detail: results.quizzesCompleted > 0
         ? translate("stats.questions answered count").replace("{count}", String(results.quizQuestions))
-        : translate("stats.No Study Plan quiz completed yet")
+        : translate(isAssessmentPlan
+          ? "stats.No Assessment quiz completed yet"
+          : "stats.No Study Plan quiz completed yet")
     },
     {
       label: translate("stats.Flashcards reviewed"),
       value: String(results.flashcardsReviewed),
       detail: results.flashcardsReviewed > 0
-        ? translate("stats.Reviewed during this Study Plan module")
-        : translate("stats.No Study Plan flashcards reviewed yet")
+        ? translate(isAssessmentPlan
+          ? "stats.Reviewed during this Assessment module"
+          : "stats.Reviewed during this Study Plan module")
+        : translate(isAssessmentPlan
+          ? "stats.No Assessment flashcards reviewed yet"
+          : "stats.No Study Plan flashcards reviewed yet")
     },
     {
-      label: translate("stats.Study Plan accuracy"),
+      label: translate(isAssessmentPlan
+        ? "stats.Assessment accuracy"
+        : "stats.Study Plan accuracy"),
       value: formatRuntimeAccuracy(results) || "—",
       detail: results.quizQuestions > 0
         ? translate("stats.correct answer count")
           .replace("{correct}", String(results.quizCorrect))
           .replace("{total}", String(results.quizQuestions))
-        : translate("stats.No Study Plan quiz result yet")
+        : translate(isAssessmentPlan
+          ? "stats.No Assessment quiz result yet"
+          : "stats.No Study Plan quiz result yet")
     },
     {
       label: translate("stats.Study time"),
       value: formatRuntimeDuration(results) || "—",
-      detail: translate("stats.Current Study Plan module runtime")
+      detail: translate(isAssessmentPlan
+        ? "stats.Current Assessment module runtime"
+        : "stats.Current Study Plan module runtime")
     }
   ]
 }
@@ -506,6 +657,32 @@ function PlannerGenerationLoading({
         <div style={generationStatus}>
           {message}
         </div>
+      </section>
+    </div>
+  )
+}
+
+function PlannerAssessmentCompletion({
+  onCreateStudyPlan
+}: {
+  onCreateStudyPlan: () => void
+}) {
+  const { t: translate } = useTranslation()
+
+  return (
+    <div style={generationContainer}>
+      <section style={generationCard}>
+        <div style={eyebrow}>{translate("stats.Professor Assessment")}</div>
+        <h2 style={titleStyle}>{translate("stats.Assessment Completed")}</h2>
+        <p style={paragraph}>
+          {translate("stats.I now have enough objective information to understand your current preparation.")}
+        </p>
+        <p style={paragraph}>
+          {translate("stats.I will use these results to build your first personalised Study Plan.")}
+        </p>
+        <button onClick={onCreateStudyPlan} style={primaryButton}>
+          {translate("stats.Create my Study Plan")}
+        </button>
       </section>
     </div>
   )

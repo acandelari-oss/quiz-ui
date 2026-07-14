@@ -17,7 +17,9 @@ import {
 } from "../utils/topics";
 import { isCorrectQuizOption } from "../utils/quizAnswers";
 import {
+  completePlannerAssessment,
   generatePlannerActivityDebrief,
+  generatePlannerHomeworkRecommendation,
   generatePlannerModuleDebrief,
   generatePlannerStudyPlanDebrief
 } from "../services/plannerApi";
@@ -25,6 +27,7 @@ import type {
   PlannerActivityDebriefs,
   PlannerCompletedSessionResults,
   PlannerDailyPlan,
+  PlannerModuleHomework,
   PlannerModuleDebriefs,
   PlannerSessionResults
 } from "../components/views/planner/PlannerTypes";
@@ -48,7 +51,9 @@ type PlannerRuntimeState = {
   completedSessionResults: PlannerCompletedSessionResults
   activityDebriefs: PlannerActivityDebriefs
   moduleDebriefs: PlannerModuleDebriefs
+  moduleHomework: PlannerModuleHomework
   studyPlanDebrief: string
+  assessmentCompletedAt?: number | null
 }
 
 export default function Home() {
@@ -170,6 +175,8 @@ const [loaderStep, setLoaderStep] = useState(0);
 const [loaderType, setLoaderType] = useState<"quiz" | "flashcards">("quiz");
 const [resultsData, setResultsData] = useState(null);
 const [toolMode, setToolMode] = useState("")
+const [toolPanelCollapsed, setToolPanelCollapsed] = useState(false)
+const [isMobileLayout, setIsMobileLayout] = useState(false)
 const [studyConfig, setStudyConfig] = useState({
   flashcards: 8,
   recall: 3,
@@ -187,8 +194,69 @@ const [plannerRuntime, setPlannerRuntime] =
     completedSessionResults: {},
     activityDebriefs: {},
     moduleDebriefs: {},
-    studyPlanDebrief: ""
-  })
+  moduleHomework: {},
+  studyPlanDebrief: "",
+  assessmentCompletedAt: null
+})
+
+useEffect(() => {
+  const updateLayoutMode = () => {
+    setIsMobileLayout(window.innerWidth <= 900)
+  }
+
+  updateLayoutMode()
+  window.addEventListener("resize", updateLayoutMode)
+  return () => window.removeEventListener("resize", updateLayoutMode)
+}, [])
+
+const quizActivityStarted =
+  activeView === "quiz"
+  && (started || finished || generatingQuiz || (Array.isArray(quiz) && quiz.length > 0))
+
+const toolPanelUseful =
+  activeView === "create_project"
+  || activeView === "load_project"
+  || activeView === "manage_projects"
+  || activeView === "ask_setup"
+  || activeView === "generate_flashcards"
+  || activeView === "active_recall_setup"
+  || activeView === "study_session_setup"
+  || (activeView === "quiz" && !quizActivityStarted)
+
+const workspacePrimary =
+  activeView === "ask"
+  || activeView === "active_recall"
+  || activeView === "flashcards"
+  || activeView === "study_session"
+  || activeView === "planner_view"
+  || activeView === "previous_quizzes"
+  || activeView === "results_summary"
+  || activeView === "topics"
+  || quizActivityStarted
+
+const mobileNavigationSelected = isMobileLayout && activeView !== "project"
+const mobileSidebarWidth = mobileNavigationSelected ? 56 : 260
+
+useEffect(() => {
+  if (mobileNavigationSelected) {
+    setToolPanelCollapsed(true)
+    return
+  }
+
+  if (isMobileLayout && !toolPanelUseful) {
+    setToolPanelCollapsed(true)
+    return
+  }
+
+  if (workspacePrimary) {
+    setToolPanelCollapsed(true)
+    return
+  }
+
+  if (toolPanelUseful) {
+    setToolPanelCollapsed(false)
+  }
+}, [isMobileLayout, mobileNavigationSelected, workspacePrimary, toolPanelUseful])
 const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
 const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
 
@@ -1484,6 +1552,40 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     }
   }
 
+  async function requestPlannerHomeworkRecommendation(
+    dailyPlan: PlannerDailyPlan,
+    moduleResults: PlannerSessionResults,
+    moduleDebrief: string
+  ) {
+    if (!projectId) {
+      return ""
+    }
+
+    const modulePayload = {
+      activity_results: moduleResults.activityResults || [],
+      flashcards_reviewed: moduleResults.flashcardsReviewed,
+      quizzes_completed: moduleResults.quizzesCompleted,
+      quiz_questions: moduleResults.quizQuestions,
+      quiz_correct: moduleResults.quizCorrect,
+      accuracy: moduleResults.quizQuestions > 0
+        ? moduleResults.quizCorrect / moduleResults.quizQuestions
+        : null,
+      professor_debrief: moduleDebrief
+    }
+
+    try {
+      return await generatePlannerHomeworkRecommendation(
+        projectId,
+        dailyPlan.sessionIndex + 1,
+        modulePayload,
+        plannerStudyLanguage(i18n.language)
+      )
+    } catch (error) {
+      console.error("PLANNER HOMEWORK RECOMMENDATION ERROR:", error)
+      return ""
+    }
+  }
+
   async function requestPlannerStudyPlanDebrief(
     completedSessionResults: PlannerCompletedSessionResults
   ) {
@@ -1536,10 +1638,20 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       completedAtMs
     }
     const completedSessionIndex = dailyPlan.sessionIndex
-    const moduleDebrief = await requestPlannerModuleDebrief(
-      dailyPlan,
-      completedResults
-    )
+    const isAssessmentPlan = dailyPlan.planType === "assessment"
+    const moduleDebrief = isAssessmentPlan
+      ? ""
+      : await requestPlannerModuleDebrief(
+          dailyPlan,
+          completedResults
+        )
+    const homeworkRecommendation = isAssessmentPlan
+      ? ""
+      : await requestPlannerHomeworkRecommendation(
+          dailyPlan,
+          completedResults,
+          moduleDebrief
+        )
     const completedSessionResults = {
       ...plannerRuntime.completedSessionResults,
       [completedSessionIndex]: completedResults
@@ -1547,7 +1659,20 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     const allModulesCompleted =
       Boolean(dailyPlan.studyPlanModuleCount)
       && Object.keys(completedSessionResults).length >= (dailyPlan.studyPlanModuleCount || 0)
+    const assessmentCompleted =
+      isAssessmentPlan
+      && allModulesCompleted
+
+    if (assessmentCompleted && projectId) {
+      try {
+        await completePlannerAssessment(projectId)
+      } catch (error) {
+        console.error("PLANNER ASSESSMENT COMPLETION ERROR:", error)
+      }
+    }
+
     const studyPlanDebrief = allModulesCompleted
+      && !assessmentCompleted
       ? await requestPlannerStudyPlanDebrief(completedSessionResults)
       : ""
 
@@ -1563,7 +1688,14 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
             [completedSessionIndex]: moduleDebrief
           }
         : prev.moduleDebriefs,
-      studyPlanDebrief: studyPlanDebrief || prev.studyPlanDebrief
+      moduleHomework: homeworkRecommendation
+        ? {
+            ...prev.moduleHomework,
+            [completedSessionIndex]: homeworkRecommendation
+          }
+        : prev.moduleHomework,
+      studyPlanDebrief: studyPlanDebrief || prev.studyPlanDebrief,
+      assessmentCompletedAt: assessmentCompleted ? Date.now() : prev.assessmentCompletedAt
     }))
     setActiveView("planner_view")
   }
@@ -1603,11 +1735,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           cards: reviewedCount,
           num_cards: reviewedCount
         }
-        await requestPlannerActivityDebrief(
-          plannerRuntime.dailyPlan,
-          plannerRuntime.activityIndex,
-          activityResult
-        )
+        if (plannerRuntime.dailyPlan.planType !== "assessment") {
+          await requestPlannerActivityDebrief(
+            plannerRuntime.dailyPlan,
+            plannerRuntime.activityIndex,
+            activityResult
+          )
+        }
         setPlannerRuntime(prev => ({
           ...prev,
           mode: "activity_review",
@@ -1856,11 +1990,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               num_questions: quiz.length,
               accuracy: quiz.length > 0 ? correctCount / quiz.length : null
             }
-            await requestPlannerActivityDebrief(
-              plannerRuntime.dailyPlan,
-              plannerRuntime.activityIndex,
-              activityResult
-            )
+            if (plannerRuntime.dailyPlan.planType !== "assessment") {
+              await requestPlannerActivityDebrief(
+                plannerRuntime.dailyPlan,
+                plannerRuntime.activityIndex,
+                activityResult
+              )
+            }
             setPlannerRuntime(prev => ({
               ...prev,
               mode: "activity_review",
@@ -1886,11 +2022,86 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
   function plannerStudyLanguage(language: string): "English" | "Italian" {
     return language.toLowerCase().startsWith("it") ? "Italian" : "English"
   }
+
+  function currentFeatureTitle() {
+    if (activeView === "ask" || activeView === "ask_setup") return i18n.t("stats.Ask question")
+    if (activeView === "quiz") return i18n.t("stats.Generate quiz")
+    if (activeView === "generate_flashcards") return i18n.t("stats.Generate flashcards")
+    if (activeView === "flashcards") return i18n.t("stats.Flashcards")
+    if (activeView === "active_recall" || activeView === "active_recall_setup") return i18n.t("stats.Memory check")
+    if (activeView === "study_session" || activeView === "study_session_setup") return i18n.t("stats.Study Session")
+    if (activeView === "planner_view") return i18n.t("stats.Study planner")
+    if (activeView === "previous_quizzes") return i18n.t("stats.Previous quizzes")
+    if (activeView === "results_summary") return i18n.t("stats.Results & Summary")
+    if (activeView === "topics") return i18n.t("stats.Topics Dashboard")
+    if (activeView === "create_project") return i18n.t("stats.Create project")
+    if (activeView === "load_project") return i18n.t("stats.Load project")
+    if (activeView === "manage_projects") return i18n.t("stats.Manage projects")
+    return i18n.t("stats.Project")
+  }
     
+  const toolPanelCollapsedWidth = isMobileLayout ? 0 : 24
+  const toolPanelExpandedWidth = isMobileLayout
+    ? `min(320px, calc(100vw - ${mobileSidebarWidth}px))`
+    : 320
+  const mobileToolPanelStyle: React.CSSProperties = mobileNavigationSelected
+    ? {
+        position: "absolute",
+        left: mobileSidebarWidth,
+        top: 0,
+        bottom: 0,
+        height: "100%",
+        maxWidth: `calc(100vw - ${mobileSidebarWidth}px)`,
+        transform: toolPanelCollapsed ? "translateX(-100%)" : "translateX(0)",
+        boxShadow: toolPanelCollapsed
+          ? "none"
+          : "18px 0 40px rgba(0, 0, 0, 0.36)"
+      }
+    : {}
+  const mobileToolPanelContentStyle: React.CSSProperties = mobileNavigationSelected
+    ? {
+        height: "100%"
+      }
+    : {}
+  const mobileEdgeTabStyle: React.CSSProperties = isMobileLayout
+    ? {
+        display: "none",
+        width: 32,
+        height: 96,
+        right: -32,
+        fontSize: 11
+      }
+    : {}
+
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#080a10" }}>
+    <div style={{
+      ...appShell,
+      height: isMobileLayout ? "100dvh" : "100vh",
+      flexDirection: mobileNavigationSelected ? "column" : "row"
+    }}>
+      {mobileNavigationSelected && (
+        <div style={mobileTopBar}>
+          <div style={mobileTopBarLogo}>DO•U•NO</div>
+          <div style={mobileTopBarTitle}>{currentFeatureTitle()}</div>
+          <button
+            type="button"
+            onClick={() => setToolPanelCollapsed(current => !current)}
+            style={mobileOptionsButton}
+            aria-label={
+              toolPanelCollapsed
+                ? i18n.t("stats.Open options")
+                : i18n.t("stats.Collapse options")
+            }
+          >
+            ⚙
+            <span style={mobileOptionsLabel}>{i18n.t("stats.Options")}</span>
+          </button>
+        </div>
+      )}
+      <div style={mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
       <Sidebar
         activeView={activeView}
+        compactMode={mobileNavigationSelected}
         setActiveView={setActiveView}
         loadResults={loadResults}
         projectId={projectId}
@@ -1912,58 +2123,103 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         
       />
 
-      <ToolPanel
-        activeView={activeView}
-        setActiveView={setActiveView}
-        projectName={projectName}
-        projects={projects}
-        createProject={createProject}
-        selectProject={selectProject}
-        deleteProject={deleteProject}
-        projectId={projectId}
-        numQuestions={numQuestions}
-        setNumQuestions={setNumQuestions}
-        difficulty={difficulty}
-        setDifficulty={setDifficulty}
-        language={language}
-        setLanguage={setLanguage}
-        timerMinutes={timerMinutes}
-        setTimerMinutes={setTimerMinutes}
-        generateQuiz={generateQuiz}
-        generateFlashcards={generateFlashcards}
-        generatingFlashcards={generatingFlashcards}
-        flashcards={flashcards}
-        openCard={openCard}
-        setOpenCard={setOpenCard}
-        files={files}
-        setFiles={setFiles}
-        documents={documents}
-        topics={topics}
-        loadingTopics={loadingTopics}
-        previousFlashcards={previousFlashcards}
-        topicsOpen={topicsOpen}
-        setTopicsOpen={setTopicsOpen}
-        selectedTopic={selectedTopic}
-        setSelectedTopic={setSelectedTopic}
-        selectedTopics={selectedTopics}
-        setSelectedTopics={setSelectedTopics}
-        availableFlashcards={availableFlashcards}
-        studyCount={studyCount}
-        setStudyCount={setStudyCount}
-        status={status}
-        uploadStatus={uploadStatus}
-        setProjectName={setProjectName}
-        uploadFiles={uploadFiles}
-        loadStudyFlashcards={loadStudyFlashcards}
-        studyMode={studyMode}
-        setStudyMode={setStudyMode}
-        loadingFlashcards={loadingFlashcards}
-        studyConfig={studyConfig}
-        setStudyConfig={setStudyConfig}
-        questionStyle={questionStyle}
-        setQuestionStyle={setQuestionStyle}
-        plannerSessionActive={plannerRuntime.mode !== "dashboard"}
-      />
+      <div style={{
+        ...toolPanelShell,
+        ...mobileToolPanelStyle,
+        width: toolPanelCollapsed ? toolPanelCollapsedWidth : toolPanelExpandedWidth,
+        minWidth: toolPanelCollapsed ? toolPanelCollapsedWidth : toolPanelExpandedWidth
+      }}>
+        <div style={{
+          ...toolPanelContent,
+          ...mobileToolPanelContentStyle,
+          width: toolPanelCollapsed ? 0 : "100%",
+          minWidth: toolPanelCollapsed ? 0 : "100%"
+        }}>
+          {!toolPanelCollapsed && (
+            <ToolPanel
+              activeView={activeView}
+              setActiveView={setActiveView}
+              projectName={projectName}
+              projects={projects}
+              createProject={createProject}
+              selectProject={selectProject}
+              deleteProject={deleteProject}
+              projectId={projectId}
+              numQuestions={numQuestions}
+              setNumQuestions={setNumQuestions}
+              difficulty={difficulty}
+              setDifficulty={setDifficulty}
+              language={language}
+              setLanguage={setLanguage}
+              timerMinutes={timerMinutes}
+              setTimerMinutes={setTimerMinutes}
+              generateQuiz={generateQuiz}
+              generateFlashcards={generateFlashcards}
+              generatingFlashcards={generatingFlashcards}
+              flashcards={flashcards}
+              openCard={openCard}
+              setOpenCard={setOpenCard}
+              files={files}
+              setFiles={setFiles}
+              documents={documents}
+              topics={topics}
+              loadingTopics={loadingTopics}
+              previousFlashcards={previousFlashcards}
+              topicsOpen={topicsOpen}
+              setTopicsOpen={setTopicsOpen}
+              selectedTopic={selectedTopic}
+              setSelectedTopic={setSelectedTopic}
+              selectedTopics={selectedTopics}
+              setSelectedTopics={setSelectedTopics}
+              availableFlashcards={availableFlashcards}
+              studyCount={studyCount}
+              setStudyCount={setStudyCount}
+              status={status}
+              uploadStatus={uploadStatus}
+              setProjectName={setProjectName}
+              uploadFiles={uploadFiles}
+              loadStudyFlashcards={loadStudyFlashcards}
+              studyMode={studyMode}
+              setStudyMode={setStudyMode}
+              loadingFlashcards={loadingFlashcards}
+              studyConfig={studyConfig}
+              setStudyConfig={setStudyConfig}
+              questionStyle={questionStyle}
+              setQuestionStyle={setQuestionStyle}
+              plannerSessionActive={plannerRuntime.mode !== "dashboard"}
+            />
+          )}
+        </div>
+        <button
+          type="button"
+          className="tool-panel-edge-tab"
+          onClick={() => setToolPanelCollapsed(current => !current)}
+          style={{
+            ...toolPanelEdgeTab,
+            ...mobileEdgeTabStyle,
+            right: isMobileLayout ? -32 : -20
+          }}
+          aria-label={
+            toolPanelCollapsed
+              ? i18n.t("stats.Open options")
+              : i18n.t("stats.Collapse options")
+          }
+        >
+          <span style={toolPanelEdgeTabLabel}>
+            {toolPanelCollapsed
+              ? `▶ ${i18n.t("stats.Options")}`
+              : `◀ ${i18n.t("stats.Collapse")}`}
+          </span>
+        </button>
+      </div>
+
+      <style jsx global>{`
+        .tool-panel-edge-tab:hover {
+          color: rgba(54, 242, 237, 0.9) !important;
+          background: #0f1f33 !important;
+          border-color: #374151 !important;
+        }
+      `}</style>
 
       <Workspace
         key={quizId}
@@ -2032,6 +2288,142 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         
         
       />
+      </div>
     </div>
   )
+}
+
+const appShell: React.CSSProperties = {
+  display: "flex",
+  height: "100vh",
+  width: "100vw",
+  maxWidth: "100vw",
+  overflow: "hidden",
+  background: "#080a10",
+  position: "relative"
+}
+
+const desktopContentShell: React.CSSProperties = {
+  display: "flex",
+  flex: 1,
+  minWidth: 0,
+  height: "100%"
+}
+
+const mobileContentShell: React.CSSProperties = {
+  display: "flex",
+  flex: 1,
+  minHeight: 0,
+  minWidth: 0,
+  width: "100%",
+  position: "relative",
+  overflow: "hidden"
+}
+
+const mobileTopBar: React.CSSProperties = {
+  height: 56,
+  minHeight: 56,
+  width: "100%",
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "0 12px",
+  boxSizing: "border-box",
+  background: "#080a10",
+  borderBottom: "1px solid #1f2937",
+  color: "#e5e7eb",
+  zIndex: 60
+}
+
+const mobileTopBarLogo: React.CSSProperties = {
+  fontSize: 15,
+  fontWeight: 800,
+  letterSpacing: 1.2,
+  color: "#36f2ed",
+  whiteSpace: "nowrap"
+}
+
+const mobileTopBarTitle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  fontSize: 15,
+  fontWeight: 600,
+  color: "#f8fafc",
+  textAlign: "center"
+}
+
+const mobileOptionsButton: React.CSSProperties = {
+  minHeight: 40,
+  minWidth: 44,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  padding: "8px 10px",
+  borderRadius: 10,
+  border: "1px solid #1f2937",
+  background: "rgba(15, 31, 51, 0.82)",
+  color: "#e5e7eb",
+  fontSize: 13,
+  cursor: "pointer",
+  whiteSpace: "nowrap"
+}
+
+const mobileOptionsLabel: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 500
+}
+
+const toolPanelShell: React.CSSProperties = {
+  position: "relative",
+  height: "100%",
+  overflow: "visible",
+  background: "#080a10",
+  borderRight: "1px solid #1f2937",
+  transition: "width 220ms ease, min-width 220ms ease, transform 220ms ease",
+  flexShrink: 0,
+  zIndex: 20
+}
+
+const toolPanelContent: React.CSSProperties = {
+  height: "100%",
+  overflow: "hidden",
+  transition: "width 220ms ease, min-width 220ms ease",
+  flexShrink: 0
+}
+
+const toolPanelEdgeTab: React.CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: 20,
+  height: 74,
+  alignItems: "center",
+  justifyContent: "center",
+  border: "1px solid #1f2937",
+  borderLeft: "none",
+  borderRadius: "0 10px 10px 0",
+  background: "rgba(11, 17, 29, 0.92)",
+  color: "rgba(203, 213, 225, 0.68)",
+  cursor: "pointer",
+  fontWeight: 400,
+  fontSize: 10,
+  lineHeight: 1,
+  display: "flex",
+  padding: "10px 0",
+  boxSizing: "border-box",
+  zIndex: 40,
+  boxShadow: "none",
+  transition: "color 160ms ease, background 160ms ease, border-color 160ms ease"
+}
+
+const toolPanelEdgeTabLabel: React.CSSProperties = {
+  transform: "rotate(-90deg)",
+  transformOrigin: "center",
+  whiteSpace: "nowrap",
+  fontWeight: 400,
+  letterSpacing: 0.1
 }

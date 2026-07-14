@@ -17,6 +17,7 @@ export default function PlannerDashboard({
   const currentModule =
     plan.calendar.find(day => day.status === "today")
     || plan.calendar.find(day => day.day === plan.todayPlan.day)
+  const isAssessmentPlan = plan.planType === "assessment"
 
   return (
     <div style={container}>
@@ -24,49 +25,80 @@ export default function PlannerDashboard({
         {plan.todaySessionCompleted ? (
           <>
             <div>
-              <div style={ctaTitle}>{translate("stats.Current module is complete")}</div>
+              <div style={ctaTitle}>
+                {translate(isAssessmentPlan
+                  ? "stats.Current assessment module is complete"
+                  : "stats.Current module is complete")}
+              </div>
               <div style={ctaText}>
-                {translate("stats.The Professor can offer an optional extra module based on the same work.")}
+                {translate(isAssessmentPlan
+                  ? "stats.This assessment module has been recorded."
+                  : "stats.The Professor can offer an optional extra module based on the same work.")}
               </div>
             </div>
             <button
               onClick={() => currentModule && onOpenDailySession(currentModule)}
               style={secondaryButton}
             >
-              {translate("stats.Start Extra Module")}
+              {translate(isAssessmentPlan
+                ? "stats.Continue Assessment"
+                : "stats.Start Extra Module")}
             </button>
           </>
         ) : (
           <>
             <div>
-              <div style={ctaTitle}>{translate("stats.Current module is ready")}</div>
+              <div style={ctaTitle}>
+                {translate(isAssessmentPlan
+                  ? "stats.Current assessment module is ready"
+                  : "stats.Current module is ready")}
+              </div>
               <div style={ctaText}>
-                {translate("stats.Start the current module when you are ready.")}
+                {translate(isAssessmentPlan
+                  ? "stats.Answer honestly. If you are unsure, choose your best answer."
+                  : "stats.Start the current module when you are ready.")}
               </div>
             </div>
             <button
               onClick={() => currentModule && onOpenDailySession(currentModule)}
               style={primaryButton}
             >
-              {translate("stats.Start Current Module")}
+              {translate(isAssessmentPlan
+                ? "stats.Start Assessment Module"
+                : "stats.Start Current Module")}
             </button>
           </>
         )}
       </section>
 
+      {isAssessmentPlan && (
+        <section style={assessmentIntroCard}>
+          <div style={assessmentEyebrow}>
+            {translate("stats.Professor Assessment")}
+          </div>
+          <h2 style={assessmentTitle}>
+            {translate("stats.This is not an exam")}
+          </h2>
+          <p style={assessmentText}>
+            {translate("stats.The goal is not to judge your score, but to understand your current preparation. Every answer helps me build your first personalised Study Plan from objective evidence.")}
+          </p>
+        </section>
+      )}
+
       <WeeklyCalendar
         weekLabel={plan.weekLabel}
         days={plan.calendar}
+        planType={plan.planType}
         onDayClick={onOpenDailySession}
       />
 
-      <WeeklyBriefing briefing={plan.weeklyBriefing} />
+      {!isAssessmentPlan && <WeeklyBriefing briefing={plan.weeklyBriefing} />}
 
-      <WeeklyStatistics statistics={plan.statistics} />
+      <WeeklyStatistics statistics={plan.statistics} planType={plan.planType} />
 
-      <ProfessorDebriefs debriefs={plan.debriefs} />
+      {!isAssessmentPlan && <ProfessorDebriefs debriefs={plan.debriefs} />}
 
-      <HomeworkAccordion homework={plan.homework} />
+      {!isAssessmentPlan && <HomeworkAccordion homework={plan.homework} />}
     </div>
   )
 }
@@ -121,4 +153,34 @@ const secondaryButton = {
   color: "#36F2ED",
   fontWeight: 800,
   cursor: "pointer"
+}
+
+const assessmentIntroCard = {
+  background: "#0b111d",
+  border: "1px solid #0e6c69",
+  borderRadius: 18,
+  padding: 22,
+  marginBottom: 22
+}
+
+const assessmentEyebrow = {
+  color: "#36F2ED",
+  fontSize: 12,
+  fontWeight: 900,
+  letterSpacing: 1,
+  textTransform: "uppercase" as const,
+  marginBottom: 8
+}
+
+const assessmentTitle = {
+  color: "white",
+  fontSize: 26,
+  fontWeight: 900,
+  margin: "0 0 10px"
+}
+
+const assessmentText = {
+  color: "#cbd5e1",
+  lineHeight: 1.7,
+  margin: 0
 }

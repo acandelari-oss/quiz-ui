@@ -941,11 +941,12 @@ plannerSessionActive = false,
 
 
 const panel: React.CSSProperties = {
-  width: 320,
+  width: "100%",
+  boxSizing: "border-box",
   background: "#080a10",
   borderRight: "1px solid #1f2937",
   padding: 20,
-  height: "100vh",
+  height: "100%",
   overflowY: "auto" as const,
   color: "white",
   zIndex: 2

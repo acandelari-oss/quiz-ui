@@ -2,15 +2,22 @@ import type { PlannerStatistic } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
 
 export default function WeeklyStatistics({
-  statistics
+  statistics,
+  planType = "study_plan"
 }: {
   statistics: PlannerStatistic[]
+  planType?: string
 }) {
   const { t: translate } = useTranslation()
+  const isAssessmentPlan = planType === "assessment"
 
   return (
     <section style={section}>
-      <div style={sectionLabel}>{translate("stats.Study Plan Statistics")}</div>
+      <div style={sectionLabel}>
+        {translate(isAssessmentPlan
+          ? "stats.Assessment Statistics"
+          : "stats.Study Plan Statistics")}
+      </div>
       <div style={statsGrid}>
         {statistics.map(stat => (
           <div key={stat.label} style={statCard}>
