@@ -66,6 +66,7 @@ setSelectedTopics,
 uploadLog,
 uploading,
 projectId,
+projectName,
 quizId,
 previousQuizzes,
 loadQuiz,
@@ -254,10 +255,16 @@ useEffect(()=>{
 console.log("WORKSPACE LOG:", uploadLog)
 console.log("WORKSPACE resultsData:", resultsData);
 console.log("RENDERING ATTUALE - View:", activeView, "Cards:", flashcards?.length, "Gen:", generatingFlashcards);
+const canRenderWithoutProject = activeView === "manage_projects"
 return (
   
   <div style={{ ...workspace, position: "relative" }}>
     <div
+      className={
+        activeView === "quiz" && started
+          ? "workspace-header workspace-mobile-hidden quiz-runtime-mobile-hidden"
+          : "workspace-header"
+      }
       style={{
         ...shellHeaderCell,
         marginTop: 20,
@@ -304,7 +311,34 @@ return (
 
     </div>
 
-    <div style={{ padding: 30 }}>
+    <div
+      className={
+        activeView === "quiz" && started
+          ? "workspace-content quiz-runtime-mobile-content"
+          : "workspace-content"
+      }
+      style={{ padding: 30 }}
+    >
+    <style>{`
+      @media (max-width: 900px) {
+        .workspace-mobile-hidden,
+        .workspace-header {
+          display: none !important;
+        }
+
+        .workspace-content {
+          padding: 0 !important;
+        }
+
+        .quiz-runtime-mobile-hidden {
+          display: none !important;
+        }
+
+        .quiz-runtime-mobile-content {
+          padding: 0 !important;
+        }
+      }
+    `}</style>
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {uploading ||
     generatingFlashcards ||
@@ -385,7 +419,7 @@ return (
       </div>
     ) : /* --- FINE BLOCCO LOADER --- */
 
-    !projectId ? (
+    !projectId && !canRenderWithoutProject ? (
       // Qui continua con il tuo codice del logo (StudyForge)
 
   
@@ -427,7 +461,7 @@ return (
 
   </div>
 
-) : documents?.length === 0 ? (
+) : documents?.length === 0 && !canRenderWithoutProject ? (
 
   // 🔥 NUOVA SCHERMATA (DOPO CREAZIONE PROGETTO)
   <div style={{
@@ -680,17 +714,18 @@ return (
     )}
     {/* 🎯 NUOVA DASHBOARD TOPICS */}
     {activeView === "topics" && (
-      <div style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto" }}>
-        <h2 style={{ fontSize: "24px", marginBottom: "20px", fontWeight: "600" }}>
+      <div className="topics-dashboard-mobile-shell" style={{ padding: "20px", maxWidth: "1400px", margin: "0 auto" }}>
+        <h2 className="topics-dashboard-mobile-title" style={{ fontSize: "24px", marginBottom: "20px", fontWeight: "600" }}>
           <img
+            className="topics-dashboard-mobile-title-icon"
             src="/icons/topic-dashboard.svg"
             alt=""
             width={48}
             height={48}
           /> {translate('stats.Topic Dashboard')}
         </h2>
-        <p style={{ color: "#9ca3af", marginBottom: "30px" }}>
-          {translate('stats.Select a specific topic to start a targeted study session.')}
+        <p className="topics-dashboard-mobile-subtitle" style={{ color: "#9ca3af", marginBottom: "30px" }}>
+          {translate('stats.Use the buttons at the bottom of each category to start a targeted activity.')}
         </p>
 
         <TopicsView
@@ -709,6 +744,36 @@ return (
           summaryStats={summaryStats}
           resultsData={resultsData} 
         />
+        <style jsx global>{`
+          @media (max-width: 900px) {
+            .topics-dashboard-mobile-shell {
+              padding: 18px 12px 20px !important;
+              max-width: none !important;
+              width: 100%;
+              box-sizing: border-box;
+            }
+
+            .topics-dashboard-mobile-title {
+              margin: 0 0 8px !important;
+              font-size: 28px !important;
+              line-height: 1.1 !important;
+              font-weight: 800 !important;
+              color: #2fb8ff;
+            }
+
+            .topics-dashboard-mobile-title-icon {
+              display: none !important;
+            }
+
+            .topics-dashboard-mobile-subtitle {
+              margin: 0 0 22px !important;
+              font-size: 15px !important;
+              line-height: 1.35 !important;
+              color: #9ca3af !important;
+              max-width: 92%;
+            }
+          }
+        `}</style>
       </div>
     )}
     {/* ASK */}
@@ -719,6 +784,7 @@ return (
         askDocuments={askDocuments}
         asking={asking}
         chatMessages={chatMessages}
+        projectName={projectName}
         selectedTopics={selectedTopics} 
         useGlobalKnowledge={useGlobalKnowledge}
         setUseGlobalKnowledge={setUseGlobalKnowledge}
@@ -841,7 +907,7 @@ return (
       <>
         {/* 1. Banner del Topic (Se selezionato) */}
         {selectedTopic && (
-          <div style={{
+          <div className="flashcards-mobile-hidden" style={{
             background: "rgba(34, 197, 94, 0.1)",
             border: "1px solid #22c55e",
             padding: "10px 15px",
@@ -1063,7 +1129,7 @@ return (
           </div>
         ) : (
           <>
-            <div style={{
+            <div className="desktop-quiz-intro" style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1077,12 +1143,21 @@ return (
             src="/icons/quiz.svg"
             alt=""
             width={36}
-            height={36}
+              height={36}
           /><p>{translate('stats.QUIZ GENERATION')}</p>
             </div>
-            <HintBox
-              text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
-            />
+            <div className="desktop-quiz-intro">
+              <HintBox
+                text={translate('stats.Smaller quizzes improve retention and focus. Use quiz mode to evaluate your understanding, not just to repeat information.')}
+              />
+            </div>
+            <style jsx global>{`
+              @media (max-width: 900px) {
+                .desktop-quiz-intro {
+                  display: none !important;
+                }
+              }
+            `}</style>
             <QuizView
               quiz={quiz}
               answers={answers}

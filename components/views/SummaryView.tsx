@@ -84,12 +84,8 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
     .slice(0, 5)
 
   return (
-    <div style={{ padding: 20,  }}>
+    <div className="summary-mobile-root" style={{ padding: 20,  }}>
     
-
-      <h2 style={title}>{translate('stats.Study Summary')}</h2>
-
-      
 
       {/* ================= QUIZ PERFORMANCE ================= */}
 
@@ -103,6 +99,7 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
       </h3>
 
       <div
+        className="summary-mobile-quiz-performance-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr 2fr",
@@ -152,7 +149,7 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </div>
 
         {/* WEAK AREAS */}
-          <div style={card}>
+          <div className="summary-mobile-wide-card" style={card}>
             <h3 style={cardLabel}>
               ⚠️ {translate('stats.Weak Areas')}
             </h3>
@@ -261,6 +258,7 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
           /> Learning Insights
       </h3>
       <div
+        className="summary-mobile-insights-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr",
@@ -284,10 +282,11 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </h4>
 
         {focusTopics.map((t, i) => (
-          <div key={i} style={miniCardStyle}>
-            {t.topic}
+          <div key={i} className="learning-insight-mini-row" style={miniCardStyle}>
+            <span className="learning-insight-topic-text">{t.topic}</span>
 
             <span
+              className="learning-insight-percentage"
               style={{
                 float: "right",
                 color: "#ef4444"
@@ -314,10 +313,11 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </h4>
 
         {improvingTopics.map((t, i) => (
-          <div key={i} style={miniCardStyle}>
-            {t.topic}
+          <div key={i} className="learning-insight-mini-row" style={miniCardStyle}>
+            <span className="learning-insight-topic-text">{t.topic}</span>
 
             <span
+              className="learning-insight-percentage"
               style={{
                 float: "right",
                 color: "#eab308"
@@ -344,10 +344,11 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
         </h4>
 
         {masteredTopics.map((t, i) => (
-          <div key={i} style={miniCardStyle}>
-            {t.topic}
+          <div key={i} className="learning-insight-mini-row" style={miniCardStyle}>
+            <span className="learning-insight-topic-text">{t.topic}</span>
 
             <span
+              className="learning-insight-percentage"
               style={{
                 float: "right",
                 color: "#22c55e"
@@ -380,6 +381,60 @@ export default function SummaryView({ summaryStats, projectId, resultsData }) {
             </p>
           </div>
       </div>
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .summary-mobile-root {
+            padding: 12px !important;
+          }
+
+          .summary-mobile-quiz-performance-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+          }
+
+          .summary-mobile-wide-card {
+            grid-column: 1 / -1;
+            text-align: left !important;
+          }
+
+          .summary-mobile-quiz-performance-grid > div:not(.summary-mobile-wide-card) p {
+            font-size: 16px !important;
+          }
+
+          .summary-mobile-wide-card h3 {
+            text-align: left !important;
+          }
+
+          .summary-mobile-insights-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+            margin-top: 12px !important;
+          }
+
+          .learning-insight-mini-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 8px !important;
+            border-left: none !important;
+            font-size: 12px !important;
+            line-height: 1.2 !important;
+          }
+
+          .learning-insight-topic-text {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .learning-insight-percentage {
+            float: none !important;
+            flex-shrink: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 }

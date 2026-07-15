@@ -19,18 +19,18 @@ export default function WeeklyCalendar({
   const isAssessmentPlan = planType === "assessment"
 
   return (
-    <section style={section} aria-label={weekLabel}>
-      <div style={topRow}>
+    <section className="planner-mobile-current-plan" style={section} aria-label={weekLabel}>
+      <div className="planner-mobile-current-plan-top" style={topRow}>
         <div>
-          <div style={eyebrow}>
+          <div className="planner-mobile-current-plan-eyebrow" style={eyebrow}>
             {translate(isAssessmentPlan ? "stats.Current Assessment" : "stats.Current plan")}
           </div>
-          <h2 style={title}>
+          <h2 className="planner-mobile-current-plan-title" style={title}>
             {translate(isAssessmentPlan ? "stats.Professor Assessment" : "stats.Study Plan")}
           </h2>
         </div>
 
-        <div style={summaryRow}>
+        <div className="planner-mobile-status-row" style={summaryRow}>
           <StatusPill label={translate("stats.Completed")} value={String(completed)} />
           <StatusPill
             label={translate(isAssessmentPlan
@@ -42,7 +42,7 @@ export default function WeeklyCalendar({
         </div>
       </div>
 
-      <div style={calendarGrid}>
+      <div className="planner-mobile-module-grid" style={calendarGrid}>
         {days.map(day => {
           const styles = statusStyles[day.status]
 
@@ -50,17 +50,18 @@ export default function WeeklyCalendar({
             <button
               key={day.day}
               onClick={() => onDayClick(day)}
+              className="planner-mobile-module-card"
               style={{
                 ...dayCard,
                 border: `1px solid ${styles.border}`,
                 background: styles.background
               }}
             >
-              <div style={dayHeader}>
-                <span style={dayName}>{day.day}</span>
+              <div className="planner-mobile-module-header" style={dayHeader}>
+                <span className="planner-mobile-module-title" style={dayName}>{day.day}</span>
               </div>
 
-              <div style={categoryList}>
+              <div className="planner-mobile-module-categories" style={categoryList}>
                 {day.categories.length > 0
                   ? day.categories.map(category => (
                     <div key={category} style={categoryText}>{category}</div>
@@ -77,6 +78,77 @@ export default function WeeklyCalendar({
           )
         })}
       </div>
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .planner-mobile-current-plan {
+            padding: 10px 12px !important;
+            margin-bottom: 10px !important;
+            border-radius: 12px !important;
+          }
+
+          .planner-mobile-current-plan-top {
+            display: block !important;
+            margin-bottom: 10px !important;
+          }
+
+          .planner-mobile-current-plan-eyebrow {
+            font-size: 11px !important;
+            margin-bottom: 2px !important;
+          }
+
+          .planner-mobile-current-plan-title {
+            font-size: 18px !important;
+            margin-bottom: 7px !important;
+          }
+
+          .planner-mobile-status-row {
+            display: flex !important;
+            gap: 6px !important;
+            flex-wrap: wrap !important;
+          }
+
+          .planner-mobile-status-pill {
+            padding: 5px 7px !important;
+            border-radius: 8px !important;
+            gap: 4px !important;
+            flex: 1 1 auto;
+            min-width: 0;
+          }
+
+          .planner-mobile-status-label {
+            font-size: 11px !important;
+            white-space: nowrap;
+          }
+
+          .planner-mobile-status-value {
+            font-size: 11px !important;
+            white-space: nowrap;
+          }
+
+          .planner-mobile-module-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+
+          .planner-mobile-module-card {
+            min-height: 0 !important;
+            padding: 10px 12px !important;
+            border-radius: 10px !important;
+          }
+
+          .planner-mobile-module-header {
+            margin-bottom: 5px !important;
+          }
+
+          .planner-mobile-module-title {
+            font-size: 15px !important;
+          }
+
+          .planner-mobile-module-categories {
+            gap: 3px !important;
+          }
+        }
+      `}</style>
     </section>
   )
 }
@@ -89,9 +161,9 @@ function StatusPill({
   value: string
 }) {
   return (
-    <div style={pill}>
-      <span style={pillLabel}>{label}</span>
-      <span style={pillValue}>{value}</span>
+    <div className="planner-mobile-status-pill" style={pill}>
+      <span className="planner-mobile-status-label" style={pillLabel}>{label}</span>
+      <span className="planner-mobile-status-value" style={pillValue}>{value}</span>
     </div>
   )
 }

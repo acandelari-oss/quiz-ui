@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Headphones } from "lucide-react"
 import { useTranslation } from 'react-i18next';
+import { exportConversationPDF } from "../../utils/pdfExport"
 
 const container = {
   display: "flex",
@@ -37,6 +38,7 @@ export default function AskView({
   askDocuments,
   asking,
   chatMessages,
+  projectName,
   selectedTopic, // 1. Recurperiamo il topic dal padre
   selectedTopics,
   useGlobalKnowledge,
@@ -97,10 +99,40 @@ function toggleRecording() {
   }
 }
 
+function downloadAskPDF() {
+  const selectedSubject =
+    selectedTopics?.length > 1
+      ? `${
+          (
+            typeof selectedTopics[0] === "string"
+              ? selectedTopics[0]
+              : selectedTopics[0]?.topic
+          )?.split(" ")[0] || "Selected topics"
+        } (${selectedTopics.length} ${translate('stats.topics')})`
+      : selectedTopics?.length === 1
+      ? (
+          typeof selectedTopics[0] === "string"
+            ? selectedTopics[0]
+            : selectedTopics[0]?.topic
+        )
+      : "Full Project"
+
+  exportConversationPDF({
+    title: "ASK A QUESTION",
+    projectName,
+    subjectLabel: "Focus",
+    subject: selectedSubject,
+    messages,
+    filename: `ask_conversation_${new Date().toISOString().slice(0, 10)}.pdf`,
+    userLabel: "QUESTION",
+    assistantLabel: "AI ANSWER"
+  })
+}
+
   return (
-    <div style={container}>
+    <div className="ask-mobile-shell" style={container}>
       {/* HEADER CON FOCUS INDICATOR */}
-      <div style={{ 
+      <div className="ask-mobile-title-row" style={{ 
         display: "flex", 
         justifyContent: "space-between", 
         alignItems: "center", 
@@ -108,7 +140,7 @@ function toggleRecording() {
         paddingBottom: 10,
         borderBottom: selectedTopic ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid #374151" 
       }}>
-        <h3 style={{ margin: 0 }}>{translate('stats.Ask your documents')}</h3>
+        <h3 className="ask-mobile-title" style={{ margin: 0 }}>{translate('stats.Ask your documents')}</h3>
         
         {(selectedTopics && selectedTopics.length > 0) && (
           <div style={{
@@ -147,7 +179,7 @@ function toggleRecording() {
         )}
       </div>
 
-      <div style={chatBox}>
+      <div className="ask-mobile-chat-box" style={chatBox}>
         {messages.map((m, i) => (
           <div
             key={i}
@@ -197,9 +229,9 @@ function toggleRecording() {
         </div>
       )}
                   
-      <div style={{ marginTop: 15 }}>
+      <div className="ask-mobile-input-area" style={{ marginTop: 15 }}>
         <div style={{ position: "relative", width: "100%" }}>
-          <div style={{
+          <div className="ask-mobile-search-card" style={{
               marginBottom: '15px',
               padding: '10px',
               background: 'rgba(255,255,255,0.03)',
@@ -282,6 +314,7 @@ function toggleRecording() {
 
             </div>
           <textarea
+            className="ask-mobile-textarea"
             value={askQuestion}
             onChange={(e) => setAskQuestion(e.target.value)}
             onKeyDown={(e) => {
@@ -309,7 +342,7 @@ function toggleRecording() {
                 : translate('stats.Ask something about your documents...')
             }
             style={{
-              width: "91%",
+              width: "100%",
               minHeight: 80,
               maxHeight: 200,
               resize: "none",
@@ -321,12 +354,14 @@ function toggleRecording() {
               lineHeight: 1.5,
               overflowWrap: "break-word",
               wordBreak: "break-word",
-              outline: "none"
+              outline: "none",
+              boxSizing: "border-box"
             }}
           />
 
           {/* MIC */}
           <button
+            className="ask-mobile-mic-button"
             onClick={toggleRecording}
             style={{
               position: "absolute",
@@ -345,6 +380,7 @@ function toggleRecording() {
 
           {/* SEND */}
           <button
+            className="ask-mobile-send-button"
             onClick={() => askQuestion.trim() && askDocuments(selectedTopic)}
             style={{
               position: "absolute",
@@ -362,7 +398,99 @@ function toggleRecording() {
             ➤
           </button>
         </div>
+        {messages.length > 0 && (
+          <button
+            className="ask-download-pdf-button"
+            onClick={downloadAskPDF}
+            style={{
+              marginTop: 8,
+              alignSelf: "flex-start",
+              background: "#2563eb",
+              color: "white",
+              border: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              cursor: "pointer",
+              fontWeight: 600,
+              fontSize: 13
+            }}
+          >
+            Download PDF
+          </button>
+        )}
       </div>
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .ask-mobile-shell {
+            padding: 10px 10px 14px !important;
+            min-height: calc(100dvh - 76px);
+            box-sizing: border-box;
+          }
+
+          .ask-mobile-title-row {
+            margin-bottom: 8px !important;
+            padding-bottom: 7px !important;
+          }
+
+          .ask-mobile-title {
+            font-size: 18px !important;
+            line-height: 1.15 !important;
+            font-weight: 700 !important;
+          }
+
+          .ask-mobile-chat-box {
+            margin-bottom: 6px !important;
+          }
+
+          .ask-mobile-input-area {
+            margin-top: 8px !important;
+          }
+
+          .ask-mobile-search-card {
+            margin-bottom: 8px !important;
+            padding: 7px 9px !important;
+            border-radius: 9px !important;
+          }
+
+          .ask-mobile-search-card > div {
+            gap: 10px;
+          }
+
+          .ask-mobile-textarea {
+            min-height: 112px !important;
+            padding: 10px 82px 10px 11px !important;
+            border-radius: 12px !important;
+            font-size: 15px !important;
+            line-height: 1.35 !important;
+          }
+
+          .ask-mobile-mic-button,
+          .ask-mobile-send-button {
+            top: auto !important;
+            bottom: 9px !important;
+            transform: none !important;
+            min-width: 34px;
+            min-height: 34px;
+            padding: 6px 8px !important;
+          }
+
+          .ask-mobile-mic-button {
+            right: 48px !important;
+          }
+
+          .ask-mobile-send-button {
+            right: 9px !important;
+          }
+
+          .ask-download-pdf-button {
+            margin-top: 6px !important;
+            padding: 7px 10px !important;
+            border-radius: 7px !important;
+            font-size: 12px !important;
+            line-height: 1.1 !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }

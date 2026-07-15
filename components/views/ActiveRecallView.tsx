@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
-import jsPDF from "jspdf"
+import { exportConversationPDF } from "../../utils/pdfExport"
 import {
   extractTopicIds,
   extractTopicNames
@@ -58,12 +58,6 @@ export default function ActiveRecallView({
   }
   const { t: translate, i18n } = useTranslation();
   function downloadSessionPDF() {
-
-    const doc = new jsPDF()
-    const logo = new Image()
-
-    logo.src = "/logoSTXd.png"
-
     const selectedTopicName =
       selectedTopics?.length > 0
         ? (
@@ -73,130 +67,15 @@ export default function ActiveRecallView({
           )
         : "Full Project Review"
 
-    let y = 20
-
-    // ===== LOGO =====
-
-    doc.addImage(
-      logo,
-      "PNG",
-      20,
-      14,
-      38,
-      16
-    )
-
-    // ===== TITLE =====
-
-    doc.setFontSize(24)
-
-    doc.setTextColor(15, 15, 15)
-
-    doc.text(
-      "ORAL EXAM SESSION",
-      20,
-      52
-    )
-
-    // ===== INFO =====
-
-    doc.setFontSize(12)
-
-    doc.setTextColor(40, 40, 40)
-
-    doc.text(
-      `Topic: ${selectedTopicName}`,
-      20,
-      72
-    )
-
-    doc.text(
-      `Date: ${new Date().toLocaleString()}`,
-      20,
-      82
-    )
-
-    // ===== DIVIDER =====
-
-    doc.setDrawColor(180)
-
-    doc.line(
-      20,
-      94,
-      190,
-      94
-    )
-
-    // ===== START CONTENT =====
-
-    y = 110
-
-    // CHAT CONTENT
-    messages.forEach((msg: any) => {
-
-      const role =
-        msg.role === "user"
-          ? "YOUR ANSWER"
-          : "AI"
-
-      doc.setFontSize(13)
-
-      doc.setTextColor(30, 30, 30)
-
-      doc.text(`${role}:`, 20, y)
-
-      y += 7
-
-      const splitText = doc.splitTextToSize(
-        msg.content,
-        170
-      )
-
-      doc.setFontSize(11)
-
-      doc.setTextColor(60, 60, 60)
-
-      doc.text(splitText, 20, y)
-
-      y += splitText.length * 6
-
-      y += 10
-
-      // PAGE BREAK
-      if(y > 250){
-
-        // FOOTER
-        doc.setFontSize(10)
-
-        doc.setTextColor(120, 120, 120)
-
-        doc.text(
-          "Generated with StutorX AI • www.stutorx.com",
-          20,
-          285
-        )
-
-        doc.addPage()
-
-        y = 20
-      }
-
+    exportConversationPDF({
+      title: "ORAL EXAM SESSION",
+      subjectLabel: "Topic",
+      subject: selectedTopicName,
+      messages,
+      filename: `oral_exam_${selectedTopicName}.pdf`,
+      userLabel: "YOUR ANSWER",
+      assistantLabel: "AI"
     })
-
-    // FINAL FOOTER
-    doc.setFontSize(10)
-
-    doc.setTextColor(120, 120, 120)
-
-    doc.text(
-      "Generated with StutorX AI • www.stutorx.com",
-      20,
-      285
-    )
-
-    doc.save(
-      `oral_exam_${selectedTopicName}.pdf`
-    )
   }
   const hasFetchedRef = useRef(false);
 
@@ -410,10 +289,10 @@ export default function ActiveRecallView({
 
   // --- RENDERING ---
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", color: "white", padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <h3 style={{ margin: 0 }}>{translate('stats.Memory Check Trainer')}</h3>
-        <div style={{
+    <div className="memory-check-mobile-shell" style={{ display: "flex", flexDirection: "column", height: "100%", color: "white", padding: 20 }}>
+      <div className="memory-check-mobile-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <h3 className="memory-check-mobile-title" style={{ margin: 0 }}>{translate('stats.Memory Check Trainer')}</h3>
+        <div className="memory-check-mobile-mode-badge" style={{
           background: "#f59e0b",
           color: "white",
           padding: "6px 14px",
@@ -424,7 +303,7 @@ export default function ActiveRecallView({
           {isAllMode ? "MODUS: FULL PROJECT" : `TOPIC: ${normalizedTopics[0]}`}
         </div>
       </div>
-      <div style={{
+      <div className="memory-check-mobile-search-card" style={{
         marginBottom: '15px',
         padding: '10px',
         background: 'rgba(255,255,255,0.03)',
@@ -507,9 +386,9 @@ export default function ActiveRecallView({
 
       </div>
       
-      <div style={{ flex: 1, overflowY: "auto", marginBottom: 20 }}>
+      <div className="memory-check-mobile-question-area" style={{ flex: 1, overflowY: "auto", marginBottom: 20 }}>
         {messages.map((m, i) => (
-          <div key={i} style={{
+          <div key={i} className="memory-check-mobile-message-card" style={{
             background: m.role === "user" ? "#2FA4A9" : "#1f2937",
             padding: 15,
             borderRadius: 10,
@@ -525,30 +404,32 @@ export default function ActiveRecallView({
         {loading && <p>{translate('stats.Thinking...')}</p>}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="memory-check-mobile-answer-area" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <textarea 
+          className="memory-check-mobile-textarea"
           value={input} 
           onChange={(e) => setInput(e.target.value)}
           style={{ background: "#111827", color: "white", padding: 10, borderRadius: 8, border: "1px solid #374151" }}
           placeholder={translate('stats.Write your answer...')}
         />
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={toggleRecording} style={{ background: recording ? "#ef4444" : "#111827", border: "1px solid #374151", color: "white", padding: 10, borderRadius: 5 }}>
+        <div className="memory-check-mobile-actions" style={{ display: "flex", gap: 10 }}>
+          <button className="memory-check-mobile-action-button" onClick={toggleRecording} style={{ background: recording ? "#ef4444" : "#111827", border: "1px solid #374151", color: "white", padding: 10, borderRadius: 5 }}>
             {recording ? "⏹️" : "🎙️"}
           </button>
-          <button onClick={submitAnswer} style={{ background: "#2FA4A9", color: "white", padding: 10, borderRadius: 5, flex: 1 }}>
+          <button className="memory-check-mobile-action-button memory-check-mobile-primary-action" onClick={submitAnswer} style={{ background: "#2FA4A9", color: "white", padding: 10, borderRadius: 5, flex: 1 }}>
             {translate('stats.Submit Answer')}
           </button>
-          <button onClick={fetchAnswer} style={{ background: "#ef4444", color: "white", padding: 10, borderRadius: 5 }}>
+          <button className="memory-check-mobile-action-button" onClick={fetchAnswer} style={{ background: "#ef4444", color: "white", padding: 10, borderRadius: 5 }}>
             {translate('stats.Show answer')}  
           </button>
           {questionCount < maxQuestions && (
-            <button onClick={handleNext} style={{ background: "#374151", color: "white", padding: 10, borderRadius: 5 }}>
+            <button className="memory-check-mobile-action-button" onClick={handleNext} style={{ background: "#374151", color: "white", padding: 10, borderRadius: 5 }}>
               {translate('stats.Next question')}
             </button>
           
           )}
           <button
+            className="memory-check-mobile-action-button"
             onClick={downloadSessionPDF}
             style={{
               background: "#2563eb",
@@ -578,6 +459,97 @@ export default function ActiveRecallView({
           </div>
         )}
       </div>
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .memory-check-mobile-shell {
+            padding: 10px 10px 14px !important;
+            min-height: calc(100dvh - 76px);
+            box-sizing: border-box;
+          }
+
+          .memory-check-mobile-header {
+            margin-bottom: 7px !important;
+            gap: 8px;
+            align-items: flex-start !important;
+          }
+
+          .memory-check-mobile-title {
+            font-size: 18px !important;
+            line-height: 1.15 !important;
+          }
+
+          .memory-check-mobile-mode-badge {
+            padding: 4px 8px !important;
+            border-radius: 999px !important;
+            font-size: 10px !important;
+            line-height: 1.1 !important;
+            max-width: 46%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex-shrink: 0;
+          }
+
+          .memory-check-mobile-search-card {
+            margin-bottom: 8px !important;
+            padding: 7px 9px !important;
+            border-radius: 9px !important;
+          }
+
+          .memory-check-mobile-search-card > div {
+            gap: 10px;
+          }
+
+          .memory-check-mobile-question-area {
+            margin-bottom: 8px !important;
+          }
+
+          .memory-check-mobile-message-card {
+            padding: 10px 11px !important;
+            margin-bottom: 8px !important;
+            border-radius: 9px !important;
+            max-width: 94% !important;
+            line-height: 1.35 !important;
+          }
+
+          .memory-check-mobile-message-card p {
+            margin: 4px 0 0 !important;
+          }
+
+          .memory-check-mobile-answer-area {
+            gap: 7px !important;
+          }
+
+          .memory-check-mobile-textarea {
+            min-height: 118px !important;
+            padding: 10px 11px !important;
+            border-radius: 10px !important;
+            font-size: 15px !important;
+            line-height: 1.35 !important;
+            resize: vertical;
+          }
+
+          .memory-check-mobile-actions {
+            gap: 6px !important;
+            flex-wrap: wrap;
+            align-items: center;
+          }
+
+          .memory-check-mobile-action-button {
+            min-height: 34px;
+            padding: 7px 9px !important;
+            border-radius: 7px !important;
+            font-size: 12px !important;
+            line-height: 1.1 !important;
+            border: none;
+            cursor: pointer;
+          }
+
+          .memory-check-mobile-primary-action {
+            flex: 1 1 118px !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }

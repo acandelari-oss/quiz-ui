@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { useTranslation } from 'react-i18next';
 import React, { useState, useEffect } from 'react';
-import { Calendar } from "lucide-react"
+import { supabase } from "../lib/supabase";
 import { shellHeaderCell } from "./layoutStyles";
 
 import {
@@ -19,7 +19,7 @@ import {
 
 export default function Sidebar({ 
   activeView,
-  setActiveView,
+  handleSidebarNavigation,
   loadResults,
   loadSummary,
   projectId,
@@ -32,7 +32,8 @@ export default function Sidebar({
   loadPreviousQuizzes,
   loadQuizStats,
   setLanguage,
-  compactMode = false
+  compactMode = false,
+  mobileHome = false
 }: any) {
    // Dentro il componente Sidebar
         const [mounted, setMounted] = useState(false);
@@ -48,6 +49,13 @@ export default function Sidebar({
           )
           console.log("🌍 CHANGE LANGUAGE:", lng)
         }
+        const handleLogout = async () => {
+          await supabase.auth.signOut()
+          window.location.reload()
+        }
+        const navigate = (view: string) => {
+          handleSidebarNavigation(view)
+        }
   // Questo useEffect gira SOLO sul client dopo il primo render
   useEffect(() => {
     setMounted(true);
@@ -56,20 +64,24 @@ export default function Sidebar({
   // Se non è ancora montato, restituisci un placeholder o null 
   // per evitare che il server mandi testo che il client cambierà
   if (!mounted) {
-    return <div style={{ width: compactMode ? 56 : 260 }}></div>; // Mantieni lo spazio della sidebar vuoto
+    return <div style={{ width: mobileHome ? "100%" : compactMode ? 56 : 260 }}></div>; // Mantieni lo spazio della sidebar vuoto
   }
 
   return (
     <aside>
     <div style={{
       ...sidebar,
-      width: compactMode ? 56 : 260,
-      padding: compactMode ? "12px 6px" : 20,
+      width: mobileHome ? "100%" : compactMode ? 56 : 260,
+      padding: mobileHome ? "38px 28px 24px" : compactMode ? "12px 6px" : 20,
       alignItems: compactMode ? "center" : "stretch"
     }}>
 
       {/* LOGO */}
-      {!compactMode && (
+      {mobileHome ? (
+        <div style={mobileHomeLogoBox}>
+          <div style={mobileHomeLogoText}>DO•U•NO</div>
+        </div>
+      ) : !compactMode && (
         <div style={logoBox}>
           <Image
             src="/logodun.png"
@@ -88,12 +100,12 @@ export default function Sidebar({
       </div>
       )}
 
-      <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => setActiveView("create_project")} title={translate('stats.Create project')}>
+      <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => navigate("create_project")} title={translate('stats.Create project')}>
         <FolderPlus size={24} />
         {!compactMode && translate('stats.Create project')}
       </div>
 
-      <div style={navItemStyle(activeView === "load_project", compactMode)} onClick={() => setActiveView("load_project")} title={translate('stats.Load project')}>
+      <div style={navItemStyle(activeView === "load_project", compactMode)} onClick={() => navigate("load_project")} title={translate('stats.Load project')}>
         <Folder size={24} />
         {!compactMode && translate('stats.Load project')}
       </div>
@@ -102,7 +114,7 @@ export default function Sidebar({
         style={navItemStyle(activeView === "manage_projects", compactMode)}
         onClick={() => {
           console.log("🔥 CLICK MANAGE PROJECTS")
-          setActiveView("manage_projects")
+          navigate("manage_projects")
         }}
         title={translate('stats.Manage projects')}
       >
@@ -112,7 +124,7 @@ export default function Sidebar({
 
       <div 
         style={navItemStyle(activeView === "topics", compactMode)} 
-        onClick={() => setActiveView("topics")}
+        onClick={() => navigate("topics")}
         title={translate('stats.Topics Dashboard')}
       >
         <img
@@ -137,10 +149,7 @@ export default function Sidebar({
       <div
         style={navItemStyle(activeView === "ask_setup" || activeView === "ask", compactMode)}
         onClick={() => {
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})
-          setActiveView("ask_setup")
+          navigate("ask_setup")
         }}
         title={translate('stats.Ask question')}
       >
@@ -155,10 +164,7 @@ export default function Sidebar({
       <div
       style={navItemStyle(activeView === "study_session_setup" || activeView === "study_session", compactMode)}
       onClick={() => {
-        setStarted(false)
-        setFinished(false)
-        setAnswers({})
-        setActiveView("study_session_setup")
+        navigate("study_session_setup")
       }}
       title={translate('stats.Study Session')}
             >
@@ -173,10 +179,7 @@ export default function Sidebar({
       <div
         style={navItemStyle(activeView === "active_recall_setup" || activeView === "active_recall", compactMode)}
         onClick={() => {
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})
-          setActiveView("active_recall_setup")
+          navigate("active_recall_setup")
         }}
         title={translate('stats.Memory check')}
       >
@@ -191,10 +194,7 @@ export default function Sidebar({
       <div
         style={navItemStyle(activeView === "generate_flashcards", compactMode)}
         onClick={() => {
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})
-          setActiveView("generate_flashcards")
+          navigate("generate_flashcards")
         }}
         title={translate('stats.Generate flashcards')}
       >
@@ -216,16 +216,9 @@ export default function Sidebar({
         e.stopPropagation();
 
         if (projectId) {
-          // 1. Spegniamo categoricamente i loader prima di ogni altra cosa
-          if (typeof setGeneratingFlashcards === 'function') {
-            setGeneratingFlashcards(false);
-          }
-          
-          // 2. Carichiamo le card
           await loadFlashcards(projectId);
           
-          // 3. Cambiamo vista SOLO dopo che il caricamento è "iniziato"
-          setActiveView("flashcards");
+          navigate("flashcards");
         }
       }}
       title={translate('stats.Load flashcards')}
@@ -244,10 +237,7 @@ export default function Sidebar({
     <div
         style={navItemStyle(activeView === "quiz", compactMode)}
         onClick={() => {
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})
-          setActiveView("quiz")
+          navigate("quiz")
         }}
         title={translate('stats.Generate quiz')}
       >
@@ -262,16 +252,11 @@ export default function Sidebar({
       <div
         style={navItemStyle(activeView === "previous_quizzes", compactMode)}
         onClick={async () => {
-
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})
-
           if(projectId){
             await loadPreviousQuizzes(projectId)
           }
 
-          setActiveView("previous_quizzes")
+          navigate("previous_quizzes")
 
         }}
         title={translate('stats.Previous quizzes')}
@@ -304,7 +289,7 @@ export default function Sidebar({
 
       <div
         style={navItemStyle(activeView === "planner_view", compactMode)}
-        onClick={() => setActiveView("planner_view")}
+        onClick={() => navigate("planner_view")}
         title={translate('stats.Study planner')}
       >
         <img
@@ -318,18 +303,13 @@ export default function Sidebar({
       <div
         style={navItemStyle(activeView === "results_summary", compactMode)}
         onClick={async () => {
-          // reset quiz
-          setStarted(false)
-          setFinished(false)
-          setAnswers({})  
-
           if(projectId){
             // Se loadSummary non è definita nel Workspace o passata come prop, 
             // caricheremo i dati direttamente dentro SummaryView tramite useEffect.
             await loadResults(projectId) 
           }
 
-          setActiveView("results_summary")
+          navigate("results_summary")
         }}
         title={translate('stats.Results & Summary')}
       >
@@ -346,45 +326,121 @@ export default function Sidebar({
        
 
       
-        <div style={{
-          display: 'flex',
-          gap: compactMode ? 6 : '10px',
-          padding: compactMode ? "16px 0" : '20px',
-          flexDirection: compactMode ? "column" : "row"
-        }}>
-          <button
-            onClick={() => changeLanguage("it")}
-            style={{
-              ...btnStyle,
-              backgroundColor:
-                i18n.language.startsWith("it")
-                  ? "#22c55e"
-                  : "#374151",
-              borderColor:
-                i18n.language.startsWith("it")
-                  ? "#22c55e"
-                  : "#4b5563"
-            }}
-          >
-            ITA
-          </button>
+        <div style={mobileHome ? mobileHomeUtilityRow : compactMode ? compactUtilityColumn : desktopLanguageRow}>
+          {mobileHome ? (
+            <>
+              <label style={mobileHomeLanguageLabel}>
+                {translate('stats.Language')}:
+                <select
+                  value={i18n.language.startsWith("it") ? "it" : "en"}
+                  onChange={(event) => changeLanguage(event.target.value)}
+                  style={mobileHomeLanguageSelect}
+                >
+                  <option value="en">English</option>
+                  <option value="it">Italiano</option>
+                </select>
+              </label>
+              <img
+                src="/icons/user.svg"
+                alt="Account"
+                role="button"
+                tabIndex={0}
+                style={toolbarIcon}
+                onClick={() => alert("Account area coming soon")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    alert("Account area coming soon")
+                  }
+                }}
+              />
+              <img
+                src="/icons/logout.svg"
+                alt="Logout"
+                role="button"
+                tabIndex={0}
+                style={toolbarIcon}
+                onClick={handleLogout}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    handleLogout()
+                  }
+                }}
+              />
+            </>
+          ) : compactMode ? (
+            <>
+              <button
+                type="button"
+                onClick={() => changeLanguage(i18n.language.startsWith("it") ? "en" : "it")}
+                style={compactIconButton}
+                aria-label="Language"
+              >
+                {i18n.language.startsWith("it") ? "🇮🇹" : "🇬🇧"}
+              </button>
+              <img
+                src="/icons/user.svg"
+                alt="Account"
+                role="button"
+                tabIndex={0}
+                style={compactToolbarIcon}
+                onClick={() => alert("Account area coming soon")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    alert("Account area coming soon")
+                  }
+                }}
+              />
+              <img
+                src="/icons/logout.svg"
+                alt="Logout"
+                role="button"
+                tabIndex={0}
+                style={compactToolbarIcon}
+                onClick={handleLogout}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    handleLogout()
+                  }
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => changeLanguage("it")}
+                style={{
+                  ...btnStyle,
+                  backgroundColor:
+                    i18n.language.startsWith("it")
+                      ? "#22c55e"
+                      : "#374151",
+                  borderColor:
+                    i18n.language.startsWith("it")
+                      ? "#22c55e"
+                      : "#4b5563"
+                }}
+              >
+                ITA
+              </button>
 
-          <button
-            onClick={() => changeLanguage("en")}
-            style={{
-              ...btnStyle,
-              backgroundColor:
-                i18n.language.startsWith("en")
-                  ? "#22c55e"
-                  : "#374151",
-              borderColor:
-                i18n.language.startsWith("en")
-                  ? "#22c55e"
-                  : "#4b5563"
-            }}
-          >
-            ENG
-          </button>
+              <button
+                onClick={() => changeLanguage("en")}
+                style={{
+                  ...btnStyle,
+                  backgroundColor:
+                    i18n.language.startsWith("en")
+                      ? "#22c55e"
+                      : "#374151",
+                  borderColor:
+                    i18n.language.startsWith("en")
+                      ? "#22c55e"
+                      : "#4b5563"
+                }}
+              >
+                ENG
+              </button>
+            </>
+          )}
         </div>
       </div>  
     </div>
@@ -415,6 +471,25 @@ const logoBox = {
   alignItems: "center",
   borderBottom: "1px solid #1f2937"
 };
+
+const mobileHomeLogoBox: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  padding: "4px 0 34px",
+  borderBottom: "1px solid #1f2937",
+  marginBottom: 20
+}
+
+const mobileHomeLogoText: React.CSSProperties = {
+  fontSize: "clamp(48px, 14vw, 92px)",
+  fontWeight: 900,
+  letterSpacing: 1.5,
+  lineHeight: 1,
+  background: "linear-gradient(90deg, #1778d4, #36f2ed, #1778d4)",
+  WebkitBackgroundClip: "text",
+  color: "transparent"
+}
 
 const sectionTitle = {
   display: "flex",
@@ -455,6 +530,81 @@ const divider = {
   background: "#1f2937",
   margin: "14px 0"
 };
+
+const desktopLanguageRow: React.CSSProperties = {
+  display: "flex",
+  gap: 10,
+  padding: 20,
+  flexDirection: "row"
+}
+
+const compactUtilityColumn: React.CSSProperties = {
+  display: "flex",
+  gap: 8,
+  padding: "16px 0",
+  flexDirection: "column",
+  alignItems: "center",
+  marginTop: "auto"
+}
+
+const compactIconButton: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  border: "1px solid #1f2937",
+  borderRadius: 10,
+  background: "transparent",
+  color: "#36f2ed",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+  fontSize: 18
+}
+
+const mobileHomeUtilityRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  padding: "24px 6px 0",
+  marginTop: "auto",
+  borderTop: "1px solid #1f2937",
+  flexWrap: "wrap"
+}
+
+const mobileHomeLanguageLabel: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  color: "#36f2ed",
+  fontWeight: 700,
+  fontSize: 20
+}
+
+const mobileHomeLanguageSelect: React.CSSProperties = {
+  minHeight: 36,
+  borderRadius: 18,
+  border: "1px solid #1f2937",
+  padding: "4px 34px 4px 14px",
+  background: "#f8fafc",
+  color: "#111827",
+  fontSize: 16
+}
+
+const toolbarIcon: React.CSSProperties = {
+  width: 34,
+  height: 34,
+  objectFit: "contain",
+  cursor: "pointer",
+  opacity: 0.95
+}
+
+const compactToolbarIcon: React.CSSProperties = {
+  width: 30,
+  height: 30,
+  objectFit: "contain",
+  cursor: "pointer",
+  opacity: 0.95
+}
 
 const btnStyle = {
   padding: '8px 12px',

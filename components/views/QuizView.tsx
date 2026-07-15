@@ -86,7 +86,7 @@ ${input}
   }
 }
   return (
-    <div style={quizBox}>
+    <div className="quiz-shell" style={quizBox}>
 
       {generatingQuiz && (
         <div style={{
@@ -116,13 +116,22 @@ ${input}
       )}
 
       {started && !finished && (
-        <div style={{ marginBottom: 20, color: "#9ca3af", fontWeight: 600 }}>
-          Time left: {formatTime()}
+        <div className="quiz-mobile-status" style={{ marginBottom: 20, color: "#9ca3af", fontWeight: 600 }}>
+          <span>
+            <span className="quiz-status-mobile-icon">⏱ </span>
+            <span className="quiz-status-desktop-label">Time left: </span>
+            {formatTime()}
+          </span>
+          <span className="quiz-mobile-answered-inline">
+            <span className="quiz-status-mobile-icon">✓ </span>
+            <span className="quiz-status-desktop-label">Answered: </span>
+            {answeredCount} / {quiz.length}
+          </span>
         </div>
       )}
 
       {started && !finished && (
-        <div style={{ marginBottom: 20, color: "#9ca3af" }}>
+        <div className="quiz-desktop-answered" style={{ marginBottom: 20, color: "#9ca3af" }}>
           Answered: {answeredCount} / {quiz.length}
         </div>
       )}
@@ -132,9 +141,9 @@ ${input}
         
 
         return (
-          <div key={i} style={question}>
+          <div key={i} className="quiz-question-block" style={question}>
 
-            <h3>{i + 1}. {q.question}</h3>
+            <h3 className="quiz-question-title">{i + 1}. {q.question}</h3>
 
             {(q.options || []).map((opt: string, j: number) => {
               const selected = answers[i] === opt
@@ -164,6 +173,7 @@ ${input}
 
               return (
                 <div
+                  className="quiz-answer-option"
                   key={j}
                   onClick={() => selectAnswer(i, opt)}
                   style={{
@@ -181,6 +191,7 @@ ${input}
                   }}
                 >
                   <span
+                    className="quiz-answer-letter"
                     style={{
                       fontWeight: 600,
                       color: "#9ca3af",
@@ -190,7 +201,7 @@ ${input}
                     {String.fromCharCode(65 + j)}
                   </span>
 
-                  <span>{opt}</span>
+                  <span className="quiz-answer-text">{opt}</span>
                 </div>
               )
             })}
@@ -399,6 +410,93 @@ ${input}
           <h2>Score: {calculateScore()} / {quiz.length}</h2>
         </div>
       )}
+      <style jsx global>{`
+        .quiz-status-mobile-icon {
+          display: none;
+        }
+
+        .quiz-mobile-answered-inline {
+          display: none;
+        }
+
+        @media (max-width: 900px) {
+          .quiz-shell {
+            background: #080a10 !important;
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            padding: 0 10px 16px !important;
+          }
+
+          .quiz-mobile-status {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 30px;
+            margin: 0 -10px 8px !important;
+            padding: 5px 12px;
+            background: rgba(8, 10, 16, 0.96);
+            border-bottom: 1px solid #1f2937;
+            font-size: 13px;
+            line-height: 1.1;
+            backdrop-filter: blur(8px);
+            color: #cbd5e1 !important;
+            font-weight: 500 !important;
+          }
+
+          .quiz-status-mobile-icon {
+            display: inline;
+            color: #36f2ed;
+          }
+
+          .quiz-status-desktop-label {
+            display: none;
+          }
+
+          .quiz-mobile-answered-inline {
+            display: inline;
+          }
+
+          .quiz-desktop-answered {
+            display: none !important;
+          }
+
+          .quiz-question-block {
+            margin-bottom: 16px !important;
+          }
+
+          .quiz-question-title {
+            margin: 0 0 7px !important;
+            font-size: 17px !important;
+            line-height: 1.2 !important;
+            font-weight: 750 !important;
+            color: #f8fafc;
+          }
+
+          .quiz-answer-option {
+            gap: 8px !important;
+            padding: 6px 9px !important;
+            margin-top: 4px !important;
+            border-radius: 7px !important;
+            min-height: 34px;
+          }
+
+          .quiz-answer-letter {
+            min-width: 18px !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+          }
+
+          .quiz-answer-text {
+            font-size: 15px !important;
+            line-height: 1.2 !important;
+            font-weight: 450 !important;
+          }
+        }
+      `}</style>
       
     </div> // Chiude il contenitore principale
   );

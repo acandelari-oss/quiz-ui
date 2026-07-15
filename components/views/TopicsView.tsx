@@ -198,8 +198,9 @@ export default function TopicsView({
   }, [categorizedTopicEntries, translate]);
 
   return (
-    <div style={box}>
+    <div className="topics-view-mobile-root" style={box}>
       <h3
+        className="topics-view-mobile-toggle"
         style={{
           cursor: "pointer",
           display: "flex",
@@ -229,20 +230,21 @@ export default function TopicsView({
           ) : topics.length === 0 ? (
             <p style={{ color: "#9ca3af" }}>{translate('stats.No topics detected yet')}</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div className="topics-mobile-category-list" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Categorization Logic */}
               {topicNavigationGroups.map(group => (
                 <div
                   key={group.key}
+                  className={group.showTitle ? "topics-mobile-educational-unit" : "topics-mobile-plain-group"}
                   style={group.showTitle ? educationalUnitCard : plainCategoryGroup}
                 >
                   {group.showTitle && (
-                    <div style={educationalUnitTitle}>
+                    <div className="topics-mobile-educational-unit-title" style={educationalUnitTitle}>
                       {group.title}
                     </div>
                   )}
 
-                  <div style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
+                  <div className="topics-mobile-category-stack" style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
                   {group.items.map(([category, categoryTopics]: [string, any]) => {
 
                 const totalQuizQuestions = categoryTopics.reduce(
@@ -362,7 +364,7 @@ export default function TopicsView({
                     : 0
 
                 return (
-                  <div key={category} style={{
+                  <div className="topic-mobile-category-card" key={category} style={{
                     marginBottom: 24,
                     border: "1px solid #1f2937",
                     borderRadius: 16,
@@ -372,6 +374,7 @@ export default function TopicsView({
                   }}>
                 
                  <div
+                  className="topic-mobile-category-header"
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -383,6 +386,7 @@ export default function TopicsView({
                 >
 
                     <h4
+                      className="topic-mobile-category-title"
                       style={{
                         color: "#60a5fa",
                         fontSize: "18px",
@@ -409,7 +413,7 @@ export default function TopicsView({
                     </div>
 
                     {/* 🔥 BOTTONI MACRO */}
-                    <div style={{ display: "flex", gap: 10 }}>
+                    <div className="topic-desktop-action-row" style={{ display: "flex", gap: 10 }}>
                       
                       <button
                         onClick={() => {
@@ -478,6 +482,7 @@ export default function TopicsView({
 
                   </div>
                   <div
+                    className="topic-mobile-category-stats"
                     style={{
                       display: "flex",
                       gap: 24,
@@ -550,10 +555,11 @@ export default function TopicsView({
                         alt=""
                         width={24}
                         height={24}
-                      /> {translate('stats.Flashcard Mastery')} {flashcardMastery}%
+                      /> <span className="topic-stat-full-label">{translate('stats.Flashcard Mastery')}</span><span className="topic-stat-mobile-label">Flashc. Mastery</span> {flashcardMastery}%
                     </span>
                   </div>
                   <div
+                    className="topic-mobile-table-header"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 90px 70px 70px 70px 70px 120px",
@@ -624,6 +630,7 @@ export default function TopicsView({
                     console.log("🧪 QUIZ STATS:", quizStats);
                     return (
                       <div
+                        className="topic-mobile-topic-row"
                         key={value}
                         style={{
                           display: "grid",
@@ -635,6 +642,7 @@ export default function TopicsView({
                         }}
                       >
                         <div
+                          className="topic-mobile-topic-name"
                           style={{
                             color: "white",
                             fontSize: 14,
@@ -645,7 +653,32 @@ export default function TopicsView({
                           {value}
                         </div>
 
+                        <div className="topic-mobile-stats-line">
+                          <span className="topic-mobile-stat-label">Quiz: </span>
+                          <span
+                            className={
+                              !hasQuizAttempts
+                                ? "topic-mobile-quiz-value topic-mobile-empty-value"
+                                : (quizStats?.accuracy || 0) >= 80
+                                ? "topic-mobile-quiz-value topic-mobile-good-value"
+                                : (quizStats?.accuracy || 0) >= 50
+                                  ? "topic-mobile-quiz-value topic-mobile-hard-value"
+                                  : "topic-mobile-quiz-value topic-mobile-wrong-value"
+                            }
+                          >
+                            {hasQuizAttempts
+                              ? `${Math.round(quizStats?.accuracy || 0)}%`
+                              : "-"}
+                          </span>
+                          <span className="topic-mobile-stat-label"> Flashcards: </span>
+                          <span className="topic-mobile-wrong-value">Wrong {topicStats.wrong || 0}</span>
+                          <span className="topic-mobile-hard-value"> Hard {topicStats.hard || 0}</span>
+                          <span className="topic-mobile-good-value"> Good {topicStats.good || 0}</span>
+                          <span className="topic-mobile-easy-value"> Easy {topicStats.easy || 0}</span>
+                        </div>
+
                         <div
+                          className="topic-mobile-quiz-stat"
                           style={{
                             fontSize: 16,
                             fontWeight: 700,
@@ -667,6 +700,7 @@ export default function TopicsView({
                         </div>
 
                         <div
+                          className="topic-mobile-flashcard-stat topic-mobile-flashcard-wrong"
                           style={{
                             textAlign: "center",
                             color: "#ef4444",
@@ -677,6 +711,7 @@ export default function TopicsView({
                         </div>
 
                         <div
+                          className="topic-mobile-flashcard-stat topic-mobile-flashcard-hard"
                           style={{
                             textAlign: "center",  
                             color: "#f97316",
@@ -687,6 +722,7 @@ export default function TopicsView({
                         </div>
 
                         <div
+                          className="topic-mobile-flashcard-stat topic-mobile-flashcard-good"
                           style={{
                             textAlign: "center",
                             color: "#3b82f6",
@@ -697,6 +733,7 @@ export default function TopicsView({
                         </div>
 
                         <div
+                          className="topic-mobile-flashcard-stat topic-mobile-flashcard-easy"
                           style={{
                             textAlign: "center",
                             color: "#22c55e",
@@ -709,6 +746,7 @@ export default function TopicsView({
                         </div>
 
                         <div
+                          className="topic-mobile-last-studied"
                           style={{
                             textAlign: "center",
                             color: "#9ca3af",
@@ -720,6 +758,69 @@ export default function TopicsView({
                       </div>
                     );
                     })}
+                    <div className="topic-mobile-action-row">
+                      <button
+                        onClick={() => {
+                          if (!categoryTopics || categoryTopics.length === 0) {
+                            alert(translate('stats.No topics found'));
+                            return;
+                          }
+
+                          launchCategoryFeature(category, "quiz")
+                        }}
+                        style={macroBtn("#2563eb")}
+                      >
+                        {translate('stats.Quiz')}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          launchCategoryFeature(
+                            category,
+                            "generate_flashcards"
+                          )
+                        }}
+                        style={macroBtn("#0b9280")}
+                      >
+                        Flashc.
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          launchCategoryFeature(
+                            category,
+                            "active_recall_setup"
+                          )
+                        }}
+                        style={macroBtn("#f4970c")}
+                      >
+                        {translate('stats.Memory')}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          launchCategoryFeature(
+                            category,
+                            "ask_setup"
+                          )
+                        }}
+                        style={macroBtn("#0a6610")}
+                      >
+                        {translate('stats.Ask')}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          launchCategoryFeature(
+                            category,
+                            "study_session_setup"
+                          )
+                        }}
+                        style={macroBtn("#8b5cf6")}
+                      >
+                        {translate('stats.Study')}
+                      </button>
+                    </div>
                 </div>
               )
             })}
@@ -732,12 +833,207 @@ export default function TopicsView({
       )}
 
       {/* Difficulty Footer */}
-      <div style={{ marginTop: 20, paddingTop: 12, borderTop: "1px solid #374151", fontSize: 12, color: "#9ca3af" }}>
+      <div className="topics-mobile-difficulty-footer" style={{ marginTop: 20, paddingTop: 12, borderTop: "1px solid #374151", fontSize: 12, color: "#9ca3af" }}>
         {translate('stats.Difficulty')}:
         <span style={{ color: "#22c55e", marginLeft: 8 }}>{translate('stats.Easy')}</span>
         <span style={{ color: "#eab308", marginLeft: 8 }}>{translate('stats.Medium')}</span>
         <span style={{ color: "#ef4444", marginLeft: 8 }}>{translate('stats.Hard')}</span>
       </div>
+      <style jsx global>{`
+        .topic-mobile-action-row {
+          display: none;
+        }
+
+        .topic-mobile-stats-line,
+        .topic-stat-mobile-label {
+          display: none;
+        }
+
+        @media (max-width: 900px) {
+          .topics-view-mobile-root {
+            margin-bottom: 0 !important;
+          }
+
+          .topics-view-mobile-toggle,
+          .topics-mobile-difficulty-footer {
+            display: none !important;
+          }
+
+          .topics-mobile-category-list,
+          .topics-mobile-category-stack,
+          .topics-mobile-plain-group {
+            gap: 16px !important;
+          }
+
+          .topics-mobile-educational-unit {
+            background: #080a10 !important;
+            border: 1px solid rgba(47, 184, 255, 0.45) !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            gap: 12px !important;
+          }
+
+          .topics-mobile-educational-unit-title {
+            font-size: 25px !important;
+            color: #ffffff !important;
+            margin: 2px 0 2px !important;
+            line-height: 1.15 !important;
+          }
+
+          .topic-mobile-category-card {
+            margin-bottom: 0 !important;
+            border: 1px solid rgba(47, 184, 255, 0.55) !important;
+            border-radius: 8px !important;
+            background: #080a10 !important;
+            box-shadow: none !important;
+            padding: 10px 12px 12px !important;
+          }
+
+          .topic-mobile-category-header {
+            display: block !important;
+            padding: 0 0 8px !important;
+            border-bottom: none !important;
+            background: transparent !important;
+          }
+
+          .topic-mobile-category-title {
+            color: #2fb8ff !important;
+            font-size: 23px !important;
+            line-height: 1.15 !important;
+            font-weight: 800 !important;
+            margin: 0 !important;
+          }
+
+          .topic-desktop-action-row {
+            display: none !important;
+          }
+
+          .topic-mobile-category-stats {
+            display: block !important;
+            padding: 0 0 9px !important;
+            border-bottom: none !important;
+            color: #9ca3af !important;
+            font-size: 12px !important;
+            line-height: 1.25 !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 400 !important;
+          }
+
+          .topic-mobile-category-stats span {
+            display: inline !important;
+            color: #9ca3af !important;
+            font-weight: 400 !important;
+          }
+
+          .topic-mobile-category-stats img {
+            display: none !important;
+          }
+
+          .topic-stat-full-label {
+            display: none !important;
+          }
+
+          .topic-stat-mobile-label {
+            display: inline !important;
+          }
+
+          .topic-mobile-table-header {
+            display: none !important;
+          }
+
+          .topic-mobile-topic-row {
+            display: block !important;
+            padding: 10px 0 !important;
+            border-bottom: 1px solid rgba(47, 184, 255, 0.24) !important;
+          }
+
+          .topic-mobile-topic-name {
+            border-right: none !important;
+            color: #f8fafc !important;
+            font-size: 15px !important;
+            line-height: 1.25 !important;
+            font-weight: 700 !important;
+            margin-bottom: 6px;
+          }
+
+          .topic-mobile-quiz-stat,
+          .topic-mobile-flashcard-stat,
+          .topic-mobile-last-studied {
+            display: none !important;
+            border-right: none !important;
+            text-align: left !important;
+            font-size: 13px !important;
+            line-height: 1.35 !important;
+            margin-right: 4px;
+          }
+
+          .topic-mobile-stats-line {
+            display: block;
+            font-size: 13px;
+            line-height: 1.35;
+            font-weight: 400;
+            color: #f8fafc;
+          }
+
+          .topic-mobile-stat-label {
+            color: #f8fafc;
+            font-weight: 400;
+          }
+
+          .topic-mobile-wrong-value {
+            color: #ef4444;
+            font-weight: 400;
+          }
+
+          .topic-mobile-hard-value {
+            color: #f97316;
+            font-weight: 400;
+          }
+
+          .topic-mobile-good-value {
+            color: #3b82f6;
+            font-weight: 400;
+          }
+
+          .topic-mobile-easy-value {
+            color: #22c55e;
+            font-weight: 400;
+          }
+
+          .topic-mobile-empty-value {
+            color: #9ca3af;
+            font-weight: 400;
+          }
+
+          .topic-mobile-last-studied {
+            display: none !important;
+          }
+
+          .topic-mobile-action-row {
+            display: flex !important;
+            gap: 6px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap;
+            padding: 10px 0 1px;
+          }
+
+          .topic-mobile-action-row button {
+            min-height: 36px;
+            padding: 7px 6px !important;
+            border-radius: 8px !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            flex: 1 1 0;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+        }
+      `}</style>
     </div>
   );
 }

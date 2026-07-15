@@ -20,17 +20,17 @@ export default function PlannerDashboard({
   const isAssessmentPlan = plan.planType === "assessment"
 
   return (
-    <div style={container}>
-      <section style={ctaCard}>
+    <div className="planner-mobile-dashboard" style={container}>
+      <section className="planner-mobile-cta-card" style={ctaCard}>
         {plan.todaySessionCompleted ? (
           <>
             <div>
-              <div style={ctaTitle}>
+              <div className="planner-mobile-cta-title" style={ctaTitle}>
                 {translate(isAssessmentPlan
                   ? "stats.Current assessment module is complete"
                   : "stats.Current module is complete")}
               </div>
-              <div style={ctaText}>
+              <div className="planner-mobile-cta-text" style={ctaText}>
                 {translate(isAssessmentPlan
                   ? "stats.This assessment module has been recorded."
                   : "stats.The Professor can offer an optional extra module based on the same work.")}
@@ -39,6 +39,7 @@ export default function PlannerDashboard({
             <button
               onClick={() => currentModule && onOpenDailySession(currentModule)}
               style={secondaryButton}
+              className="planner-mobile-cta-button"
             >
               {translate(isAssessmentPlan
                 ? "stats.Continue Assessment"
@@ -48,12 +49,12 @@ export default function PlannerDashboard({
         ) : (
           <>
             <div>
-              <div style={ctaTitle}>
+              <div className="planner-mobile-cta-title" style={ctaTitle}>
                 {translate(isAssessmentPlan
                   ? "stats.Current assessment module is ready"
                   : "stats.Current module is ready")}
               </div>
-              <div style={ctaText}>
+              <div className="planner-mobile-cta-text" style={ctaText}>
                 {translate(isAssessmentPlan
                   ? "stats.Answer honestly. If you are unsure, choose your best answer."
                   : "stats.Start the current module when you are ready.")}
@@ -62,6 +63,7 @@ export default function PlannerDashboard({
             <button
               onClick={() => currentModule && onOpenDailySession(currentModule)}
               style={primaryButton}
+              className="planner-mobile-cta-button"
             >
               {translate(isAssessmentPlan
                 ? "stats.Start Assessment Module"
@@ -99,6 +101,37 @@ export default function PlannerDashboard({
       {!isAssessmentPlan && <ProfessorDebriefs debriefs={plan.debriefs} />}
 
       {!isAssessmentPlan && <HomeworkAccordion homework={plan.homework} />}
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .planner-mobile-dashboard {
+            padding: 10px 10px 16px !important;
+            max-width: none !important;
+          }
+
+          .planner-mobile-cta-card {
+            padding: 12px !important;
+            margin-bottom: 10px !important;
+            border-radius: 12px !important;
+            gap: 10px !important;
+          }
+
+          .planner-mobile-cta-title {
+            font-size: 16px !important;
+            margin-bottom: 2px !important;
+          }
+
+          .planner-mobile-cta-text {
+            font-size: 13px !important;
+            line-height: 1.35 !important;
+          }
+
+          .planner-mobile-cta-button {
+            width: 100%;
+            padding: 10px 12px !important;
+            border-radius: 9px !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }

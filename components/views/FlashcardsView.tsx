@@ -173,9 +173,10 @@ if(openCard === null){
 
   return (
 
-    <div>
+    <div className="flashcards-execution-shell">
 
       <div
+        className="flashcards-card-counter"
         style={{
           textAlign: "center",
           color: "#9ca3af",
@@ -186,7 +187,7 @@ if(openCard === null){
         Card {currentIndex + 1} / {flashcards.length}
       </div>
 
-      <div style={progressBar}>
+      <div className="flashcards-progress-bar" style={progressBar}>
         <div
           style={{
             ...progressFill,
@@ -196,6 +197,11 @@ if(openCard === null){
       </div>
 
       <div
+        className={
+          openCard
+            ? "flashcards-card flashcards-card-answer-view"
+            : "flashcards-card flashcards-card-question-view"
+        }
         onClick={() => setOpenCard(!openCard)}
         style={{
           background: "#111827",
@@ -212,6 +218,7 @@ if(openCard === null){
       >
 
         <h2
+          className="flashcards-question"
           style={{
             fontSize: 28,
             lineHeight: 1.4,
@@ -225,11 +232,14 @@ if(openCard === null){
 
           <>
 
-            <div style={answerBox}>
-              {card.answer}
+            <div className="flashcards-answer-box" style={answerBox}>
+              <div className="flashcards-answer">
+                {card.answer}
+              </div>
             </div>
             {card.topic && (
               <div
+                className="flashcards-topic"
                 style={{
                   marginTop: 10,
                   fontSize: 12,
@@ -240,7 +250,7 @@ if(openCard === null){
               </div>
             )}
 
-            <div style={{
+            <div className="flashcards-review-actions" style={{
               marginTop: 25,
               display: "flex",
               justifyContent: "center",
@@ -249,6 +259,7 @@ if(openCard === null){
             }}>
 
               <button
+                className="flashcards-review-button"
                 onClick={(e) => {
                   e.stopPropagation()
                   reviewAndNext(card.id, false, 1)
@@ -259,6 +270,7 @@ if(openCard === null){
               </button>
 
               <button
+                className="flashcards-review-button"
                 onClick={(e) => {
                   e.stopPropagation()
                   reviewAndNext(card.id, true, 1)
@@ -269,6 +281,7 @@ if(openCard === null){
               </button>
 
               <button
+                className="flashcards-review-button"
                 onClick={(e) => {
                   e.stopPropagation()
                   reviewAndNext(card.id, true, 2)
@@ -279,6 +292,7 @@ if(openCard === null){
               </button>
 
               <button
+                className="flashcards-review-button"
                 onClick={(e) => {
                   e.stopPropagation()
                   reviewAndNext(card.id, true, 3)
@@ -288,7 +302,7 @@ if(openCard === null){
                 {translate('stats.Easy')}
               </button>
 
-              <button onClick={goToPrevious}>
+              <button className="flashcards-previous-button" onClick={goToPrevious}>
                 ⬅️ {translate('stats.Previous')}
               </button>
 
@@ -299,6 +313,110 @@ if(openCard === null){
         )}
 
       </div>
+      <style jsx global>{`
+        @media (max-width: 900px) {
+          .flashcards-mobile-hidden {
+            display: none !important;
+          }
+
+          .flashcards-execution-shell {
+            padding: 10px 10px 14px;
+            box-sizing: border-box;
+          }
+
+          .flashcards-card-counter {
+            margin-bottom: 8px !important;
+            font-size: 13px !important;
+            line-height: 1.1 !important;
+          }
+
+          .flashcards-progress-bar {
+            height: 6px !important;
+            margin: 0 auto 14px auto !important;
+            max-width: none !important;
+          }
+
+          .flashcards-card {
+            width: 100%;
+            max-width: none !important;
+            box-sizing: border-box;
+            margin: 14px auto 0 !important;
+            padding: 24px 18px !important;
+            border-radius: 10px !important;
+          }
+
+          .flashcards-card-question-view {
+            min-height: 36dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .flashcards-card-answer-view {
+            padding: 18px 14px 14px !important;
+          }
+
+          .flashcards-question {
+            font-size: 21px !important;
+            line-height: 1.25 !important;
+            font-weight: 600 !important;
+            margin: 0 !important;
+          }
+
+          .flashcards-card-answer-view .flashcards-question {
+            font-size: 16px !important;
+            line-height: 1.22 !important;
+            color: #cbd5e1 !important;
+            font-weight: 500 !important;
+            margin-bottom: 10px !important;
+          }
+
+          .flashcards-answer-box {
+            margin-top: 0 !important;
+            padding: 12px !important;
+            border-radius: 8px !important;
+          }
+
+          .flashcards-answer {
+            font-size: 20px;
+            line-height: 1.35;
+            font-weight: 650;
+            color: #f8fafc;
+          }
+
+          .flashcards-topic {
+            margin-top: 7px !important;
+            font-size: 11px !important;
+            line-height: 1.2 !important;
+          }
+
+          .flashcards-review-actions {
+            display: grid !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px !important;
+            margin-top: 12px !important;
+          }
+
+          .flashcards-review-button,
+          .flashcards-previous-button {
+            min-height: 36px;
+            padding: 7px 6px !important;
+            border-radius: 7px !important;
+            font-size: 11px !important;
+            line-height: 1.15 !important;
+            font-weight: 600;
+            box-sizing: border-box;
+          }
+
+          .flashcards-previous-button {
+            grid-column: 1 / -1;
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: white;
+            cursor: pointer;
+          }
+        }
+      `}</style>
 
     </div>
 

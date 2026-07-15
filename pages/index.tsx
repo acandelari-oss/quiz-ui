@@ -56,6 +56,23 @@ type PlannerRuntimeState = {
   assessmentCompletedAt?: number | null
 }
 
+const directWorkspaceViews = new Set([
+  "results_summary",
+  "previous_quizzes",
+  "topics",
+  "manage_projects",
+  "planner_view"
+])
+
+const configurationDrivenViews = new Set([
+  "create_project",
+  "load_project",
+  "ask_setup",
+  "generate_flashcards",
+  "active_recall_setup",
+  "study_session_setup"
+])
+
 export default function Home() {
 const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
@@ -66,6 +83,7 @@ const router = useRouter()
 
 const [projectId,setProjectId]=useState("")
 const [projectName,setProjectName]=useState("")
+const [createProjectName,setCreateProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
 
 
@@ -213,37 +231,47 @@ const quizActivityStarted =
   activeView === "quiz"
   && (started || finished || generatingQuiz || (Array.isArray(quiz) && quiz.length > 0))
 
+const flashcardsActivityStarted =
+  activeView === "flashcards"
+  && Array.isArray(flashcards)
+  && flashcards.length > 0
+  && openCard !== null
+
 const toolPanelUseful =
-  activeView === "create_project"
-  || activeView === "load_project"
-  || activeView === "manage_projects"
-  || activeView === "ask_setup"
-  || activeView === "generate_flashcards"
-  || activeView === "active_recall_setup"
-  || activeView === "study_session_setup"
+  configurationDrivenViews.has(activeView)
   || (activeView === "quiz" && !quizActivityStarted)
+  || (activeView === "flashcards" && !flashcardsActivityStarted)
 
 const workspacePrimary =
-  activeView === "ask"
+  directWorkspaceViews.has(activeView)
+  || activeView === "ask"
   || activeView === "active_recall"
-  || activeView === "flashcards"
+  || flashcardsActivityStarted
   || activeView === "study_session"
-  || activeView === "planner_view"
-  || activeView === "previous_quizzes"
-  || activeView === "results_summary"
-  || activeView === "topics"
   || quizActivityStarted
 
+const toolPanelAvailableForView =
+  toolPanelUseful
+  && !directWorkspaceViews.has(activeView)
+
 const mobileNavigationSelected = isMobileLayout && activeView !== "project"
+const mobileHome = isMobileLayout && activeView === "project"
+const mobileConfiguration = mobileNavigationSelected && toolPanelAvailableForView && !workspacePrimary
+const mobileExecution = mobileNavigationSelected && !mobileConfiguration
 const mobileSidebarWidth = mobileNavigationSelected ? 56 : 260
 
 useEffect(() => {
+  if (mobileConfiguration) {
+    setToolPanelCollapsed(false)
+    return
+  }
+
   if (mobileNavigationSelected) {
     setToolPanelCollapsed(true)
     return
   }
 
-  if (isMobileLayout && !toolPanelUseful) {
+  if (isMobileLayout && !toolPanelAvailableForView) {
     setToolPanelCollapsed(true)
     return
   }
@@ -253,12 +281,64 @@ useEffect(() => {
     return
   }
 
-  if (toolPanelUseful) {
+  if (toolPanelAvailableForView) {
     setToolPanelCollapsed(false)
   }
-}, [isMobileLayout, mobileNavigationSelected, workspacePrimary, toolPanelUseful])
+}, [isMobileLayout, mobileConfiguration, mobileNavigationSelected, workspacePrimary, toolPanelAvailableForView])
 const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
 const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
+
+function handleSidebarNavigation(nextView: string) {
+  const opensConfigurationPanel =
+    configurationDrivenViews.has(nextView)
+    || nextView === "quiz"
+    || nextView === "flashcards"
+
+  setStarted(false)
+  setFinished(false)
+  setAnswers({})
+  setScore(null)
+  setExpanded({})
+  setGeneratingQuiz(false)
+  setGeneratingFlashcards(false)
+  setLoadingFlashcards(false)
+  setIsGenerating(false)
+  setLoaderStep(0)
+
+  if (nextView === "create_project") {
+    setCreateProjectName("")
+    setFiles(null)
+    setUploadStatus("")
+    setUploadLog("")
+    setStatus("")
+  }
+
+  if (nextView === "quiz") {
+    setQuiz([])
+    setQuizId("")
+    setTimeLeft(0)
+  }
+
+  if (nextView === "generate_flashcards" || nextView === "flashcards") {
+    setFlashcards([])
+    setOpenCard(null)
+    setStudyMode(null)
+  }
+
+  if (nextView === "ask_setup") {
+    setAskQuestion("")
+    setAskAnswer("")
+    setChatMessages([])
+    setAsking(false)
+  }
+
+  if (nextView === "active_recall_setup" || nextView === "study_session_setup") {
+    setChatMessages([])
+  }
+
+  setToolPanelCollapsed(!opensConfigurationPanel)
+  setActiveView(nextView)
+}
 
 const loaderMessages = {
   quiz: [
@@ -435,12 +515,19 @@ async function loadResults(projectId: string) {
 
 async function createProject(){
 
-if(!projectName.trim()) return
+const nameToCreate = createProjectName.trim()
+
+if(!nameToCreate) return
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
-if(!token) return
+if(!token) {
+setStatus("Please log in again before creating a project")
+return
+}
 
+try {
+setStatus("Creating project...")
 const res = await fetch(
 `${process.env.NEXT_PUBLIC_API_URL}/projects`,
 {
@@ -450,12 +537,15 @@ headers:{
 Authorization:`Bearer ${token}`
 },
 body: JSON.stringify({
-name: projectName
+name: nameToCreate
 })
 }
 )
 
-if(!res.ok) return
+if(!res.ok) {
+const errorText = await res.text()
+throw new Error(errorText || "Project creation failed")
+}
 
 const data = await res.json()
 
@@ -465,8 +555,20 @@ name:data.name
 }])
 
 setProjectId(data.project_id)
+setProjectName(data.name)
+setCreateProjectName(data.name)
 setStatus("Project created")
+setUploadStatus("")
+setUploadLog("")
+setFiles(null)
+setDocuments([])
+setTopics([])
 //setProjectName("")
+
+} catch (err) {
+console.error("CREATE PROJECT ERROR:", err)
+setStatus("Project creation failed")
+}
 
 }
 
@@ -2025,12 +2127,12 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
   function currentFeatureTitle() {
     if (activeView === "ask" || activeView === "ask_setup") return i18n.t("stats.Ask question")
-    if (activeView === "quiz") return i18n.t("stats.Generate quiz")
+    if (activeView === "quiz") return quizActivityStarted ? i18n.t("stats.Quiz") : i18n.t("stats.Generate quiz")
     if (activeView === "generate_flashcards") return i18n.t("stats.Generate flashcards")
     if (activeView === "flashcards") return i18n.t("stats.Flashcards")
     if (activeView === "active_recall" || activeView === "active_recall_setup") return i18n.t("stats.Memory check")
     if (activeView === "study_session" || activeView === "study_session_setup") return i18n.t("stats.Study Session")
-    if (activeView === "planner_view") return i18n.t("stats.Study planner")
+    if (activeView === "planner_view") return i18n.t("stats.Study Planner")
     if (activeView === "previous_quizzes") return i18n.t("stats.Previous quizzes")
     if (activeView === "results_summary") return i18n.t("stats.Results & Summary")
     if (activeView === "topics") return i18n.t("stats.Topics Dashboard")
@@ -2039,12 +2141,20 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     if (activeView === "manage_projects") return i18n.t("stats.Manage projects")
     return i18n.t("stats.Project")
   }
+
+  function currentOptionsLabel() {
+    if (activeView === "quiz" && quizActivityStarted) return i18n.t("stats.Quiz settings")
+    if (activeView === "planner_view") return i18n.t("stats.Planner Options")
+    return i18n.t("stats.Options")
+  }
     
   const toolPanelCollapsedWidth = isMobileLayout ? 0 : 24
-  const toolPanelExpandedWidth = isMobileLayout
+  const toolPanelExpandedWidth = mobileConfiguration
+    ? `calc(100vw - ${mobileSidebarWidth}px)`
+    : isMobileLayout
     ? `min(320px, calc(100vw - ${mobileSidebarWidth}px))`
     : 320
-  const mobileToolPanelStyle: React.CSSProperties = mobileNavigationSelected
+  const mobileToolPanelStyle: React.CSSProperties = mobileExecution
     ? {
         position: "absolute",
         left: mobileSidebarWidth,
@@ -2056,6 +2166,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         boxShadow: toolPanelCollapsed
           ? "none"
           : "18px 0 40px rgba(0, 0, 0, 0.36)"
+      }
+    : mobileConfiguration
+    ? {
+        position: "relative",
+        height: "100%",
+        maxWidth: `calc(100vw - ${mobileSidebarWidth}px)`,
+        boxShadow: "none"
       }
     : {}
   const mobileToolPanelContentStyle: React.CSSProperties = mobileNavigationSelected
@@ -2083,26 +2200,31 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         <div style={mobileTopBar}>
           <div style={mobileTopBarLogo}>DO•U•NO</div>
           <div style={mobileTopBarTitle}>{currentFeatureTitle()}</div>
-          <button
-            type="button"
-            onClick={() => setToolPanelCollapsed(current => !current)}
-            style={mobileOptionsButton}
-            aria-label={
-              toolPanelCollapsed
-                ? i18n.t("stats.Open options")
-                : i18n.t("stats.Collapse options")
-            }
-          >
-            ⚙
-            <span style={mobileOptionsLabel}>{i18n.t("stats.Options")}</span>
-          </button>
+          {mobileExecution && !directWorkspaceViews.has(activeView) ? (
+            <button
+              type="button"
+              onClick={() => setToolPanelCollapsed(current => !current)}
+              style={mobileOptionsButton}
+              aria-label={
+                toolPanelCollapsed
+                  ? i18n.t("stats.Open options")
+                  : i18n.t("stats.Collapse options")
+              }
+            >
+              ⚙
+              <span style={mobileOptionsLabel}>{currentOptionsLabel()}</span>
+            </button>
+          ) : (
+            <div style={mobileOptionsSpacer} />
+          )}
         </div>
       )}
-      <div style={mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
+      <div style={mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
       <Sidebar
         activeView={activeView}
         compactMode={mobileNavigationSelected}
-        setActiveView={setActiveView}
+        mobileHome={mobileHome}
+        handleSidebarNavigation={handleSidebarNavigation}
         loadResults={loadResults}
         projectId={projectId}
         loadFlashcards={loadFlashcards}
@@ -2123,6 +2245,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         
       />
 
+      {!mobileHome && !directWorkspaceViews.has(activeView) && (
       <div style={{
         ...toolPanelShell,
         ...mobileToolPanelStyle,
@@ -2139,12 +2262,12 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
             <ToolPanel
               activeView={activeView}
               setActiveView={setActiveView}
-              projectName={projectName}
+              projectName={activeView === "create_project" ? createProjectName : projectName}
               projects={projects}
               createProject={createProject}
               selectProject={selectProject}
               deleteProject={deleteProject}
-              projectId={projectId}
+              projectId={activeView === "create_project" && status !== "Project created" ? "" : projectId}
               numQuestions={numQuestions}
               setNumQuestions={setNumQuestions}
               difficulty={difficulty}
@@ -2161,8 +2284,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               setOpenCard={setOpenCard}
               files={files}
               setFiles={setFiles}
-              documents={documents}
-              topics={topics}
+              documents={activeView === "create_project" && status !== "Project created" ? [] : documents}
+              topics={activeView === "create_project" && status !== "Project created" ? [] : topics}
               loadingTopics={loadingTopics}
               previousFlashcards={previousFlashcards}
               topicsOpen={topicsOpen}
@@ -2176,7 +2299,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               setStudyCount={setStudyCount}
               status={status}
               uploadStatus={uploadStatus}
-              setProjectName={setProjectName}
+              setProjectName={activeView === "create_project" ? setCreateProjectName : setProjectName}
               uploadFiles={uploadFiles}
               loadStudyFlashcards={loadStudyFlashcards}
               studyMode={studyMode}
@@ -2212,6 +2335,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           </span>
         </button>
       </div>
+      )}
 
       <style jsx global>{`
         .tool-panel-edge-tab:hover {
@@ -2221,6 +2345,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         }
       `}</style>
 
+      {!mobileHome && !mobileConfiguration && (
       <Workspace
         key={quizId}
         activeView={activeView}
@@ -2243,6 +2368,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         formatTime={formatTime}
         answeredCount={Object.keys(answers).length}
         projectId={projectId}
+        projectName={projectName}
         projects={projects}
         deleteProject={deleteProject}
         quizId={quizId}
@@ -2288,6 +2414,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         
         
       />
+      )}
       </div>
     </div>
   )
@@ -2317,6 +2444,14 @@ const mobileContentShell: React.CSSProperties = {
   minWidth: 0,
   width: "100%",
   position: "relative",
+  overflow: "hidden"
+}
+
+const mobileHomeShell: React.CSSProperties = {
+  display: "flex",
+  width: "100%",
+  height: "100%",
+  minHeight: 0,
   overflow: "hidden"
 }
 
@@ -2375,6 +2510,10 @@ const mobileOptionsButton: React.CSSProperties = {
 const mobileOptionsLabel: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 500
+}
+
+const mobileOptionsSpacer: React.CSSProperties = {
+  minWidth: 44
 }
 
 const toolPanelShell: React.CSSProperties = {

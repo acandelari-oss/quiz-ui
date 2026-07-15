@@ -219,7 +219,7 @@ plannerSessionActive = false,
   return (
     <div style={panel}>
       
-      {projectName && (
+      {projectName && activeView !== "create_project" && (
       <div
         style={{
           ...shellHeaderCell,
