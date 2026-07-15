@@ -4,19 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from "../lib/supabase";
 import { shellHeaderCell } from "./layoutStyles";
 
-import {
-  Folder,
-  FolderPlus,
-  Brain,
-  HelpCircle,
-  Layers,
-  FileText,
-  ClipboardList,
-  History,
-  BarChart3,
-  Settings
-} from "lucide-react";
-
 export default function Sidebar({ 
   activeView,
   handleSidebarNavigation,
@@ -95,18 +82,27 @@ export default function Sidebar({
       {/* PROJECT */}
       {!compactMode && (
       <div style={sectionTitle}>
-         <Folder size={18} />
          {translate('stats.Project')}
       </div>
       )}
 
       <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => navigate("create_project")} title={translate('stats.Create project')}>
-        <FolderPlus size={24} />
+        <img
+          src="/icons/new-project.svg"
+          alt=""
+          width={24}
+          height={24}
+        />
         {!compactMode && translate('stats.Create project')}
       </div>
 
       <div style={navItemStyle(activeView === "load_project", compactMode)} onClick={() => navigate("load_project")} title={translate('stats.Load project')}>
-        <Folder size={24} />
+        <img
+          src="/icons/load-project.svg"
+          alt=""
+          width={24}
+          height={24}
+        />
         {!compactMode && translate('stats.Load project')}
       </div>
 
@@ -118,7 +114,12 @@ export default function Sidebar({
         }}
         title={translate('stats.Manage projects')}
       >
-        <Settings size={24} />
+        <img
+          src="/icons/manage-project.svg"
+          alt=""
+          width={24}
+          height={24}
+        />
         {!compactMode && translate('stats.Manage projects')}
       </div>
 
@@ -141,7 +142,6 @@ export default function Sidebar({
       {/* STUDY */}
       {!compactMode && (
       <div style={sectionTitle}>
-       <Brain size={18} />
        {translate('stats.Study')}
       </div>
       )}
@@ -280,7 +280,6 @@ export default function Sidebar({
       {/* QUIZ */}
       {!compactMode && (
       <div style={sectionTitle}>
-        <BarChart3 size={18} />
         {translate('stats.Stats & Planner')}
       </div>
       )}
@@ -405,41 +404,17 @@ export default function Sidebar({
               />
             </>
           ) : (
-            <>
-              <button
-                onClick={() => changeLanguage("it")}
-                style={{
-                  ...btnStyle,
-                  backgroundColor:
-                    i18n.language.startsWith("it")
-                      ? "#22c55e"
-                      : "#374151",
-                  borderColor:
-                    i18n.language.startsWith("it")
-                      ? "#22c55e"
-                      : "#4b5563"
-                }}
+            <label style={desktopLanguageLabel}>
+              {translate('stats.Language')}:
+              <select
+                value={i18n.language.startsWith("it") ? "it" : "en"}
+                onChange={(event) => changeLanguage(event.target.value)}
+                style={mobileHomeLanguageSelect}
               >
-                ITA
-              </button>
-
-              <button
-                onClick={() => changeLanguage("en")}
-                style={{
-                  ...btnStyle,
-                  backgroundColor:
-                    i18n.language.startsWith("en")
-                      ? "#22c55e"
-                      : "#374151",
-                  borderColor:
-                    i18n.language.startsWith("en")
-                      ? "#22c55e"
-                      : "#4b5563"
-                }}
-              >
-                ENG
-              </button>
-            </>
+                <option value="en">English</option>
+                <option value="it">Italiano</option>
+              </select>
+            </label>
           )}
         </div>
       </div>  
@@ -538,6 +513,15 @@ const desktopLanguageRow: React.CSSProperties = {
   flexDirection: "row"
 }
 
+const desktopLanguageLabel: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  color: "#36f2ed",
+  fontWeight: 700,
+  fontSize: 16
+}
+
 const compactUtilityColumn: React.CSSProperties = {
   display: "flex",
   gap: 8,
@@ -605,14 +589,3 @@ const compactToolbarIcon: React.CSSProperties = {
   cursor: "pointer",
   opacity: 0.95
 }
-
-const btnStyle = {
-  padding: '8px 12px',
-  cursor: 'pointer',
-  backgroundColor: '#374151',
-  color: 'white',
-  border: '1px solid #4b5563',
-  borderRadius: '6px',
-  fontSize: '12px',
-  fontWeight: 'bold'
-};
