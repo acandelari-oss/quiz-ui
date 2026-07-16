@@ -61,7 +61,8 @@ const directWorkspaceViews = new Set([
   "previous_quizzes",
   "topics",
   "manage_projects",
-  "planner_view"
+  "planner_view",
+  "learning_home"
 ])
 
 const configurationDrivenViews = new Set([
@@ -73,6 +74,26 @@ const configurationDrivenViews = new Set([
   "study_session_setup"
 ])
 
+function resolveStudentFirstName(user: any): string {
+  const metadata = user?.user_metadata || {}
+  const candidates = [
+    metadata.first_name,
+    metadata.full_name,
+    metadata.name,
+    metadata.display_name
+  ]
+
+  const rawName = candidates.find(
+    value => typeof value === "string" && value.trim().length > 0
+  )
+
+  if (!rawName) {
+    return ""
+  }
+
+  return rawName.trim().split(/\s+/)[0] || ""
+}
+
 export default function Home() {
 const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
@@ -83,8 +104,12 @@ const router = useRouter()
 
 const [projectId,setProjectId]=useState("")
 const [projectName,setProjectName]=useState("")
+const [projectStudyMode,setProjectStudyMode]=useState("building")
+const [projectReadyVisible,setProjectReadyVisible]=useState(false)
+const [projectReadyDismissed,setProjectReadyDismissed]=useState(false)
 const [createProjectName,setCreateProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
+const [studentFirstName,setStudentFirstName]=useState("")
 
 
 useEffect(() => {
@@ -95,9 +120,12 @@ useEffect(() => {
 
     if (!session) {
       console.log("❌ No session → redirect login")
+      setStudentFirstName("")
       router.push("/login")
       return
     }
+
+    setStudentFirstName(resolveStudentFirstName(session.user))
 
     console.log("✅ Session ready → loading projects")
 
@@ -304,6 +332,8 @@ function handleSidebarNavigation(nextView: string) {
   setLoadingFlashcards(false)
   setIsGenerating(false)
   setLoaderStep(0)
+  setProjectReadyVisible(false)
+  setProjectReadyDismissed(true)
 
   if (nextView === "create_project") {
     setCreateProjectName("")
@@ -338,6 +368,57 @@ function handleSidebarNavigation(nextView: string) {
 
   setToolPanelCollapsed(!opensConfigurationPanel)
   setActiveView(nextView)
+}
+
+function openProjectUploadWorkspace() {
+  setStatus("")
+  setUploadStatus("")
+  setUploadLog("")
+  setActiveView("load_project")
+  setToolPanelCollapsed(false)
+}
+
+function openLearningFeature(view: string) {
+  handleSidebarNavigation(view)
+}
+
+async function beginStudy() {
+  if (!projectId) return
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/begin_study`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  )
+
+  if (!res.ok) return
+
+  const data = await res.json()
+  const nextStudyMode = data.study_mode || "learning"
+
+  setProjectStudyMode(nextStudyMode)
+  setProjects(currentProjects =>
+    currentProjects.map(project =>
+      project.id === projectId
+        ? { ...project, study_mode: nextStudyMode }
+        : project
+    )
+  )
+  setProjectReadyVisible(false)
+  setProjectReadyDismissed(true)
+  setStatus("")
+  setUploadStatus("")
+  setUploadLog("")
+  setToolPanelCollapsed(true)
+  setActiveView("learning_home")
 }
 
 const loaderMessages = {
@@ -551,11 +632,15 @@ const data = await res.json()
 
 setProjects([...projects,{
 id:data.project_id,
-name:data.name
+name:data.name,
+study_mode:data.study_mode || "building"
 }])
 
 setProjectId(data.project_id)
 setProjectName(data.name)
+setProjectStudyMode(data.study_mode || "building")
+setProjectReadyVisible(false)
+setProjectReadyDismissed(false)
 setCreateProjectName(data.name)
 setStatus("Project created")
 setUploadStatus("")
@@ -598,6 +683,7 @@ setProjects(projects.filter(p => p.id !== id))
 if(projectId === id){
 setProjectId("")
 setProjectName("")
+setProjectStudyMode("building")
 setDocuments([])
 setTopics([])
 setQuiz([])
@@ -897,6 +983,10 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         console.log("🧪 loadTopics FINISHED")
         console.log("✅ TOPICS LOADED")
 
+        setActiveView("load_project")
+        setToolPanelCollapsed(false)
+        setProjectReadyVisible(true)
+        setProjectReadyDismissed(false)
         setStatus("Project upload completed")
         resolvePolling()
 
@@ -906,6 +996,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         setUploading(false)
         setUploadLog("")
         setUploadStatus("Topics ready, but loading topics failed")
+        setProjectReadyVisible(false)
         setStatus("")
         resolvePolling()
 
@@ -925,6 +1016,7 @@ async function pollTopicStatus(projectId:string): Promise<void>{
       stopPolling()
       pollingRunRef.current = pollRunId + 1
 
+      setProjectReadyVisible(false)
       setActiveView("upload_error")
       resolvePolling()
 
@@ -1243,9 +1335,12 @@ async function selectProject(id: string) {
   }
 
   const project = projects.find(p => p.id === id);
+  const selectedStudyMode = project?.study_mode || "building";
   setProjectName(project?.name || "");
+  setProjectStudyMode(selectedStudyMode);
   setStatus("Loading project...");
   setProjectId(id);
+  setProjectReadyDismissed(false)
   
   // Rimosso il setSelectedTopic(null) che era qui sotto fisso
   setDocuments([]);
@@ -1276,7 +1371,20 @@ async function selectProject(id: string) {
     console.log("✅ Quiz stats richieste per project:", id)
 
     await loadFlashcards(id);
-    setStatus("Project loaded successfully");
+    if (selectedStudyMode === "learning") {
+      setProjectReadyVisible(false)
+      setProjectReadyDismissed(true)
+      setStatus("")
+      setToolPanelCollapsed(true)
+      setActiveView("learning_home")
+      return
+    }
+
+    setProjectReadyVisible(true)
+    setProjectReadyDismissed(false)
+    setStatus("")
+    setToolPanelCollapsed(false)
+    setActiveView("load_project")
 
   } catch(e) {
     console.error("PROJECT LOAD ERROR:", e);
@@ -2369,6 +2477,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         answeredCount={Object.keys(answers).length}
         projectId={projectId}
         projectName={projectName}
+        studentFirstName={studentFirstName}
+        projectStudyMode={projectStudyMode}
+        projectReadyVisible={projectReadyVisible}
+        projectReadyDismissed={projectReadyDismissed}
         projects={projects}
         deleteProject={deleteProject}
         quizId={quizId}
@@ -2411,6 +2523,9 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         continuePlannerActivity={completePlannerActivity}
         returnToPlannerDashboard={returnToPlannerDashboard}
         plannerActivityDebriefs={plannerRuntime.activityDebriefs}
+        onUploadAnotherFile={openProjectUploadWorkspace}
+        onBeginStudy={beginStudy}
+        onLearningHomeLaunch={openLearningFeature}
         
         
       />

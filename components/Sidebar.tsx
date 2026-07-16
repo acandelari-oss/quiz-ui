@@ -509,8 +509,9 @@ const divider = {
 const desktopLanguageRow: React.CSSProperties = {
   display: "flex",
   gap: 10,
-  padding: 20,
-  flexDirection: "row"
+  padding: "20px 0",
+  flexDirection: "row",
+  justifyContent: "center"
 }
 
 const desktopLanguageLabel: React.CSSProperties = {

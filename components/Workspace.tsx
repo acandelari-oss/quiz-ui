@@ -67,6 +67,10 @@ uploadLog,
 uploading,
 projectId,
 projectName,
+studentFirstName,
+projectStudyMode,
+projectReadyVisible,
+projectReadyDismissed,
 quizId,
 previousQuizzes,
 loadQuiz,
@@ -96,6 +100,9 @@ onPlannerFlashcardReview,
 continuePlannerActivity,
 returnToPlannerDashboard,
 plannerActivityDebriefs,
+onUploadAnotherFile,
+onBeginStudy,
+onLearningHomeLaunch,
 
 
 
@@ -256,6 +263,13 @@ console.log("WORKSPACE LOG:", uploadLog)
 console.log("WORKSPACE resultsData:", resultsData);
 console.log("RENDERING ATTUALE - View:", activeView, "Cards:", flashcards?.length, "Gen:", generatingFlashcards);
 const canRenderWithoutProject = activeView === "manage_projects"
+const showProjectReadyScreen =
+  projectStudyMode === "building"
+  && !projectReadyDismissed
+  && (
+    projectReadyVisible
+    || Boolean(projectId && ((documents?.length || 0) > 0 || (topics?.length || 0) > 0))
+  )
 return (
   
   <div style={{ ...workspace, position: "relative" }}>
@@ -346,7 +360,7 @@ return (
     status === "Loading project..." ||
     status === "Loading previous material..." ||
     status === "Project loaded successfully" ||
-    status === "Project upload completed" ||
+    (status === "Project upload completed" && !showProjectReadyScreen) ||
     status === "Processing topics..." ? (
       <div style={loaderContainer}>
         
@@ -418,6 +432,14 @@ return (
         
       </div>
     ) : /* --- FINE BLOCCO LOADER --- */
+
+    showProjectReadyScreen ? (
+      <ProjectReadyScreen
+        translate={translate}
+        onUploadAnotherFile={onUploadAnotherFile}
+        onBeginStudy={onBeginStudy}
+      />
+    ) :
 
     !projectId && !canRenderWithoutProject ? (
       // Qui continua con il tuo codice del logo (StudyForge)
@@ -554,6 +576,14 @@ return (
   // NORMAL APP
   // =========================
   <>
+    {activeView === "learning_home" && (
+      <LearningHome
+        translate={translate}
+        studentFirstName={studentFirstName}
+        onLaunch={onLearningHomeLaunch}
+      />
+    )}
+
     {activeView === "upload_error" && (
 
       <div style={{ padding: 20 }}>
@@ -1424,6 +1454,181 @@ function PlannerActivityReviewCheckpoint({
   )
 }
 
+function ProjectReadyScreen({
+  translate,
+  onUploadAnotherFile,
+  onBeginStudy
+}: any) {
+  return (
+    <div style={projectReadyContainer}>
+      <div style={projectReadyCheck}>✓</div>
+      <h2 style={projectReadyTitle}>
+        {translate("stats.Project upload completed")}
+      </h2>
+      <p style={projectReadySubtitle}>
+        {translate("stats.Your study material has been successfully processed.")}
+        <br />
+        {translate("stats.What would you like to do next?")}
+      </p>
+
+      <div style={projectReadyCards}>
+        <div style={projectReadyCard}>
+          <h3 style={projectReadyCardTitle}>
+            {translate("stats.Continue building your project")}
+          </h3>
+          <p style={projectReadyCardText}>
+            {translate("stats.Upload another document and expand your study material.")}
+          </p>
+          <div style={projectReadyInfoText}>
+            {translate("stats.Continue adding study material using the Tool Panel.")}
+          </div>
+        </div>
+
+        <div style={projectReadyCard}>
+          <h3 style={projectReadyCardTitle}>
+            {translate("stats.I'm ready to study")}
+          </h3>
+          <p style={projectReadyCardText}>
+            {translate("stats.Start your learning journey with the material you've prepared.")}
+          </p>
+          <button
+            type="button"
+            style={projectReadyButton}
+            onClick={onBeginStudy}
+          >
+            {translate("stats.BEGIN STUDY")}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LearningHome({
+  translate,
+  studentFirstName,
+  onLaunch
+}: any) {
+  const greeting = studentFirstName
+    ? `${translate("stats.Welcome back")}, ${studentFirstName}! 👋`
+    : `${translate("stats.Welcome back")}! 👋`
+
+  const activities = [
+    {
+      title: translate("stats.Ask a Question"),
+      description: translate("stats.Chat with AI about your study material."),
+      icon: "/icons/ask-side.svg",
+      view: "ask_setup"
+    },
+    {
+      title: translate("stats.Memory Check"),
+      description: translate("stats.Answer open questions without hints."),
+      icon: "/icons/memory-check-side.svg",
+      view: "active_recall_setup"
+    },
+    {
+      title: translate("stats.Study Session"),
+      description: translate("stats.Combine multiple activities into one session."),
+      icon: "/icons/study-session-side.svg",
+      view: "study_session_setup"
+    },
+    {
+      title: translate("stats.Quiz"),
+      description: translate("stats.Test your knowledge with AI-generated questions."),
+      icon: "/icons/quiz-side.svg",
+      view: "quiz"
+    },
+    {
+      title: translate("stats.Flashcards"),
+      description: translate("stats.Review concepts using spaced repetition."),
+      icon: "/icons/flashcards-side.svg",
+      view: "generate_flashcards"
+    }
+  ]
+
+  return (
+    <div style={learningHomeContainer}>
+      <section style={learningIntroSection}>
+        <h1 style={learningIntroTitle}>
+          {translate("stats.WELCOME TO YOUR STUDY WORKSPACE")}
+        </h1>
+        <p style={learningGreetingText}>
+          {greeting}
+        </p>
+        <p style={learningIntroText}>
+          {translate("stats.Your project is now ready.")}
+        </p>
+        <p style={learningIntroText}>
+          {translate("stats.Your study structure is now stable and your progress will be tracked across every activity.")}
+        </p>
+        <p style={learningIntroText}>
+          {translate("stats.Choose how you'd like to study today.")}
+        </p>
+        <p style={learningIntroText}>
+          {translate("stats.You can upload new files, but these will not affect the taxonomy already created.")}
+        </p>
+      </section>
+
+      <section style={learningProfessorSection}>
+        <h2 style={learningSectionTitle}>
+          {translate("stats.Train with your Professor")}
+        </h2>
+        <p style={learningProfessorText}>
+          {translate("stats.Not sure what to study next?")}
+        </p>
+        <p style={learningProfessorText}>
+          {translate("stats.Let your Professor analyze your progress and build today's lesson for you.")}
+        </p>
+        <p style={learningProfessorStrong}>
+          {translate("stats.The Professor chooses what needs your attention.")}
+        </p>
+        <button
+          type="button"
+          style={learningPrimaryButton}
+          onClick={() => onLaunch("planner_view")}
+        >
+          {translate("stats.START GUIDED STUDY")}
+        </button>
+      </section>
+
+      <section style={learningOwnSection}>
+        <h2 style={learningSectionTitle}>
+          {translate("stats.Train on your own")}
+        </h2>
+        <p style={learningIntroText}>
+          {translate("stats.Choose exactly how you want to practice.")}
+        </p>
+
+        <div style={learningActivityGrid}>
+          {activities.map(activity => (
+            <div
+              key={activity.view}
+              style={learningActivityCard}
+            >
+              <img
+                src={activity.icon}
+                alt=""
+                width={48}
+                height={48}
+                style={learningActivityIcon}
+              />
+              <h3 style={learningActivityTitle}>{activity.title}</h3>
+              <p style={learningActivityText}>{activity.description}</p>
+              <button
+                type="button"
+                style={learningLaunchButton}
+                onClick={() => onLaunch(activity.view)}
+              >
+                {translate("stats.Launch")} →
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
 
 
 const workspace = {
@@ -1511,6 +1716,229 @@ color: "white",
 cursor: "pointer",
 fontWeight: 800,
 padding: "12px 18px"
+}
+
+const projectReadyContainer: React.CSSProperties = {
+display: "flex",
+flexDirection: "column",
+alignItems: "center",
+justifyContent: "center",
+minHeight: "68vh",
+textAlign: "center",
+color: "white"
+}
+
+const projectReadyCheck: React.CSSProperties = {
+width: 44,
+height: 44,
+borderRadius: "50%",
+background: "#22c55e",
+display: "flex",
+alignItems: "center",
+justifyContent: "center",
+fontSize: 24,
+fontWeight: 900,
+marginBottom: 18
+}
+
+const projectReadyTitle: React.CSSProperties = {
+fontSize: 26,
+fontWeight: 800,
+margin: "0 0 6px"
+}
+
+const projectReadySubtitle: React.CSSProperties = {
+color: "#cbd5e1",
+fontSize: 15,
+lineHeight: 1.45,
+margin: "0 0 28px"
+}
+
+const projectReadyCards: React.CSSProperties = {
+display: "grid",
+gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+gap: 18,
+width: "min(680px, 100%)"
+}
+
+const projectReadyCard: React.CSSProperties = {
+border: "1px solid #1f6d8b",
+borderRadius: 10,
+background: "rgba(15, 23, 42, 0.28)",
+padding: 18,
+minHeight: 170,
+display: "flex",
+flexDirection: "column",
+justifyContent: "space-between",
+boxSizing: "border-box"
+}
+
+const projectReadyCardTitle: React.CSSProperties = {
+color: "#36f2ed",
+fontSize: 17,
+fontWeight: 800,
+margin: "0 0 10px"
+}
+
+const projectReadyCardText: React.CSSProperties = {
+color: "#f8fafc",
+fontSize: 15,
+fontWeight: 700,
+lineHeight: 1.35,
+margin: "0 0 24px"
+}
+
+const projectReadyButton: React.CSSProperties = {
+background: "#11132c",
+border: "1px solid #27305f",
+borderRadius: 7,
+color: "white",
+cursor: "pointer",
+fontWeight: 800,
+fontSize: 13,
+padding: "10px 14px",
+width: "100%"
+}
+
+const projectReadyInfoText: React.CSSProperties = {
+borderTop: "1px solid rgba(54, 242, 237, 0.14)",
+color: "#9ca3af",
+fontSize: 13,
+fontWeight: 600,
+lineHeight: 1.45,
+paddingTop: 12
+}
+
+const learningHomeContainer: React.CSSProperties = {
+minHeight: "calc(100vh - 120px)",
+display: "flex",
+flexDirection: "column",
+alignItems: "center",
+justifyContent: "center",
+gap: 54,
+textAlign: "center",
+color: "white",
+padding: "48px 28px",
+boxSizing: "border-box"
+}
+
+const learningIntroSection: React.CSSProperties = {
+maxWidth: 920
+}
+
+const learningIntroTitle: React.CSSProperties = {
+color: "#36f2ed",
+fontSize: 30,
+fontWeight: 900,
+letterSpacing: 0.6,
+margin: "0 0 20px",
+textTransform: "uppercase"
+}
+
+const learningGreetingText: React.CSSProperties = {
+color: "#f8fafc",
+fontSize: 22,
+fontWeight: 700,
+lineHeight: 1.35,
+margin: "0 0 18px"
+}
+
+const learningIntroText: React.CSSProperties = {
+color: "#e5e7eb",
+fontSize: 18,
+lineHeight: 1.55,
+margin: "8px 0"
+}
+
+const learningProfessorSection: React.CSSProperties = {
+maxWidth: 720
+}
+
+const learningSectionTitle: React.CSSProperties = {
+color: "#1778d4",
+fontSize: 22,
+fontWeight: 800,
+margin: "0 0 14px"
+}
+
+const learningProfessorText: React.CSSProperties = {
+color: "#f8fafc",
+fontSize: 18,
+lineHeight: 1.5,
+margin: "7px 0"
+}
+
+const learningProfessorStrong: React.CSSProperties = {
+color: "#f8fafc",
+fontSize: 18,
+fontWeight: 900,
+lineHeight: 1.5,
+margin: "7px 0 24px"
+}
+
+const learningPrimaryButton: React.CSSProperties = {
+background: "#11132c",
+border: "1px solid #27305f",
+borderRadius: 7,
+color: "white",
+cursor: "pointer",
+fontWeight: 800,
+fontSize: 13,
+padding: "11px 18px",
+minWidth: 220
+}
+
+const learningOwnSection: React.CSSProperties = {
+width: "100%",
+maxWidth: 1260
+}
+
+const learningActivityGrid: React.CSSProperties = {
+display: "grid",
+gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+gap: 28,
+marginTop: 28,
+width: "100%"
+}
+
+const learningActivityCard: React.CSSProperties = {
+display: "flex",
+flexDirection: "column",
+alignItems: "center",
+gap: 10,
+minHeight: 210
+}
+
+const learningActivityIcon: React.CSSProperties = {
+objectFit: "contain",
+marginBottom: 4
+}
+
+const learningActivityTitle: React.CSSProperties = {
+color: "#36f2ed",
+fontSize: 19,
+fontWeight: 900,
+margin: 0
+}
+
+const learningActivityText: React.CSSProperties = {
+color: "#f8fafc",
+fontSize: 14,
+lineHeight: 1.25,
+margin: "0 0 auto",
+maxWidth: 190
+}
+
+const learningLaunchButton: React.CSSProperties = {
+background: "#11132c",
+border: "1px solid #27305f",
+borderRadius: 7,
+color: "white",
+cursor: "pointer",
+fontWeight: 700,
+fontSize: 13,
+padding: "9px 14px",
+width: "100%"
 }
 
 const styleSheet = typeof document !== "undefined" && document.createElement("style")

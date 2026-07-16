@@ -5,6 +5,7 @@ import WeeklyCalendar from "./WeeklyCalendar"
 import WeeklyStatistics from "./WeeklyStatistics"
 import type { PlannerDay, PlannerMockData } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
+import { useState } from "react"
 
 export default function PlannerDashboard({
   plan,
@@ -14,6 +15,7 @@ export default function PlannerDashboard({
   onOpenDailySession: (day: PlannerDay) => void
 }) {
   const { t: translate } = useTranslation()
+  const [introExpanded, setIntroExpanded] = useState(true)
   const currentModule =
     plan.calendar.find(day => day.status === "today")
     || plan.calendar.find(day => day.day === plan.todayPlan.day)
@@ -21,6 +23,48 @@ export default function PlannerDashboard({
 
   return (
     <div className="planner-mobile-dashboard" style={container}>
+      <section className="planner-intro-panel" style={plannerIntroPanel}>
+        <div style={plannerIntroHeader}>
+          <h2 className="planner-intro-title" style={plannerIntroTitle}>
+            <img
+              src="/icons/professor.svg"
+              alt=""
+              style={plannerIntroIcon}
+            />
+            {translate("stats.Welcome to your Study Planner")}
+          </h2>
+          <button
+            type="button"
+            style={plannerIntroToggle}
+            onClick={() => setIntroExpanded(current => !current)}
+          >
+            {introExpanded
+              ? translate("stats.Hide intro")
+              : translate("stats.Show intro")}
+          </button>
+        </div>
+
+        {introExpanded && (
+          <div className="planner-intro-body" style={plannerIntroBody}>
+            <p style={plannerIntroParagraph}>
+              {translate("stats.Planner intro welcome")}
+            </p>
+            <p style={plannerIntroParagraph}>
+              {translate("stats.Planner intro purpose")}
+            </p>
+            <p style={plannerIntroParagraph}>
+              {translate("stats.Planner intro flexibility")}
+            </p>
+            <p style={plannerIntroParagraph}>
+              {translate("stats.Planner intro debrief")}
+            </p>
+            <p style={plannerIntroParagraph}>
+              {translate("stats.Planner intro dashboard")}
+            </p>
+          </div>
+        )}
+      </section>
+
       <section className="planner-mobile-cta-card" style={ctaCard}>
         {plan.todaySessionCompleted ? (
           <>
@@ -108,6 +152,20 @@ export default function PlannerDashboard({
             max-width: none !important;
           }
 
+          .planner-intro-panel {
+            padding: 14px !important;
+            margin-bottom: 12px !important;
+            border-radius: 12px !important;
+          }
+
+          .planner-intro-title {
+            font-size: 17px !important;
+          }
+
+          .planner-intro-body {
+            margin-top: 10px !important;
+          }
+
           .planner-mobile-cta-card {
             padding: 12px !important;
             margin-bottom: 10px !important;
@@ -141,6 +199,63 @@ const container = {
   color: "white",
   maxWidth: 1280,
   margin: "0 auto"
+}
+
+const plannerIntroPanel = {
+  background: "rgba(15, 23, 42, 0.72)",
+  border: "1px solid rgba(54, 242, 237, 0.18)",
+  borderRadius: 16,
+  padding: 20,
+  marginBottom: 18,
+  boxShadow: "0 18px 45px rgba(0, 0, 0, 0.18)"
+}
+
+const plannerIntroHeader = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 14
+}
+
+const plannerIntroTitle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 9,
+  color: "#36f2ed",
+  fontSize: 21,
+  fontWeight: 900,
+  margin: 0
+}
+
+const plannerIntroIcon = {
+  width: 26,
+  height: 26,
+  objectFit: "contain" as const,
+  flexShrink: 0
+}
+
+const plannerIntroToggle = {
+  background: "transparent",
+  border: "1px solid rgba(148, 163, 184, 0.32)",
+  borderRadius: 999,
+  color: "#cbd5e1",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 700,
+  padding: "6px 11px",
+  whiteSpace: "nowrap" as const
+}
+
+const plannerIntroBody = {
+  marginTop: 14,
+  maxWidth: 980
+}
+
+const plannerIntroParagraph = {
+  color: "#e5e7eb",
+  fontSize: 15,
+  lineHeight: 1.58,
+  margin: "8px 0"
 }
 
 const ctaCard = {
