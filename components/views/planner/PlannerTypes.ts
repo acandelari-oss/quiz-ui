@@ -58,6 +58,8 @@ export type PlannerActivity = {
     }>
     numCards?: number
     numQuestions?: number
+    estimatedDurationMinutes?: number | null
+    secondsPerAnswer?: number | null
     difficulty?: string
     style?: string
     questionStyle?: string
@@ -66,6 +68,7 @@ export type PlannerActivity = {
 }
 
 export type PlannerDailyPlan = {
+  plannerWeekId?: string | null
   day: string
   date: string
   sessionIndex: number
@@ -119,6 +122,7 @@ export type PlannerProfessorConversationMessage = {
 }
 
 export type PlannerMockData = {
+  weekId?: string | null
   state: PlannerUiState
   planType?: string
   weekLabel: string

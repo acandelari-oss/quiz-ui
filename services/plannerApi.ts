@@ -149,6 +149,33 @@ export async function generatePlannerWeek(
   return response.json()
 }
 
+export async function generateNextPlannerWeek(
+  projectId: string
+): Promise<PlannerStateResponse> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/week/generate-next`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(`Next Study Plan generation failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
 export async function generatePlannerAssessment(
   projectId: string,
   configuration: PlannerGenerationConfiguration
@@ -200,6 +227,45 @@ export async function completePlannerAssessment(
 
   if (!response.ok) {
     throw new Error(`Planner assessment completion failed: ${response.status}`)
+  }
+
+  return response.json()
+}
+
+export async function completePlannerModule(
+  projectId: string,
+  sessionIndex: number,
+  sessionResults: Record<string, unknown>,
+  professorDebrief = "",
+  homeworkRecommendation = "",
+  studyPlanDebrief = ""
+): Promise<PlannerStateResponse> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error("Missing NEXT_PUBLIC_API_URL")
+  }
+
+  if (!projectId) {
+    throw new Error("Create or load a project before using Study Planner.")
+  }
+
+  const response = await fetch(`${apiUrl}/projects/${projectId}/planner/module/complete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      session_index: sessionIndex,
+      session_results: sessionResults,
+      professor_debrief: professorDebrief,
+      homework_recommendation: homeworkRecommendation,
+      study_plan_debrief: studyPlanDebrief
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Planner module completion failed: ${response.status}`)
   }
 
   return response.json()

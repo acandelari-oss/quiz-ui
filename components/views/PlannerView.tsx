@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 import PlannerDailySession from "./planner/PlannerDailySession"
 import PlannerDashboard from "./planner/PlannerDashboard"
 import PlannerConfiguration from "./planner/PlannerConfiguration"
 import {
   askPlannerModuleProfessor,
+  generateNextPlannerWeek,
   generatePlannerAssessment,
   generatePlannerWeek,
   type PlannerGenerationConfiguration
@@ -27,13 +29,15 @@ export default function PlannerView({
   plannerRuntime,
   openPlannerDailySession,
   launchPlannerActivity,
-  returnToPlannerDashboard
+  returnToPlannerDashboard,
+  resetPlannerRuntimeForNewStudyPlan
 }: {
   projectId: string
   topics: Array<{
     category?: string | null
   }>
   plannerRuntime: {
+    plannerWeekId?: string | null
     mode: string
     dailyPlan: PlannerDailyPlan | null
     todaySessionCompleted: boolean
@@ -50,6 +54,7 @@ export default function PlannerView({
     activityIndex: number
   ) => Promise<void>
   returnToPlannerDashboard: () => void
+  resetPlannerRuntimeForNewStudyPlan?: () => void
 }) {
   const { t: translate, i18n } = useTranslation()
   const {
@@ -145,7 +150,12 @@ export default function PlannerView({
     })
   }
 
-  const plannerDataWithLocalSessionState = applyRuntimeSessionResults(
+  const runtimeBelongsToLoadedWeek =
+    Boolean(plannerData.weekId)
+    && plannerRuntime.plannerWeekId === plannerData.weekId
+
+  const plannerDataWithLocalSessionState = runtimeBelongsToLoadedWeek
+    ? applyRuntimeSessionResults(
     plannerData,
     plannerRuntime.todaySessionCompleted,
     plannerRuntime.completedSessionResults,
@@ -154,6 +164,7 @@ export default function PlannerView({
     plannerRuntime.studyPlanDebrief,
     translate
   )
+    : plannerData
 
   const projectCategories = Array.from(
     new Set(
@@ -201,6 +212,28 @@ export default function PlannerView({
       await reload()
     } catch (err) {
       console.error("PLANNER ASSESSMENT GENERATION ERROR:", err)
+      setGenerationError(
+        err instanceof Error
+          ? err.message
+          : translate("stats.Unable to generate Study Plan.")
+      )
+    } finally {
+      setGeneratingStudyPlan(false)
+    }
+  }
+
+  const handleGenerateNextStudyPlan = async () => {
+    setGenerationError(null)
+    setGenerationKind("study_plan")
+    setGeneratingStudyPlan(true)
+    setGenerationMessageIndex(0)
+
+    try {
+      await generateNextPlannerWeek(projectId)
+      resetPlannerRuntimeForNewStudyPlan?.()
+      await reload()
+    } catch (err) {
+      console.error("NEXT STUDY PLAN GENERATION ERROR:", err)
       setGenerationError(
         err instanceof Error
           ? err.message
@@ -275,7 +308,9 @@ export default function PlannerView({
             })}
           </h2>
           {plannerData.weeklyReview.message && (
-            <p style={paragraph}>{plannerData.weeklyReview.message}</p>
+            <div style={paragraph}>
+              <MarkdownContent text={plannerData.weeklyReview.message} />
+            </div>
           )}
         </section>
 
@@ -305,6 +340,7 @@ export default function PlannerView({
   if (
     plannerRuntime.mode === "daily_briefing"
     && plannerRuntime.dailyPlan
+    && runtimeBelongsToLoadedWeek
   ) {
     return (
       <PlannerDailySession
@@ -322,6 +358,7 @@ export default function PlannerView({
   if (
     plannerRuntime.mode === "summary"
     && plannerRuntime.dailyPlan
+    && runtimeBelongsToLoadedWeek
   ) {
     const summaryDailyPlan = applyRuntimeResultsToDailyPlan(
       plannerRuntime.dailyPlan,
@@ -359,6 +396,7 @@ export default function PlannerView({
     <PlannerDashboard
       plan={plannerDataWithLocalSessionState}
       onOpenDailySession={openDailySession}
+      onCreateNewStudyPlan={handleGenerateNextStudyPlan}
     />
   )
 }

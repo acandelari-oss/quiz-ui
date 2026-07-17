@@ -2,6 +2,7 @@ import Accordion from "./Accordion"
 import type { PlannerHomework } from "./PlannerTypes"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function HomeworkAccordion({
   homework
@@ -73,7 +74,7 @@ function HomeworkText({ text }: { text: string }) {
 
   return (
     <>
-      <p
+      <div
         className={
           expanded
             ? "planner-mobile-homework-text is-expanded"
@@ -81,8 +82,8 @@ function HomeworkText({ text }: { text: string }) {
         }
         style={paragraph}
       >
-        {text}
-      </p>
+        <MarkdownContent text={text} />
+      </div>
       <button
         type="button"
         className="planner-mobile-read-more"

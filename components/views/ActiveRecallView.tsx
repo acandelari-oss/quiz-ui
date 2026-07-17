@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
 import { exportConversationPDF } from "../../utils/pdfExport"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 import {
   extractTopicIds,
   extractTopicNames
@@ -398,7 +399,9 @@ export default function ActiveRecallView({
           }}>
             <strong>{m.role === "assistant" ? "AI:" : "Tu:"}</strong>
             {m.topic && <div style={{ fontSize: "11px", color: "#2FA4A9" }}>Focus: {m.topic}</div>}
-            <p style={{ marginTop: 5 }}>{m.content}</p>
+            <div style={{ marginTop: 5 }}>
+              <MarkdownContent text={m.content} />
+            </div>
           </div>
         ))}
         {loading && <p>{translate('stats.Thinking...')}</p>}

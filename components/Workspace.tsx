@@ -12,6 +12,7 @@ import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
 import { useTranslation } from 'react-i18next';
 import HintBox from "@/components/ui/HintBox";
+import MarkdownContent from "@/components/ui/MarkdownContent";
 import { shellHeaderCell } from "./layoutStyles"
 import {
   BarChart3,
@@ -46,6 +47,7 @@ generatingQuiz,
 expanded,
 setExpanded,
 formatTime,
+quizPacingOverTarget,
 answeredCount,
 calculateScore,
 
@@ -99,6 +101,8 @@ launchPlannerActivity,
 onPlannerFlashcardReview,
 continuePlannerActivity,
 returnToPlannerDashboard,
+resetPlannerRuntimeForNewStudyPlan,
+plannerActivityProgress = [],
 plannerActivityDebriefs,
 onUploadAnotherFile,
 onBeginStudy,
@@ -270,6 +274,14 @@ const showProjectReadyScreen =
     projectReadyVisible
     || Boolean(projectId && ((documents?.length || 0) > 0 || (topics?.length || 0) > 0))
   )
+const plannerGuidedSessionActive =
+  plannerRuntime?.dailyPlan
+  && (
+    plannerRuntime?.mode === "external_activity"
+    || plannerRuntime?.mode === "activity_review"
+  )
+const plannerGuidedActivity =
+  plannerRuntime?.dailyPlan?.activities?.[plannerRuntime?.activityIndex]
 return (
   
   <div style={{ ...workspace, position: "relative" }}>
@@ -282,7 +294,7 @@ return (
       style={{
         ...shellHeaderCell,
         marginTop: 20,
-        justifyContent: "flex-end",
+        justifyContent: plannerGuidedSessionActive ? "space-between" : "flex-end",
         gap: 12,
         padding: "0 12px",
         borderBottom: "1px solid #1f2937",
@@ -292,36 +304,46 @@ return (
         zIndex: 100
       }}
     >
+      {plannerGuidedSessionActive && (
+        <PlannerGuidedSessionHeader
+          translate={translate}
+          dailyPlan={plannerRuntime.dailyPlan}
+          activity={plannerGuidedActivity}
+          progress={plannerActivityProgress}
+        />
+      )}
 
-      <button
-        style={{
-          padding: "8px 5px",
-          borderRadius: 8,
-          border: "1px solid #374151",
-          background: "#1f2937",
-          color: "white",
-          cursor: "pointer",
-         
-        }}
-        onClick={() => alert("Account area coming soon")}
-      >
-        Account
-      </button>
+      <div style={workspaceHeaderActions}>
+        <button
+          style={{
+            padding: "8px 5px",
+            borderRadius: 8,
+            border: "1px solid #374151",
+            background: "#1f2937",
+            color: "white",
+            cursor: "pointer",
+           
+          }}
+          onClick={() => alert("Account area coming soon")}
+        >
+          Account
+        </button>
 
-      <button
-        style={{
-          padding: "8px 14px",
-          borderRadius: 8,
-          border: "1px solid #ef4444",
-          background: "#7f1d1d",
-          color: "white",
-          cursor: "pointer",
-          
-        }}
-        onClick={handleLogout}
-      >
-        Logout
-      </button>
+        <button
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid #ef4444",
+            background: "#7f1d1d",
+            color: "white",
+            cursor: "pointer",
+            
+          }}
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
+      </div>
 
     </div>
 
@@ -351,6 +373,7 @@ return (
         .quiz-runtime-mobile-content {
           padding: 0 !important;
         }
+
       }
     `}</style>
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
@@ -1198,6 +1221,7 @@ return (
               expanded={expanded}
               setExpanded={setExpanded}
               formatTime={formatTime}
+              quizPacingOverTarget={quizPacingOverTarget}
               answeredCount={answeredCount}
               calculateScore={calculateScore}
               loadQuizStats={loadQuizStats}
@@ -1396,6 +1420,7 @@ return (
         openPlannerDailySession={openPlannerDailySession}
         launchPlannerActivity={launchPlannerActivity}
         returnToPlannerDashboard={returnToPlannerDashboard}
+        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
       />
     )}
     {/* RESULTS */}
@@ -1441,7 +1466,9 @@ function PlannerActivityReviewCheckpoint({
         <div style={plannerReviewTitle}>🎉 {title}</div>
         <div style={plannerReviewMessage}>{message}</div>
         {professorDebrief && (
-          <div style={plannerReviewProfessorDebrief}>{professorDebrief}</div>
+          <div style={plannerReviewProfessorDebrief}>
+            <MarkdownContent text={professorDebrief} />
+          </div>
         )}
       </div>
       <button
@@ -1452,6 +1479,79 @@ function PlannerActivityReviewCheckpoint({
       </button>
     </div>
   )
+}
+
+function PlannerGuidedSessionHeader({
+  translate,
+  dailyPlan,
+  activity,
+  progress = []
+}: any) {
+  const moduleNumber = Number(dailyPlan?.sessionIndex ?? 0) + 1
+  const moduleTotal = dailyPlan?.studyPlanModuleCount || moduleNumber
+  const activityLabel = plannerGuidedActivityLabel(activity?.type, translate)
+
+  return (
+    <div style={plannerGuidedHeader}>
+      <div style={plannerGuidedHeaderInfo}>
+        <div style={plannerGuidedHeaderTitle}>
+          {translate("stats.Professor Guided Session")}
+        </div>
+        <div style={plannerGuidedHeaderMeta}>
+          <span>
+            {translate("stats.Module {current} of {total}")
+              .replace("{current}", String(moduleNumber))
+              .replace("{total}", String(moduleTotal))}
+          </span>
+          <span style={plannerGuidedHeaderDot}>•</span>
+          <span>{activityLabel}</span>
+        </div>
+      </div>
+      <div style={plannerGuidedProgress}>
+        {progress.map((item: any) => (
+          <div
+            key={`${item.label}-${item.value}`}
+            style={{
+              ...plannerGuidedProgressItem,
+              ...(item.warning ? plannerGuidedProgressWarning : {})
+            }}
+          >
+            <span
+              style={{
+                ...plannerGuidedProgressIcon,
+                ...(item.warning ? plannerGuidedProgressIconWarning : {})
+              }}
+            >
+              {item.icon}
+            </span>
+            <span>{item.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function plannerGuidedActivityLabel(activityType: string, translate: (key: string) => string) {
+  const normalizedType = String(activityType || "").toLowerCase()
+
+  if (normalizedType === "quiz") {
+    return translate("stats.Quiz")
+  }
+
+  if (normalizedType === "flashcards") {
+    return translate("stats.Flashcards")
+  }
+
+  if (normalizedType === "memory_check" || normalizedType === "active_recall") {
+    return translate("stats.Memory Check")
+  }
+
+  if (normalizedType === "study_session") {
+    return translate("stats.Study Session")
+  }
+
+  return translate("stats.Study activity")
 }
 
 function ProjectReadyScreen({
@@ -1641,6 +1741,90 @@ overflowX:"hidden" as const,
 height:"100%",
 boxSizing:"border-box" as const,
 WebkitOverflowScrolling:"touch" as const
+}
+
+const workspaceHeaderActions: React.CSSProperties = {
+display: "flex",
+alignItems: "center",
+justifyContent: "flex-end",
+gap: 12,
+flexShrink: 0
+}
+
+const plannerGuidedHeader: React.CSSProperties = {
+display: "flex",
+alignItems: "center",
+justifyContent: "space-between",
+gap: 18,
+minWidth: 0,
+flex: 1
+}
+
+const plannerGuidedHeaderInfo: React.CSSProperties = {
+display: "flex",
+flexDirection: "column",
+gap: 3,
+minWidth: 0
+}
+
+const plannerGuidedHeaderTitle: React.CSSProperties = {
+color: "#36f2ed",
+fontSize: 15,
+fontWeight: 900,
+whiteSpace: "nowrap"
+}
+
+const plannerGuidedHeaderMeta: React.CSSProperties = {
+color: "#dbeafe",
+fontSize: 12,
+lineHeight: 1.35,
+display: "flex",
+alignItems: "center",
+gap: 8,
+whiteSpace: "nowrap",
+overflow: "hidden",
+textOverflow: "ellipsis"
+}
+
+const plannerGuidedHeaderDot: React.CSSProperties = {
+color: "#64748b"
+}
+
+const plannerGuidedProgress: React.CSSProperties = {
+display: "flex",
+alignItems: "center",
+justifyContent: "flex-end",
+gap: 12,
+flexWrap: "wrap",
+flexShrink: 0
+}
+
+const plannerGuidedProgressItem: React.CSSProperties = {
+display: "inline-flex",
+alignItems: "center",
+gap: 6,
+color: "#f8fafc",
+fontSize: 13,
+fontWeight: 800,
+background: "rgba(15, 23, 42, 0.68)",
+border: "1px solid rgba(148, 163, 184, 0.22)",
+borderRadius: 999,
+padding: "6px 10px",
+whiteSpace: "nowrap"
+}
+
+const plannerGuidedProgressIcon: React.CSSProperties = {
+color: "#36f2ed"
+}
+
+const plannerGuidedProgressIconWarning: React.CSSProperties = {
+color: "#f87171"
+}
+
+const plannerGuidedProgressWarning: React.CSSProperties = {
+color: "#fecaca",
+borderColor: "rgba(248, 113, 113, 0.42)",
+background: "rgba(127, 29, 29, 0.34)"
 }
 
 const loaderContainer = {

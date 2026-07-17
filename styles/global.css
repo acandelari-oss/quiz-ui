@@ -50,3 +50,72 @@ button:hover {
 0% { transform: rotate(0deg); }
 100% { transform: rotate(360deg); }
 }
+
+.markdown-content {
+  color: inherit;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+}
+
+.markdown-content p {
+  margin: 0 0 0.75em;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.35em 0 0.75em;
+  padding-left: 1.4em;
+}
+
+.markdown-content li {
+  margin: 0.2em 0;
+}
+
+.markdown-content a {
+  color: #36F2ED;
+}
+
+.markdown-content code {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+}
+
+.markdown-content pre {
+  background: #020617;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 0.8em;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  width: max-content;
+  max-width: 100%;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #374151;
+  padding: 0.35em 0.55em;
+}
+
+.markdown-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25em 0;
+}

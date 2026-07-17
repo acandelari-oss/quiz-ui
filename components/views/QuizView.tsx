@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { isCorrectQuizOption } from "@/utils/quizAnswers"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function QuizView({
   quiz,
@@ -12,6 +13,7 @@ export default function QuizView({
   setExpanded,
   generatingQuiz,
   formatTime,
+  quizPacingOverTarget,
   answeredCount,
   projectId,
   quizId,
@@ -116,11 +118,20 @@ ${input}
       )}
 
       {started && !finished && (
-        <div className="quiz-mobile-status" style={{ marginBottom: 20, color: "#9ca3af", fontWeight: 600 }}>
+        <div
+          className="quiz-mobile-status"
+          style={{
+            marginBottom: 20,
+            color: "#9ca3af",
+            fontWeight: 600
+          }}
+        >
           <span>
             <span className="quiz-status-mobile-icon">⏱ </span>
-            <span className="quiz-status-desktop-label">Time left: </span>
-            {formatTime()}
+            <span className="quiz-status-desktop-label">Elapsed: </span>
+            <span style={{ color: quizPacingOverTarget ? "#f87171" : "inherit" }}>
+              {formatTime()}
+            </span>
           </span>
           <span className="quiz-mobile-answered-inline">
             <span className="quiz-status-mobile-icon">✓ </span>
@@ -143,7 +154,9 @@ ${input}
         return (
           <div key={i} className="quiz-question-block" style={question}>
 
-            <h3 className="quiz-question-title">{i + 1}. {q.question}</h3>
+            <h3 className="quiz-question-title">
+              {i + 1}. <MarkdownContent text={q.question} inline />
+            </h3>
 
             {(q.options || []).map((opt: string, j: number) => {
               const selected = answers[i] === opt
@@ -201,7 +214,9 @@ ${input}
                     {String.fromCharCode(65 + j)}
                   </span>
 
-                  <span className="quiz-answer-text">{opt}</span>
+                  <span className="quiz-answer-text">
+                    <MarkdownContent text={opt} inline />
+                  </span>
                 </div>
               )
             })}
@@ -228,7 +243,7 @@ ${input}
                 </div>
 
                 <div style={{ color: "#d1d5db" }}>
-                  {q.explanation}
+                  <MarkdownContent text={q.explanation} />
                 </div>
 
                 {q.explanation_long && (
@@ -239,7 +254,7 @@ ${input}
                       fontSize: 13
                     }}
                   >
-                    {q.explanation_long}
+                    <MarkdownContent text={q.explanation_long} />
                   </div>
                 )}
 
@@ -313,7 +328,7 @@ ${input}
                         }}
                       >
                         <strong>{m.role === "user" ? "You: " : "Tutor: "}</strong>
-                        {m.content}
+                        <MarkdownContent text={m.content} />
                       </div>
                     ))}
 

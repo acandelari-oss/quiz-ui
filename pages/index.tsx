@@ -18,6 +18,7 @@ import {
 import { isCorrectQuizOption } from "../utils/quizAnswers";
 import {
   completePlannerAssessment,
+  completePlannerModule,
   generatePlannerActivityDebrief,
   generatePlannerHomeworkRecommendation,
   generatePlannerModuleDebrief,
@@ -40,9 +41,11 @@ type LearningGenerationOverrides = {
   numCards?: number
   difficulty?: string
   questionStyle?: string
+  secondsPerAnswer?: number | null
 }
 
 type PlannerRuntimeState = {
+  plannerWeekId?: string | null
   mode: "dashboard" | "daily_briefing" | "external_activity" | "activity_review" | "summary"
   dailyPlan: PlannerDailyPlan | null
   activityIndex: number
@@ -197,6 +200,7 @@ const [language,setLanguage]=useState("English")
 const [timerMinutes,setTimerMinutes]=useState(0)
 
 const [timeLeft,setTimeLeft]=useState(0)
+const [quizTargetDurationSeconds,setQuizTargetDurationSeconds]=useState(0)
 const [started,setStarted]=useState(false)
 const [finished,setFinished]=useState(false)
 
@@ -232,6 +236,7 @@ const [questionStyle, setQuestionStyle] =
   useState("balanced")
 const [plannerRuntime, setPlannerRuntime] =
   useState<PlannerRuntimeState>({
+    plannerWeekId: null,
     mode: "dashboard",
     dailyPlan: null,
     activityIndex: 0,
@@ -287,6 +292,17 @@ const mobileHome = isMobileLayout && activeView === "project"
 const mobileConfiguration = mobileNavigationSelected && toolPanelAvailableForView && !workspacePrimary
 const mobileExecution = mobileNavigationSelected && !mobileConfiguration
 const mobileSidebarWidth = mobileNavigationSelected ? 56 : 260
+const plannerGuidedSessionActive =
+  plannerRuntime.mode === "external_activity"
+  || plannerRuntime.mode === "activity_review"
+const quizPacingOverTarget =
+  started
+  && !finished
+  && quizTargetDurationSeconds > 0
+  && timeLeft > quizTargetDurationSeconds
+const plannerActivityProgress = plannerGuidedSessionActive
+  ? currentPlannerActivityProgress()
+  : []
 
 useEffect(() => {
   if (mobileConfiguration) {
@@ -334,6 +350,19 @@ function handleSidebarNavigation(nextView: string) {
   setLoaderStep(0)
   setProjectReadyVisible(false)
   setProjectReadyDismissed(true)
+
+  if (plannerRuntime.mode !== "dashboard" && nextView !== "planner_view") {
+    setPlannerRuntime(prev => ({
+      ...prev,
+      mode: "dashboard",
+      dailyPlan: null,
+      activityIndex: 0,
+      todaySessionCompleted: false,
+      sessionResults: emptyPlannerSessionResults()
+    }))
+    plannerReviewedFlashcardsRef.current = new Set()
+    plannerCompletedActivityIdsRef.current = new Set()
+  }
 
   if (nextView === "create_project") {
     setCreateProjectName("")
@@ -521,27 +550,16 @@ useEffect(() => {
   return () => { if (interval) clearInterval(interval); };
 }, [isGenerating]);
 
-// Timer del Quiz (conto alla rovescia)
+// Quiz pacing timer: elapsed time only, never blocks or submits automatically.
 useEffect(() => {
-  if (!started || timerMinutes === 0) return;
-
-  if (timerMinutes > 0 && timeLeft === 0) {
-    setTimeLeft(timerMinutes * 60);
-  }
+  if (!started || finished) return;
 
   const interval = setInterval(() => {
-    setTimeLeft((prev) => {
-      if (prev <= 1) {
-        clearInterval(interval);
-        submitQuiz();
-        return 0;
-      }
-      return prev - 1;
-    });
+    setTimeLeft((prev) => prev + 1);
   }, 1000);
 
   return () => clearInterval(interval);
-}, [started, timerMinutes]);
+}, [started, finished]);
 
 
 
@@ -549,6 +567,54 @@ function formatTime(){
 const m=Math.floor(timeLeft/60)
 const s=timeLeft%60
 return `${m}:${s.toString().padStart(2,"0")}`
+}
+
+function formatSeconds(totalSeconds: number) {
+const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+const m=Math.floor(safeSeconds/60)
+const s=safeSeconds%60
+return `${m}:${s.toString().padStart(2,"0")}`
+}
+
+function currentPlannerActivityProgress() {
+const activityType = plannerRuntime.dailyPlan
+  ?.activities?.[plannerRuntime.activityIndex]?.type
+  ?.toLowerCase()
+
+if (activityType === "quiz") {
+  return [
+    {
+      label: "elapsed",
+      icon: "⏱",
+      value: formatSeconds(timeLeft),
+      warning: quizTargetDurationSeconds > 0 && timeLeft > quizTargetDurationSeconds
+    },
+    {
+      label: "answered",
+      icon: "✔",
+      value: `${Object.keys(answers).length} / ${Array.isArray(quiz) ? quiz.length : 0}`
+    }
+  ]
+}
+
+if (activityType === "flashcards") {
+  const totalCards =
+    plannerRuntime.dailyPlan?.activities?.[plannerRuntime.activityIndex]
+      ?.configuration?.count
+    || plannerRuntime.dailyPlan?.activities?.[plannerRuntime.activityIndex]
+      ?.configuration?.numCards
+    || 0
+
+  return [
+    {
+      label: "cards",
+      icon: "▣",
+      value: `${plannerRuntime.sessionResults.flashcardsReviewed || 0} / ${totalCards}`
+    }
+  ]
+}
+
+return []
 }
 
 async function loadProjects(){
@@ -1407,6 +1473,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     setFinished(false)
     setStarted(false)
     setQuiz([])
+    setTimeLeft(0)
+    setQuizTargetDurationSeconds(0)
 
     const { data: sessionData } = await supabase.auth.getSession()
     const token = sessionData.session?.access_token
@@ -1431,6 +1499,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       overrides.difficulty ?? difficulty
     const effectiveQuestionStyle =
       overrides.questionStyle ?? questionStyle
+    const effectiveSecondsPerAnswer =
+      overrides.secondsPerAnswer
+      ?? (
+        timerMinutes > 0 && effectiveNumQuestions > 0
+          ? Math.round((timerMinutes * 60) / effectiveNumQuestions)
+          : 0
+      )
 
     console.log("🧠 SELECTED TOPICS RAW:", effectiveSelectedTopics)
 
@@ -1525,7 +1600,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       }
       setActiveView("quiz") // Spostato qui per sicurezza
       setQuiz(normalizedQuizData)
-      setTimeLeft(timerMinutes * 60)
+      setTimeLeft(0)
+      setQuizTargetDurationSeconds(
+        normalizedQuizData.length * Math.max(0, Number(effectiveSecondsPerAnswer || 0))
+      )
       setStarted(true)
       setFinished(false)
 
@@ -1655,6 +1733,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     setPlannerRuntime(prev => ({
       ...prev,
       mode: "daily_briefing",
+      plannerWeekId: dailyPlan.plannerWeekId || null,
       dailyPlan,
       activityIndex: 0,
       todaySessionCompleted: false,
@@ -1676,6 +1755,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     setPlannerRuntime(prev => ({
       ...prev,
       mode: "external_activity",
+      plannerWeekId: dailyPlan.plannerWeekId || prev.plannerWeekId || null,
       dailyPlan,
       activityIndex,
       sessionResults: {
@@ -1873,6 +1953,26 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       isAssessmentPlan
       && allModulesCompleted
 
+    const studyPlanDebrief = allModulesCompleted
+      && !assessmentCompleted
+      ? await requestPlannerStudyPlanDebrief(completedSessionResults)
+      : ""
+
+    if (projectId) {
+      try {
+        await completePlannerModule(
+          projectId,
+          dailyPlan.sessionIndex + 1,
+          completedResults,
+          moduleDebrief,
+          homeworkRecommendation,
+          studyPlanDebrief
+        )
+      } catch (error) {
+        console.error("PLANNER MODULE COMPLETION PERSISTENCE ERROR:", error)
+      }
+    }
+
     if (assessmentCompleted && projectId) {
       try {
         await completePlannerAssessment(projectId)
@@ -1880,11 +1980,6 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         console.error("PLANNER ASSESSMENT COMPLETION ERROR:", error)
       }
     }
-
-    const studyPlanDebrief = allModulesCompleted
-      && !assessmentCompleted
-      ? await requestPlannerStudyPlanDebrief(completedSessionResults)
-      : ""
 
     setPlannerRuntime(prev => ({
       ...prev,
@@ -1978,6 +2073,25 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     setActiveView("planner_view")
   }
 
+  function resetPlannerRuntimeForNewStudyPlan() {
+    plannerReviewedFlashcardsRef.current = new Set()
+    plannerCompletedActivityIdsRef.current = new Set()
+    setPlannerRuntime({
+      plannerWeekId: null,
+      mode: "dashboard",
+      dailyPlan: null,
+      activityIndex: 0,
+      todaySessionCompleted: false,
+      sessionResults: emptyPlannerSessionResults(),
+      completedSessionResults: {},
+      activityDebriefs: {},
+      moduleDebriefs: {},
+      moduleHomework: {},
+      studyPlanDebrief: "",
+      assessmentCompletedAt: null
+    })
+  }
+
   function emptyPlannerSessionResults(): PlannerSessionResults {
     return {
       flashcardsReviewed: 0,
@@ -2063,6 +2177,18 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     
     try {
         // 1. CALCOLO UNA VOLTA SOLA (answersArray e attemptsArray)
+        const actualDurationSeconds = Math.max(0, Number(timeLeft || 0))
+        const targetDurationSeconds = Math.max(
+          0,
+          Number(
+            quizTargetDurationSeconds
+            || (
+              quiz.length > 0 && timerMinutes > 0
+                ? timerMinutes * 60
+                : 0
+            )
+          )
+        )
         
         const answersArray = quiz.map((q, index) => {
           
@@ -2126,6 +2252,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
             total_questions: quiz.length, // 🔥 FIX
             project_id: projectId, // 🔥 FIX
             topic: mainTopic,
+            target_duration_seconds: targetDurationSeconds,
+            actual_duration_seconds: actualDurationSeconds,
             answers: answersArray
           }
         ];
@@ -2164,6 +2292,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           },
           body: JSON.stringify({
             quiz_id: quizId,
+            project_id: projectId,
+            score: calculateScore(),
+            total_questions: quiz.length,
+            target_duration_seconds: targetDurationSeconds,
+            actual_duration_seconds: actualDurationSeconds,
             answers: answersArray
           })
         });
@@ -2234,6 +2367,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
   }
 
   function currentFeatureTitle() {
+    if (plannerGuidedSessionActive) return i18n.t("stats.Study Planner")
     if (activeView === "ask" || activeView === "ask_setup") return i18n.t("stats.Ask question")
     if (activeView === "quiz") return quizActivityStarted ? i18n.t("stats.Quiz") : i18n.t("stats.Generate quiz")
     if (activeView === "generate_flashcards") return i18n.t("stats.Generate flashcards")
@@ -2329,7 +2463,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       )}
       <div style={mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
       <Sidebar
-        activeView={activeView}
+        activeView={plannerGuidedSessionActive ? "planner_view" : activeView}
         compactMode={mobileNavigationSelected}
         mobileHome={mobileHome}
         handleSidebarNavigation={handleSidebarNavigation}
@@ -2474,6 +2608,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         expanded={expanded}
         setExpanded={setExpanded}
         formatTime={formatTime}
+        quizPacingOverTarget={quizPacingOverTarget}
         answeredCount={Object.keys(answers).length}
         projectId={projectId}
         projectName={projectName}
@@ -2522,6 +2657,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         onPlannerFlashcardReview={handlePlannerFlashcardReview}
         continuePlannerActivity={completePlannerActivity}
         returnToPlannerDashboard={returnToPlannerDashboard}
+        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
+        plannerActivityProgress={plannerActivityProgress}
         plannerActivityDebriefs={plannerRuntime.activityDebriefs}
         onUploadAnotherFile={openProjectUploadWorkspace}
         onBeginStudy={beginStudy}

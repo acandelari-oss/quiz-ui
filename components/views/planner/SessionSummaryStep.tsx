@@ -4,6 +4,7 @@ import type {
   PlannerProfessorConversationMessage
 } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function SessionSummaryStep({
   dailyPlan,
@@ -85,7 +86,9 @@ export default function SessionSummaryStep({
             {translate("stats.This module has been recorded. The evidence collected here will contribute to your learning profile, and the next module will continue the assessment.")}
           </p>
         ) : summary.professorDebrief && (
-          <p style={paragraph}>{summary.professorDebrief}</p>
+          <div style={paragraph}>
+            <MarkdownContent text={summary.professorDebrief} />
+          </div>
         )}
       </section>
 
@@ -106,7 +109,9 @@ export default function SessionSummaryStep({
           <div style={sectionTitle}>{translate("stats.Homework Recommendations")}</div>
           <ul style={homeworkList}>
             {summary.homeworkRecommendations.map(item => (
-              <li key={item}>{item}</li>
+              <li key={item}>
+                <MarkdownContent text={item} />
+              </li>
             ))}
           </ul>
         </section>
@@ -117,14 +122,18 @@ export default function SessionSummaryStep({
           {summary.activeRecall && (
             <section style={infoBox}>
               <div style={boxTitle}>{translate("stats.Optional Active Recall")}</div>
-              <p style={boxText}>{summary.activeRecall.message}</p>
+              <div style={boxText}>
+                <MarkdownContent text={summary.activeRecall.message} />
+              </div>
             </section>
           )}
 
           {summary.officeHours && (
             <section style={infoBox}>
               <div style={boxTitle}>{translate("stats.Ask the Professor")}</div>
-              <p style={boxText}>{summary.officeHours.message}</p>
+              <div style={boxText}>
+                <MarkdownContent text={summary.officeHours.message} />
+              </div>
             </section>
           )}
         </div>
@@ -150,7 +159,7 @@ export default function SessionSummaryStep({
                   <div style={chatRole}>
                     {translate(message.role === "student" ? "stats.You" : "stats.Professor")}
                   </div>
-                  <div>{message.content}</div>
+                  <MarkdownContent text={message.content} />
                 </div>
               ))}
             </div>

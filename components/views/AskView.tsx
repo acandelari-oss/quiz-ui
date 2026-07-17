@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Headphones } from "lucide-react"
 import { useTranslation } from 'react-i18next';
 import { exportConversationPDF } from "../../utils/pdfExport"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 const container = {
   display: "flex",
@@ -200,7 +201,7 @@ function downloadAskPDF() {
                 lineHeight: 1.6
               }}
             >
-              {m.content}
+              <MarkdownContent text={m.content} />
             </div>
           </div>
         ))}

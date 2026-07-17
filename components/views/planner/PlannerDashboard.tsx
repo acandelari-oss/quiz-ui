@@ -9,10 +9,12 @@ import { useState } from "react"
 
 export default function PlannerDashboard({
   plan,
-  onOpenDailySession
+  onOpenDailySession,
+  onCreateNewStudyPlan
 }: {
   plan: PlannerMockData
   onOpenDailySession: (day: PlannerDay) => void
+  onCreateNewStudyPlan?: () => void
 }) {
   const { t: translate } = useTranslation()
   const [introExpanded, setIntroExpanded] = useState(true)
@@ -20,6 +22,10 @@ export default function PlannerDashboard({
     plan.calendar.find(day => day.status === "today")
     || plan.calendar.find(day => day.day === plan.todayPlan.day)
   const isAssessmentPlan = plan.planType === "assessment"
+  const allPlannedModulesCompleted =
+    !isAssessmentPlan
+    && plan.calendar.length > 0
+    && plan.calendar.every(day => day.status === "completed")
 
   return (
     <div className="planner-mobile-dashboard" style={container}>
@@ -65,8 +71,43 @@ export default function PlannerDashboard({
         )}
       </section>
 
-      <section className="planner-mobile-cta-card" style={ctaCard}>
-        {plan.todaySessionCompleted ? (
+      <section
+        className="planner-mobile-cta-card"
+        style={allPlannedModulesCompleted ? completionCard : ctaCard}
+      >
+        {allPlannedModulesCompleted ? (
+          <div style={completionContent}>
+            <div>
+              <div className="planner-mobile-cta-title" style={completionTitle}>
+                {translate("stats.Study Plan completed")}
+              </div>
+              <div style={completionBody}>
+                <p style={completionParagraph}>
+                  {translate("stats.Study Plan completed excellent work")}
+                </p>
+                <p style={completionParagraph}>
+                  {translate("stats.Study Plan completed all modules")}
+                </p>
+                <p style={completionParagraph}>
+                  {translate("stats.Study Plan completed evidence")}
+                </p>
+                <p style={completionParagraph}>
+                  {translate("stats.Study Plan completed next plan")}
+                </p>
+              </div>
+            </div>
+            <div style={completionActions}>
+              <button
+                type="button"
+                onClick={onCreateNewStudyPlan}
+                style={completionPrimaryButton}
+                className="planner-mobile-cta-button"
+              >
+                {translate("stats.CREATE NEW STUDY PLAN")}
+              </button>
+            </div>
+          </div>
+        ) : plan.todaySessionCompleted ? (
           <>
             <div>
               <div className="planner-mobile-cta-title" style={ctaTitle}>
@@ -77,18 +118,18 @@ export default function PlannerDashboard({
               <div className="planner-mobile-cta-text" style={ctaText}>
                 {translate(isAssessmentPlan
                   ? "stats.This assessment module has been recorded."
-                  : "stats.The Professor can offer an optional extra module based on the same work.")}
+                  : "stats.This Study Plan module has been recorded.")}
               </div>
             </div>
-            <button
-              onClick={() => currentModule && onOpenDailySession(currentModule)}
-              style={secondaryButton}
-              className="planner-mobile-cta-button"
-            >
-              {translate(isAssessmentPlan
-                ? "stats.Continue Assessment"
-                : "stats.Start Extra Module")}
-            </button>
+            {isAssessmentPlan && (
+              <button
+                onClick={() => currentModule && onOpenDailySession(currentModule)}
+                style={secondaryButton}
+                className="planner-mobile-cta-button"
+              >
+                {translate("stats.Continue Assessment")}
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -188,6 +229,10 @@ export default function PlannerDashboard({
             padding: 10px 12px !important;
             border-radius: 9px !important;
           }
+
+          .planner-mobile-cta-card {
+            align-items: stretch !important;
+          }
         }
       `}</style>
     </div>
@@ -256,6 +301,59 @@ const plannerIntroParagraph = {
   fontSize: 15,
   lineHeight: 1.58,
   margin: "8px 0"
+}
+
+const completionCard = {
+  background: "linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(8, 47, 73, 0.72))",
+  border: "1px solid rgba(54, 242, 237, 0.38)",
+  borderRadius: 18,
+  padding: 22,
+  marginBottom: 18,
+  boxShadow: "0 22px 60px rgba(0, 0, 0, 0.22)"
+}
+
+const completionContent = {
+  display: "flex",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 22,
+  flexWrap: "wrap" as const
+}
+
+const completionTitle = {
+  color: "#f8fafc",
+  fontSize: 24,
+  fontWeight: 900,
+  marginBottom: 12
+}
+
+const completionBody = {
+  maxWidth: 820
+}
+
+const completionParagraph = {
+  color: "#dbeafe",
+  fontSize: 15,
+  lineHeight: 1.6,
+  margin: "8px 0"
+}
+
+const completionActions = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 10,
+  minWidth: 220
+}
+
+const completionPrimaryButton = {
+  padding: "13px 20px",
+  borderRadius: 11,
+  border: "none",
+  background: "#2b7dcb",
+  color: "white",
+  fontWeight: 900,
+  cursor: "pointer",
+  boxShadow: "0 10px 28px rgba(43, 125, 203, 0.32)"
 }
 
 const ctaCard = {

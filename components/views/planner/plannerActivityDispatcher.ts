@@ -10,6 +10,7 @@ type GenerateQuiz = (overrides: {
   numQuestions?: number
   difficulty?: string
   questionStyle?: string
+  secondsPerAnswer?: number | null
 }) => Promise<void>
 
 export async function dispatchPlannerActivity({
@@ -39,6 +40,7 @@ export async function dispatchPlannerActivity({
       selectedTopics,
       numQuestions: activity.configuration.numQuestions ?? activity.configuration.count,
       difficulty: activity.configuration.difficulty,
+      secondsPerAnswer: activity.configuration.secondsPerAnswer,
       questionStyle:
         activity.configuration.questionStyle ?? activity.configuration.style
     })

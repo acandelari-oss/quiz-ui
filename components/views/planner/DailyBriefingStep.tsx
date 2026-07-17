@@ -1,5 +1,6 @@
 import type { PlannerDailyPlan } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function DailyBriefingStep({
   dailyPlan,
@@ -30,17 +31,23 @@ export default function DailyBriefingStep({
             ? "stats.Assessment Module Session"
             : "stats.Module Session", { module: dailyPlan.day })}
         </h2>
-        <p style={paragraph}>
-          {isAssessmentPlan
-            ? translate("stats.This module contributes to your initial assessment. Answer honestly; if you are unsure, choose your best answer. Every answer helps improve the Study Plan that follows.")
-            : dailyPlan.briefing}
-        </p>
+        <div style={paragraph}>
+          <MarkdownContent
+            text={
+              isAssessmentPlan
+                ? translate("stats.This module contributes to your initial assessment. Answer honestly; if you are unsure, choose your best answer. Every answer helps improve the Study Plan that follows.")
+                : dailyPlan.briefing
+            }
+          />
+        </div>
       </section>
 
       {!isAssessmentPlan && dailyPlan.objective && (
         <section style={card}>
           <div style={sectionTitle}>{translate("stats.Module objective")}</div>
-          <p style={paragraph}>{dailyPlan.objective}</p>
+          <div style={paragraph}>
+            <MarkdownContent text={dailyPlan.objective} />
+          </div>
         </section>
       )}
 

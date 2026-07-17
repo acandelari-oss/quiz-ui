@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function FlashcardsView({
 flashcards,
@@ -225,7 +226,7 @@ if(openCard === null){
             fontWeight: 600
           }}
         >
-          {card.question}
+          <MarkdownContent text={card.question} inline />
         </h2>
 
         {openCard && (
@@ -234,7 +235,7 @@ if(openCard === null){
 
             <div className="flashcards-answer-box" style={answerBox}>
               <div className="flashcards-answer">
-                {card.answer}
+                <MarkdownContent text={card.answer} />
               </div>
             </div>
             {card.topic && (

@@ -21,9 +21,10 @@ export function adaptPlannerStateToUi(response: PlannerStateResponse): PlannerMo
 export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData {
   const planType = week.plan_type || "study_plan"
   const completedSessionIndexes = completedSessionIndexesFromWeek(week)
+  const runtimeStatistics = runtimeStatisticsFromWeek(week)
   const calendar = buildCalendar(week, completedSessionIndexes)
   const dailyPlans = week.daily_plans.map((plan, index) =>
-    buildDailyPlan(plan, index, planType)
+    buildDailyPlan(plan, index, planType, week.id)
   )
   const recommendedPlanIndex = recommendedModuleIndex(
     week.daily_plans.length,
@@ -34,6 +35,7 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
     .filter(entry => completedSessionIndexes.has(entry.index))
 
   return {
+    weekId: week.id,
     state: "ACTIVE_WEEK",
     planType,
     weekLabel: formatWeekLabel(week.start_date, week.end_date),
@@ -57,7 +59,9 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
       objective: inferWeeklyObjective(week),
       lowerPriorityCategories: inferAdditionalModulesMessage(week)
     },
-    statistics: [
+    statistics: runtimeStatistics
+      ? buildRuntimeStatistics(runtimeStatistics, planType)
+      : [
       {
         label: "Quizzes completed",
         value: String(week.weekly_statistics?.sessions_completed ?? 0),
@@ -115,6 +119,7 @@ function buildStateOnlyPlannerData(
   learningCoverage: PlannerStateResponse["learning_coverage"]
 ): PlannerMockData {
   return {
+    weekId: null,
     state,
     planType: "study_plan",
     weekLabel: "Study Planner",
@@ -252,9 +257,11 @@ function recommendedModuleIndex(
 function buildDailyPlan(
   plan: PlannerWeekResponse["daily_plans"][number],
   index: number,
-  planType = "study_plan"
+  planType = "study_plan",
+  plannerWeekId?: string | null
 ): PlannerDailyPlan {
   return {
+    plannerWeekId,
     day: plannerModuleLabel(index),
     date: formatPlannerDate(plan.date),
     sessionIndex: index,
@@ -309,6 +316,8 @@ function buildActivity(activity: PlannerWeekResponse["daily_plans"][number]["act
       count: count || activity.configuration.selected_topics?.length || 0,
       numCards: activity.configuration.num_cards || undefined,
       numQuestions: activity.configuration.num_questions || undefined,
+      estimatedDurationMinutes: activity.configuration.estimated_duration_minutes || null,
+      secondsPerAnswer: inferSecondsPerAnswer(activity),
       difficulty: activity.configuration.difficulty || undefined,
       style: activity.configuration.question_style || undefined,
       questionStyle: activity.configuration.question_style || undefined
@@ -317,6 +326,26 @@ function buildActivity(activity: PlannerWeekResponse["daily_plans"][number]["act
       ? "Answer each question using the topics selected for this Study Plan."
       : "Review the cards for the topics selected for this Study Plan."
   }
+}
+
+function inferSecondsPerAnswer(
+  activity: PlannerWeekResponse["daily_plans"][number]["activities"][number]
+) {
+  if (activity.type !== "QUIZ") {
+    return null
+  }
+
+  const questionCount =
+    activity.configuration.num_questions
+    || activity.configuration.selected_topics?.length
+    || 0
+  const estimatedDurationMinutes = activity.configuration.estimated_duration_minutes || 0
+
+  if (!questionCount || !estimatedDurationMinutes) {
+    return null
+  }
+
+  return Math.round((estimatedDurationMinutes * 60) / questionCount)
 }
 
 function buildDebrief(plan: PlannerWeekResponse["daily_plans"][number], index: number) {
@@ -328,6 +357,7 @@ function buildDebrief(plan: PlannerWeekResponse["daily_plans"][number], index: n
 }
 
 function buildSessionData(plan: PlannerWeekResponse["daily_plans"][number]) {
+  const persistedSessionData = plan.summary?.session_data || {}
   const flashcards = plan.activities
     .filter(activity => activity.type === "FLASHCARDS")
     .reduce((total, activity) => total + (activity.configuration.num_cards || 0), 0)
@@ -342,12 +372,93 @@ function buildSessionData(plan: PlannerWeekResponse["daily_plans"][number]) {
   )
 
   return {
-    flashcards,
-    quiz,
-    accuracy: "—",
-    time: `${time} min`,
+    flashcards: persistedSessionData.flashcards ?? flashcards,
+    quiz: persistedSessionData.quiz ?? quiz,
+    accuracy: persistedSessionData.accuracy || "—",
+    time: persistedSessionData.time || `${time} min`,
     focus: unique(plan.planned_allocations.map(allocation => allocation.category)).join(", ") || "Study Plan focus"
   }
+}
+
+function runtimeStatisticsFromWeek(week: PlannerWeekResponse) {
+  const value = week.weekly_statistics?.metadata?.runtime_statistics
+
+  if (!value || typeof value !== "object") {
+    return null
+  }
+
+  const runtimeStatistics = value as Record<string, unknown>
+
+  return {
+    flashcardsReviewed: numberValue(runtimeStatistics.flashcards_reviewed),
+    quizzesCompleted: numberValue(runtimeStatistics.quizzes_completed),
+    quizQuestions: numberValue(runtimeStatistics.quiz_questions),
+    quizCorrect: numberValue(runtimeStatistics.quiz_correct),
+    studyTimeMinutes: numberValue(runtimeStatistics.study_time_minutes)
+  }
+}
+
+function buildRuntimeStatistics(
+  runtimeStatistics: {
+    flashcardsReviewed: number
+    quizzesCompleted: number
+    quizQuestions: number
+    quizCorrect: number
+    studyTimeMinutes: number
+  },
+  planType = "study_plan"
+) {
+  const isAssessmentPlan = planType === "assessment"
+  const accuracy = runtimeStatistics.quizQuestions > 0
+    ? `${Math.round((runtimeStatistics.quizCorrect / runtimeStatistics.quizQuestions) * 100)}%`
+    : "—"
+
+  return [
+    {
+      label: "Quizzes completed",
+      value: String(runtimeStatistics.quizzesCompleted),
+      detail: runtimeStatistics.quizzesCompleted > 0
+        ? `${runtimeStatistics.quizQuestions} questions answered`
+        : isAssessmentPlan
+          ? "No completed Assessment quiz yet"
+          : "No completed Study Plan quiz yet"
+    },
+    {
+      label: "Flashcards reviewed",
+      value: String(runtimeStatistics.flashcardsReviewed),
+      detail: runtimeStatistics.flashcardsReviewed > 0
+        ? isAssessmentPlan
+          ? "Reviewed during this Assessment module"
+          : "Reviewed during this Study Plan module"
+        : isAssessmentPlan
+          ? "No Assessment flashcards reviewed yet"
+          : "No Study Plan flashcards reviewed yet"
+    },
+    {
+      label: isAssessmentPlan
+        ? "Assessment accuracy"
+        : "Study Plan accuracy",
+      value: accuracy,
+      detail: runtimeStatistics.quizQuestions > 0
+        ? `${runtimeStatistics.quizCorrect}/${runtimeStatistics.quizQuestions} correct`
+        : isAssessmentPlan
+          ? "No Assessment quiz result yet"
+          : "No Study Plan quiz result yet"
+    },
+    {
+      label: "Study time",
+      value: runtimeStatistics.studyTimeMinutes
+        ? `${runtimeStatistics.studyTimeMinutes} min`
+        : "—",
+      detail: isAssessmentPlan
+        ? "Current Assessment module runtime"
+        : "Current Study Plan module runtime"
+    }
+  ]
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
 function buildSessionTitle(plan: PlannerWeekResponse["daily_plans"][number]) {

@@ -1,6 +1,7 @@
 import Accordion from "./Accordion"
 import type { PlannerDebrief } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function ProfessorDebriefs({
   debriefs
@@ -23,7 +24,9 @@ export default function ProfessorDebriefs({
           content: (
             <div>
               <div style={subheading}>{translate("stats.Professor Debrief")}</div>
-              <p style={paragraph}>{debrief.professorDebrief}</p>
+              <div style={paragraph}>
+                <MarkdownContent text={debrief.professorDebrief} />
+              </div>
 
               <div style={subheading}>{translate("stats.Module Data")}</div>
               <div style={dataGrid}>

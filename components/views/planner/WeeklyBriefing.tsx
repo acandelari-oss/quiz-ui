@@ -1,6 +1,7 @@
 import type { PlannerMockData } from "./PlannerTypes"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
+import MarkdownContent from "@/components/ui/MarkdownContent"
 
 export default function WeeklyBriefing({
   briefing
@@ -101,7 +102,7 @@ function BriefingBlock({
   return (
     <div className="planner-mobile-briefing-block" style={block}>
       <div className="planner-mobile-briefing-title" style={titleStyle}>{title}</div>
-      <p
+      <div
         className={
           expanded
             ? "planner-mobile-briefing-text is-expanded"
@@ -109,8 +110,8 @@ function BriefingBlock({
         }
         style={textStyle}
       >
-        {text}
-      </p>
+        <MarkdownContent text={text} />
+      </div>
       <button
         type="button"
         className="planner-mobile-read-more"
