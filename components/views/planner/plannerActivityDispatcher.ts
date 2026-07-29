@@ -3,6 +3,7 @@ import type { PlannerActivity } from "./PlannerTypes"
 type GenerateFlashcards = (overrides: {
   selectedTopics?: any[]
   numCards?: number
+  source?: "standalone" | "planner"
 }) => Promise<void>
 
 type GenerateQuiz = (overrides: {
@@ -30,7 +31,8 @@ export async function dispatchPlannerActivity({
     onFlashcardsStart?.()
     await generateFlashcards({
       selectedTopics,
-      numCards: activity.configuration.numCards ?? activity.configuration.count
+      numCards: activity.configuration.numCards ?? activity.configuration.count,
+      source: "planner"
     })
     return
   }

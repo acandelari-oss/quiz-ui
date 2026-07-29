@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Headphones } from "lucide-react"
 import { useTranslation } from 'react-i18next';
 import { exportConversationPDF } from "../../utils/pdfExport"
@@ -39,6 +39,7 @@ export default function AskView({
   askDocuments,
   asking,
   chatMessages,
+  projectId,
   projectName,
   selectedTopic, // 1. Recurperiamo il topic dal padre
   selectedTopics,
@@ -48,10 +49,154 @@ export default function AskView({
   const messages = chatMessages || []
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const { t: translate, i18n } = useTranslation();
   
 
   console.log("🧠 ASK RECEIVED TOPICS:", selectedTopics)
+
+  function selectedCategoryNames() {
+    return Array.from(
+      new Set(
+        (selectedTopics || [])
+          .map((topic: any) => {
+            if (typeof topic === "string") return topic
+            return topic?.category || topic?.source_section || topic?.topic || ""
+          })
+          .map((value: any) => String(value || "").trim())
+          .filter(Boolean)
+      )
+    )
+  }
+
+  const selectedCategoryKey = selectedCategoryNames().join("|")
+  const focusCategories = selectedCategoryNames()
+  const focusLabel = focusCategories.length === 1
+    ? focusCategories[0]
+    : focusCategories.length > 1
+      ? `${focusCategories.length} ${translate("stats.categories")}`
+      : ""
+  const focusTopicCount = selectedTopics?.length || 0
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadSuggestions() {
+      if (!projectId || messages.length > 0) {
+        setSuggestedQuestions([])
+        return
+      }
+
+      setLoadingSuggestions(true)
+
+      try {
+        const { supabase } = await import("../../lib/supabase")
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+
+        if (!token) {
+          if (!cancelled) setSuggestedQuestions([])
+          return
+        }
+
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ask_suggestions`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              categories: selectedCategoryNames(),
+              language: i18n.language === "it" ? "Italian" : "English"
+            })
+          }
+        )
+
+        if (!res.ok) {
+          if (!cancelled) setSuggestedQuestions([])
+          return
+        }
+
+        const data = await res.json()
+        if (!cancelled) {
+          setSuggestedQuestions(
+            Array.isArray(data.suggestions)
+              ? data.suggestions.filter(Boolean).slice(0, 4)
+              : []
+          )
+        }
+      } catch (error) {
+        console.error("ASK SUGGESTIONS ERROR:", error)
+        if (!cancelled) setSuggestedQuestions([])
+      } finally {
+        if (!cancelled) setLoadingSuggestions(false)
+      }
+    }
+
+    loadSuggestions()
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, messages.length, selectedCategoryKey, i18n.language])
+
+  function uniqueSources(sources: any[] = []) {
+    const seen = new Set()
+    return sources.filter((source) => {
+      const document = source?.document
+      const page = source?.page
+      if (!document || page === undefined || page === null) return false
+      const key = `${document}::${page}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  function renderSourceNote(message: any) {
+    if (message.role !== "assistant") return null
+
+    const sources = uniqueSources(message.sources)
+    const usedGlobalKnowledge = Boolean(message.usedGlobalKnowledge)
+
+    if (!sources.length && !usedGlobalKnowledge) return null
+
+    return (
+      <div style={{
+        marginTop: 10,
+        paddingTop: 8,
+        borderTop: "1px solid rgba(148, 163, 184, 0.18)",
+        color: "#9ca3af",
+        fontSize: 12,
+        lineHeight: 1.45,
+        whiteSpace: "normal"
+      }}>
+        <div style={{ color: "#cbd5e1", fontWeight: 700, marginBottom: 4 }}>
+          {sources.length > 1 ? translate("stats.Sources") : translate("stats.Source")}
+        </div>
+
+        {sources.map((source, index) => (
+          <div key={`${source.document}-${source.page}-${index}`}>
+            • {source.document} — {translate("stats.page")} {source.page}
+          </div>
+        ))}
+
+        {usedGlobalKnowledge && (
+          <>
+            <div>• {translate("stats.General AI knowledge")}</div>
+            {!sources.length && (
+              <div style={{ marginTop: 4 }}>
+                {translate("stats.No document source was used for this part of the answer.")}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
 
   function startRecording() {
     const SpeechRecognition =
@@ -102,20 +247,10 @@ function toggleRecording() {
 
 function downloadAskPDF() {
   const selectedSubject =
-    selectedTopics?.length > 1
-      ? `${
-          (
-            typeof selectedTopics[0] === "string"
-              ? selectedTopics[0]
-              : selectedTopics[0]?.topic
-          )?.split(" ")[0] || "Selected topics"
-        } (${selectedTopics.length} ${translate('stats.topics')})`
-      : selectedTopics?.length === 1
-      ? (
-          typeof selectedTopics[0] === "string"
-            ? selectedTopics[0]
-            : selectedTopics[0]?.topic
-        )
+    focusLabel
+      ? focusTopicCount > 1
+        ? `${focusLabel} (${focusTopicCount} ${translate('stats.topics')})`
+        : focusLabel
       : "Full Project"
 
   exportConversationPDF({
@@ -159,21 +294,9 @@ function downloadAskPDF() {
           }}>
             <span style={{ fontSize: "16px" }}>🎯</span>
 
-            {selectedTopics.length > 1
-              ? `MACRO TOPIC: ${
-                  (
-                    typeof selectedTopics[0] === "string"
-                      ? selectedTopics[0]
-                      : selectedTopics[0]?.topic
-                  )?.split(" ")[0]
-                }`
-              : `SELECTED TOPIC: ${
-                  (
-                    typeof selectedTopics[0] === "string"
-                      ? selectedTopics[0]
-                      : selectedTopics[0]?.topic
-                  )?.toUpperCase()
-                }`
+            {focusTopicCount > 1
+              ? `${translate("stats.Macro topic")}: ${focusLabel}`
+              : `${translate("stats.Selected topic")}: ${focusLabel}`
             }
 
           </div>
@@ -202,6 +325,7 @@ function downloadAskPDF() {
               }}
             >
               <MarkdownContent text={m.content} />
+              {renderSourceNote(m)}
             </div>
           </div>
         ))}
@@ -326,25 +450,15 @@ function downloadAskPDF() {
               }
             }}
             placeholder={
-              selectedTopics?.length > 1
-                ? `${translate('stats.Ask about')} ${
-                    (
-                      typeof selectedTopics[0] === "string"
-                        ? selectedTopics[0]
-                        : selectedTopics[0]?.topic
-                    )?.split(" ")[0]
-                  } (${selectedTopics.length} ${translate('stats.topics')})...`
-                : selectedTopics?.length === 1
-                ? `${translate('stats.Ask about')} ${
-                    typeof selectedTopics[0] === "string"
-                      ? selectedTopics[0]
-                      : selectedTopics[0]?.topic
-                  }...`
+              focusLabel && focusTopicCount > 1
+                ? `${translate('stats.Ask about')} ${focusLabel} (${focusTopicCount} ${translate('stats.topics')})...`
+                : focusLabel
+                ? `${translate('stats.Ask about')} ${focusLabel}...`
                 : translate('stats.Ask something about your documents...')
             }
             style={{
               width: "100%",
-              minHeight: 80,
+              minHeight: 118,
               maxHeight: 200,
               resize: "none",
               padding: "12px 110px 12px 12px",
@@ -367,8 +481,7 @@ function downloadAskPDF() {
             style={{
               position: "absolute",
               right: 50,
-              top: "50%",
-              transform: "translateY(-50%)",
+              bottom: 18,
               background: recording ? "#ef4444" : "#1f2937",
               border: "1px solid #374151",
               borderRadius: 6,
@@ -386,8 +499,7 @@ function downloadAskPDF() {
             style={{
               position: "absolute",
               right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
+              bottom: 18,
               background: "#22c55e",
               border: "none",
               borderRadius: 6,
@@ -399,6 +511,66 @@ function downloadAskPDF() {
             ➤
           </button>
         </div>
+
+        {messages.length === 0 && (loadingSuggestions || suggestedQuestions.length > 0) && (
+          <div className="ask-suggestion-section" style={{ marginTop: 18 }}>
+            <div style={{
+              color: "#e5e7eb",
+              fontSize: 13,
+              fontWeight: 700,
+              marginBottom: 10
+            }}>
+              {translate("stats.Example questions")}
+            </div>
+
+            <div className="ask-suggestion-grid" style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+              gap: 12
+            }}>
+              {loadingSuggestions && suggestedQuestions.length === 0
+                ? [0, 1, 2, 3].map((index) => (
+                    <div
+                      key={index}
+                      style={{
+                        minHeight: 42,
+                        borderRadius: 9,
+                        background: "rgba(15, 23, 42, 0.62)",
+                        border: "1px solid rgba(59, 130, 246, 0.08)",
+                        opacity: 0.55
+                      }}
+                    />
+                  ))
+                : suggestedQuestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setAskQuestion(suggestion)}
+                      style={{
+                        minHeight: 42,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        textAlign: "left",
+                        border: "1px solid rgba(59, 130, 246, 0.08)",
+                        borderRadius: 9,
+                        background: "rgba(15, 23, 42, 0.72)",
+                        color: "#e5e7eb",
+                        padding: "10px 14px",
+                        cursor: "pointer",
+                        fontSize: 14,
+                        lineHeight: 1.3
+                      }}
+                    >
+                      <span>{suggestion}</span>
+                      <span style={{ color: "#60a5fa", fontSize: 17 }}>↗</span>
+                    </button>
+                  ))}
+            </div>
+          </div>
+        )}
+
         {messages.length > 0 && (
           <button
             className="ask-download-pdf-button"
@@ -458,7 +630,7 @@ function downloadAskPDF() {
           }
 
           .ask-mobile-textarea {
-            min-height: 112px !important;
+            min-height: 136px !important;
             padding: 10px 82px 10px 11px !important;
             border-radius: 12px !important;
             font-size: 15px !important;
@@ -489,6 +661,21 @@ function downloadAskPDF() {
             border-radius: 7px !important;
             font-size: 12px !important;
             line-height: 1.1 !important;
+          }
+
+          .ask-suggestion-section {
+            margin-top: 12px !important;
+          }
+
+          .ask-suggestion-grid {
+            grid-template-columns: 1fr !important;
+            gap: 8px !important;
+          }
+        }
+
+        @media (min-width: 901px) and (max-width: 1200px) {
+          .ask-suggestion-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
           }
         }
       `}</style>

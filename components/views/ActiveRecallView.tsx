@@ -18,6 +18,7 @@ export default function ActiveRecallView({
 }: {
   projectId: string,
   selectedTopics: any[],
+  selectedTopic?: any,
   useGlobalKnowledge: boolean,
   setUseGlobalKnowledge: any
 }) {
@@ -35,6 +36,7 @@ export default function ActiveRecallView({
   const [recognition, setRecognition] = useState<any>(null)
   const [topicIndex, setTopicIndex] = useState(0)
   const [questionLoaded, setQuestionLoaded] = useState(false)
+  const { t: translate, i18n } = useTranslation();
 
   // --- LOGICA TOPICS ---
   const topicsToUse =
@@ -42,14 +44,30 @@ export default function ActiveRecallView({
       ? selectedTopics
       : selectedTopic
       ? [selectedTopic]
-      : ["__ALL__"];
+      : [];
 
   const normalizedTopics = topicsToUse.map(t => {
     const value = typeof t === 'object' && t !== null ? (t.topic || t.value) : t;
-    return String(value || "__ALL__").trim();
+    return String(value || "").trim();
   });
 
-  const isAllMode = normalizedTopics.includes("__ALL__");
+  const isAllMode = normalizedTopics.length === 0;
+  const selectedCategories = Array.from(
+    new Set(
+      (topicsToUse || [])
+        .map((topic: any) => {
+          if (typeof topic === "string") return ""
+          return topic?.category || topic?.source_section || ""
+        })
+        .map((value: any) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  )
+  const focusLabel = isAllMode
+    ? translate("stats.Full Project")
+    : selectedCategories.length === 1
+      ? selectedCategories[0]
+      : normalizedTopics[0] || translate("stats.Selected topic")
 
   // --- HELPER ---
   function ensureString(value: any) {
@@ -57,7 +75,6 @@ export default function ActiveRecallView({
     if (value == null) return ""
     return String(value)
   }
-  const { t: translate, i18n } = useTranslation();
   function downloadSessionPDF() {
     const selectedTopicName =
       selectedTopics?.length > 0
@@ -92,11 +109,8 @@ export default function ActiveRecallView({
       // COSTRUIAMO IL PAYLOAD IN MODO CHE PYTHON SIA FELICE
       const payload = {
         index: questionCount,
-        // Se è isAllMode, mandiamo ["__ALL__"] invece di [] o null.
-        // Se il backend crasha ancora con [], questa stringa evita il crash 
-        // perché la lista NON è None e NON è vuota.
         use_global_knowledge: useGlobalKnowledge,
-        topics: isAllMode ? ["__ALL__"] : normalizedTopics,
+        topics: isAllMode ? [] : normalizedTopics,
         language: i18n.language === "it"
           ? "Italian"
           : "English"
@@ -145,7 +159,7 @@ export default function ActiveRecallView({
           setMessages(prev => [...prev, { 
             role: "assistant", 
             content: questionText,  
-            topic: isAllMode ? "Generale" : (normalizedTopics[0] || "Specifico") 
+            topic: focusLabel
           }]);
           setCurrentQuestion(questionText);
           setQuestionCount(prev => prev + 1);
@@ -301,7 +315,10 @@ export default function ActiveRecallView({
           fontSize: "12px",
           fontWeight: "bold"
         }}>
-          {isAllMode ? "MODUS: FULL PROJECT" : `TOPIC: ${normalizedTopics[0]}`}
+          {isAllMode
+            ? `${translate("stats.Mode")}: ${translate("stats.Full Project")}`
+            : `${translate("stats.Focus")}: ${focusLabel}`
+          }
         </div>
       </div>
       <div className="memory-check-mobile-search-card" style={{

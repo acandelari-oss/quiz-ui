@@ -42,6 +42,14 @@ type LearningGenerationOverrides = {
   difficulty?: string
   questionStyle?: string
   secondsPerAnswer?: number | null
+  source?: "standalone" | "planner"
+}
+
+type FlashcardGenerationSnapshot = {
+  source: "standalone"
+  selectedTopics: any[]
+  selectedTopic: any
+  numCards: number
 }
 
 type PlannerRuntimeState = {
@@ -255,6 +263,7 @@ const [flashcards,setFlashcards]=useState<any[]>([])
 const [studyFlashcards,setStudyFlashcards] = useState<any[]>([])
 const [previousFlashcards,setPreviousFlashcards]=useState<any[]>([])
 const [generatingFlashcards,setGeneratingFlashcards]=useState(false)
+const [lastFlashcardGeneration,setLastFlashcardGeneration]=useState<FlashcardGenerationSnapshot | null>(null)
 
 const [openCard,setOpenCard]=useState<number|null>(null)
 
@@ -661,6 +670,7 @@ function handleSidebarNavigation(nextView: string) {
     setFlashcards([])
     setOpenCard(null)
     setStudyMode(null)
+    setLastFlashcardGeneration(null)
   }
 
   if (nextView === "ask_setup") {
@@ -2425,6 +2435,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         : selectedTopic
     const effectiveNumCards =
       overrides.numCards ?? overrides.numQuestions ?? numQuestions
+    const flashcardGenerationSource = overrides.source ?? "standalone"
 
     const finalTopics =
       effectiveSelectedTopics && effectiveSelectedTopics.length > 0
@@ -2477,6 +2488,16 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       if (data.flashcards && data.flashcards.length > 0) {
         setFlashcards(data.flashcards);
         setStudyMode("generated");   
+        setLastFlashcardGeneration(
+          flashcardGenerationSource === "standalone"
+            ? {
+                source: "standalone",
+                selectedTopics: effectiveSelectedTopics || [],
+                selectedTopic: effectiveSelectedTopic || null,
+                numCards: effectiveNumCards || 10
+              }
+            : null
+        );
         setOpenCard(0);              // Apre subito la prima carta
         setActiveView("flashcards"); // Sposta la vista sulle flashcards
 
@@ -2495,6 +2516,25 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       setIsGenerating(false);
     }
 }
+
+  async function generateMoreStandaloneFlashcards() {
+    if (!lastFlashcardGeneration) return
+
+    await generateFlashcards({
+      selectedTopics: lastFlashcardGeneration.selectedTopics,
+      selectedTopic: lastFlashcardGeneration.selectedTopic,
+      numCards: lastFlashcardGeneration.numCards,
+      source: "standalone"
+    })
+  }
+
+  function returnFromStandaloneFlashcardsToDashboard() {
+    setFlashcards([])
+    setOpenCard(null)
+    setStudyMode(null)
+    setLastFlashcardGeneration(null)
+    handleSidebarNavigation("learning_home")
+  }
 
   function openPlannerDailySession(dailyPlan: PlannerDailyPlan) {
     plannerReviewedFlashcardsRef.current = new Set()
@@ -2898,7 +2938,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           project_id: projectId,
           question: askQuestion,
           topics: payloadTopicNames,
-          history: chatMessages.slice(-6)
+          history: chatMessages.slice(-6),
+          expand_search: useGlobalKnowledge
         })
       })
 
@@ -2907,7 +2948,12 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       setChatMessages([
         ...chatMessages,
         { role: "user", content: askQuestion },
-        { role: "assistant", content: data.answer }
+        {
+          role: "assistant",
+          content: data.answer,
+          sources: Array.isArray(data.sources) ? data.sources : [],
+          usedGlobalKnowledge: Boolean(data.used_global_knowledge)
+        }
       ])
       setAskQuestion("")
     } catch (e) {
@@ -3398,6 +3444,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         flashcards={flashcards}
         openCard={openCard}
         setOpenCard={setOpenCard}
+        standaloneFlashcardCompletionAvailable={
+          Boolean(lastFlashcardGeneration)
+          && studyMode === "generated"
+          && plannerRuntime.mode === "dashboard"
+        }
+        onGenerateMoreFlashcards={generateMoreStandaloneFlashcards}
+        onFlashcardsBackToDashboard={returnFromStandaloneFlashcardsToDashboard}
         resultsData={resultsData}
         calculateScore={calculateScore}
         uploadLog={uploadLog}

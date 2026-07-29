@@ -37,6 +37,9 @@ deleteProject,
 flashcards,
 openCard,
 setOpenCard,
+standaloneFlashcardCompletionAvailable,
+onGenerateMoreFlashcards,
+onFlashcardsBackToDashboard,
 
 quiz,
 answers,
@@ -870,6 +873,7 @@ return (
         askDocuments={askDocuments}
         asking={asking}
         chatMessages={chatMessages}
+        projectId={projectId}
         projectName={projectName}
         selectedTopics={selectedTopics} 
         useGlobalKnowledge={useGlobalKnowledge}
@@ -1030,6 +1034,9 @@ return (
               openCard={openCard}
               setOpenCard={setOpenCard}
               onReview={onPlannerFlashcardReview}
+              standaloneCompletionAvailable={standaloneFlashcardCompletionAvailable}
+              onGenerateMore={onGenerateMoreFlashcards}
+              onBackToDashboard={onFlashcardsBackToDashboard}
             />
             {plannerRuntime?.mode === "activity_review" && (
               <PlannerActivityReviewCheckpoint
@@ -2068,7 +2075,8 @@ function DashboardHome({
           .dashboard-v2-project-card {
             min-height: 190px !important;
             grid-template-columns: 30% 1fr !important;
-            background-size: auto 62%, auto !important;
+            background-size: auto 68%, auto !important;
+            background-position: 12px center, center !important;
           }
 
           .dashboard-v2-project-text-box {
@@ -2145,6 +2153,7 @@ function DashboardHome({
             min-height: 174px !important;
             grid-template-columns: 34% 1fr !important;
             background-size: auto 56%, auto !important;
+            background-position: 10px center, center !important;
           }
 
           .dashboard-v2-project-text-box {
@@ -2441,8 +2450,8 @@ padding: 0,
 cursor: "pointer",
 color: "inherit",
 backgroundRepeat: "no-repeat",
-backgroundSize: "auto 68%, auto",
-backgroundPosition: "left center, center"
+backgroundSize: "auto 74%, auto",
+backgroundPosition: "14px center, center"
 }
 
 const dashboardProjectCardPurple: React.CSSProperties = {

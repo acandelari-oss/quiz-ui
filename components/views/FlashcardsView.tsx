@@ -11,7 +11,10 @@ onReview,
 onFlashcardsComplete,
 projectId,
 loadingFlashcards,
-loaderText
+loaderText,
+standaloneCompletionAvailable = false,
+onGenerateMore,
+onBackToDashboard
 }) {
 const { t: translate } = useTranslation();
 
@@ -80,12 +83,58 @@ if(openCard === null){
       <div style={{
         textAlign: "center",
         color: "white",
-        marginTop: 60
+        margin: "60px auto 0",
+        maxWidth: 620,
+        padding: 24,
+        background: "rgba(17, 24, 39, 0.78)",
+        border: "1px solid rgba(47, 164, 169, 0.35)",
+        borderRadius: 16
       }}>
-        <h2>🎉 {translate('stats.Study session completed')}</h2>
+        <h2 style={{ marginTop: 0 }}>🎉 {translate('stats.Study session completed')}</h2>
         <p style={{ color: "#9ca3af" }}>
-          {translate('stats.You reviewed')} {flashcards.length} {translate('stats.cards')}.
+          {standaloneCompletionAvailable
+            ? translate("stats.This was the last card of your exercise, how would you like to proceed?")
+            : `${translate('stats.You reviewed')} ${flashcards.length} ${translate('stats.cards')}.`
+          }
         </p>
+        {standaloneCompletionAvailable && (
+          <div style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            marginTop: 22
+          }}>
+            <button
+              onClick={onGenerateMore}
+              style={{
+                padding: "11px 18px",
+                borderRadius: 10,
+                border: "1px solid rgba(34, 197, 94, 0.55)",
+                background: "#22c55e",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer"
+              }}
+            >
+              {translate("stats.Generate more")}
+            </button>
+            <button
+              onClick={onBackToDashboard}
+              style={{
+                padding: "11px 18px",
+                borderRadius: 10,
+                border: "1px solid rgba(148, 163, 184, 0.35)",
+                background: "#111827",
+                color: "white",
+                fontWeight: 700,
+                cursor: "pointer"
+              }}
+            >
+              {translate("stats.Go back to dashboard")}
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -163,11 +212,8 @@ if(openCard === null){
       setCurrentIndex(currentIndex + 1)
     } else {
       console.log("📍 LAST CARD UI")
-
-      // 🔥 NON chiamare subito complete
-      // lascia decidere StudySessionView
-      if (onReview) {
-        onReview(id, difficulty, isCorrect)
+      if (standaloneCompletionAvailable) {
+        setCurrentIndex(flashcards.length)
       }
     }
   }
