@@ -73,6 +73,7 @@ export type PlannerDailyPlan = {
   date: string
   sessionIndex: number
   studyPlanModuleCount?: number
+  studyLanguage?: string | null
   planType?: string
   objective: string
   briefing: string
@@ -130,6 +131,13 @@ export type PlannerMockData = {
   onboarding: {
     title: string
     message: string
+  }
+  coverageLifecycle?: {
+    professorMode?: string | null
+    coverageStatus?: string | null
+    coverageComplete?: boolean | null
+    nextPlanGenerated?: boolean | null
+    requiresNewPlan?: boolean | null
   }
   preferences: {
     briefing: string

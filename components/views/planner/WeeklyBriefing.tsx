@@ -18,15 +18,15 @@ export default function WeeklyBriefing({
       <div className="planner-mobile-briefing-grid" style={briefingGrid}>
         <BriefingBlock
           title={translate("stats.Why these categories")}
-          text={briefing.selectedCategoriesReason}
+          text={localizedPlannerText(briefing.selectedCategoriesReason, translate)}
         />
         <BriefingBlock
           title={translate("stats.Study Plan Objective")}
-          text={briefing.objective}
+          text={localizedPlannerText(briefing.objective, translate)}
         />
         <BriefingBlock
           title={translate("stats.What comes next")}
-          text={briefing.lowerPriorityCategories}
+          text={localizedPlannerText(briefing.lowerPriorityCategories, translate)}
         />
       </div>
       <style jsx global>{`
@@ -87,6 +87,26 @@ export default function WeeklyBriefing({
       `}</style>
     </section>
   )
+}
+
+function localizedPlannerText(
+  text: string,
+  translate: (key: string, options?: Record<string, unknown>) => string
+) {
+  if (!text) {
+    return text
+  }
+
+  const coverage = text.match(/^Learning coverage: (\d+)\/(\d+) topics\.$/)
+  if (coverage) {
+    return translate("stats.Learning coverage topics count", {
+      covered: coverage[1],
+      total: coverage[2],
+      defaultValue: text
+    })
+  }
+
+  return translate(`stats.${text}`, { defaultValue: text })
 }
 
 function BriefingBlock({

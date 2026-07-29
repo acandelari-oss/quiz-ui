@@ -18,6 +18,7 @@ export default function PlannerDashboard({
 }) {
   const { t: translate } = useTranslation()
   const [introExpanded, setIntroExpanded] = useState(true)
+  const [coverageCompleteDismissed, setCoverageCompleteDismissed] = useState(false)
   const currentModule =
     plan.calendar.find(day => day.status === "today")
     || plan.calendar.find(day => day.day === plan.todayPlan.day)
@@ -26,6 +27,24 @@ export default function PlannerDashboard({
     !isAssessmentPlan
     && plan.calendar.length > 0
     && plan.calendar.every(day => day.status === "completed")
+  const coverageRequiresNewPlan =
+    allPlannedModulesCompleted
+    && plan.coverageLifecycle?.professorMode === "coverage"
+    && (
+      plan.coverageLifecycle?.requiresNewPlan === true
+      || plan.coverageLifecycle?.coverageStatus === "incomplete"
+      || plan.coverageLifecycle?.coverageStatus === "coverage_incomplete"
+    )
+  const coverageCompleteTransition =
+    allPlannedModulesCompleted
+    && plan.coverageLifecycle?.professorMode === "adaptive"
+    && (
+      plan.coverageLifecycle?.coverageComplete === true
+      || plan.coverageLifecycle?.coverageStatus === "complete"
+      || plan.coverageLifecycle?.coverageStatus === "coverage_complete"
+    )
+  const showCompletionCard =
+    !coverageCompleteDismissed || !coverageCompleteTransition
 
   return (
     <div className="planner-mobile-dashboard" style={container}>
@@ -71,7 +90,7 @@ export default function PlannerDashboard({
         )}
       </section>
 
-      <section
+      {showCompletionCard && <section
         className="planner-mobile-cta-card"
         style={allPlannedModulesCompleted ? completionCard : ctaCard}
       >
@@ -79,31 +98,81 @@ export default function PlannerDashboard({
           <div style={completionContent}>
             <div>
               <div className="planner-mobile-cta-title" style={completionTitle}>
-                {translate("stats.Study Plan completed")}
+                {translate(coverageRequiresNewPlan
+                  ? "stats.Initial evaluation completed"
+                  : coverageCompleteTransition
+                    ? "stats.Initial evaluation complete"
+                  : "stats.Study Plan completed")}
               </div>
               <div style={completionBody}>
-                <p style={completionParagraph}>
-                  {translate("stats.Study Plan completed excellent work")}
-                </p>
-                <p style={completionParagraph}>
-                  {translate("stats.Study Plan completed all modules")}
-                </p>
-                <p style={completionParagraph}>
-                  {translate("stats.Study Plan completed evidence")}
-                </p>
-                <p style={completionParagraph}>
-                  {translate("stats.Study Plan completed next plan")}
-                </p>
+                {coverageRequiresNewPlan ? (
+                  <>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation completed body 1")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation completed body 2")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation completed body 3")}
+                    </p>
+                  </>
+                ) : coverageCompleteTransition ? (
+                  <>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation complete congratulations")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation complete body 1")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation complete body 2")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation complete body 3")}
+                    </p>
+                    <ul style={completionList}>
+                      <li>{translate("stats.Initial evaluation complete strength item")}</li>
+                      <li>{translate("stats.Initial evaluation complete reinforcement item")}</li>
+                      <li>{translate("stats.Initial evaluation complete history item")}</li>
+                      <li>{translate("stats.Initial evaluation complete retention item")}</li>
+                    </ul>
+                    <p style={completionParagraph}>
+                      {translate("stats.Initial evaluation complete body 4")}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={completionParagraph}>
+                      {translate("stats.Study Plan completed excellent work")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Study Plan completed all modules")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Study Plan completed evidence")}
+                    </p>
+                    <p style={completionParagraph}>
+                      {translate("stats.Study Plan completed next plan")}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
             <div style={completionActions}>
               <button
                 type="button"
-                onClick={onCreateNewStudyPlan}
+                onClick={coverageCompleteTransition
+                  ? () => setCoverageCompleteDismissed(true)
+                  : onCreateNewStudyPlan}
                 style={completionPrimaryButton}
                 className="planner-mobile-cta-button"
               >
-                {translate("stats.CREATE NEW STUDY PLAN")}
+                {translate(coverageRequiresNewPlan
+                  ? "stats.Generate next Study Plan"
+                  : coverageCompleteTransition
+                    ? "stats.Continue"
+                  : "stats.CREATE NEW STUDY PLAN")}
               </button>
             </div>
           </div>
@@ -156,7 +225,7 @@ export default function PlannerDashboard({
             </button>
           </>
         )}
-      </section>
+      </section>}
 
       {isAssessmentPlan && (
         <section style={assessmentIntroCard}>
@@ -336,6 +405,14 @@ const completionParagraph = {
   fontSize: 15,
   lineHeight: 1.6,
   margin: "8px 0"
+}
+
+const completionList = {
+  color: "#dbeafe",
+  fontSize: 15,
+  lineHeight: 1.55,
+  margin: "8px 0 8px 20px",
+  padding: 0
 }
 
 const completionActions = {

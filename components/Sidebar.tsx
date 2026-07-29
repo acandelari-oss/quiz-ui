@@ -321,7 +321,7 @@ export default function Sidebar({
       </div>
 
       
-      <div>
+      <div style={desktopUserSectionShell}>
        
 
       
@@ -404,17 +404,39 @@ export default function Sidebar({
               />
             </>
           ) : (
-            <label style={desktopLanguageLabel}>
-              {translate('stats.Language')}:
-              <select
-                value={i18n.language.startsWith("it") ? "it" : "en"}
-                onChange={(event) => changeLanguage(event.target.value)}
-                style={mobileHomeLanguageSelect}
+            <>
+              <label style={desktopLanguageLabel}>
+                <span style={desktopLanguageIcon}>◎</span>
+                <span>{translate('stats.Language')}</span>
+                <select
+                  value={i18n.language.startsWith("it") ? "it" : "en"}
+                  onChange={(event) => changeLanguage(event.target.value)}
+                  style={desktopLanguageSelect}
+                >
+                  <option value="en">English</option>
+                  <option value="it">Italiano</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                style={desktopUserButton}
+                onClick={() => alert("Account area coming soon")}
               >
-                <option value="en">English</option>
-                <option value="it">Italiano</option>
-              </select>
-            </label>
+                <img src="/icons/user.svg" alt="" width={28} height={28} />
+                <span>
+                  <strong>Account</strong>
+                </span>
+                <span style={desktopUserChevron}>›</span>
+              </button>
+              <button
+                type="button"
+                style={desktopUtilityButton}
+                onClick={handleLogout}
+              >
+                <img src="/icons/logout.svg" alt="" width={24} height={24} />
+                <span>Logout</span>
+              </button>
+            </>
           )}
         </div>
       </div>  
@@ -506,21 +528,83 @@ const divider = {
   margin: "14px 0"
 };
 
+const desktopUserSectionShell: React.CSSProperties = {
+  marginTop: "auto"
+}
+
 const desktopLanguageRow: React.CSSProperties = {
   display: "flex",
-  gap: 10,
-  padding: "20px 0",
-  flexDirection: "row",
-  justifyContent: "center"
+  gap: 12,
+  padding: "18px 0 0",
+  flexDirection: "column",
+  justifyContent: "center",
+  borderTop: "1px solid #1f2937"
 }
 
 const desktopLanguageLabel: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 10,
+  gap: 9,
+  color: "#e5e7eb",
+  fontWeight: 600,
+  fontSize: 15,
+  width: "100%"
+}
+
+const desktopLanguageIcon: React.CSSProperties = {
   color: "#36f2ed",
-  fontWeight: 700,
-  fontSize: 16
+  fontSize: 20,
+  lineHeight: 1
+}
+
+const desktopLanguageSelect: React.CSSProperties = {
+  marginLeft: "auto",
+  minHeight: 36,
+  minWidth: 118,
+  borderRadius: 12,
+  border: "1px solid #1f2937",
+  padding: "4px 34px 4px 12px",
+  background: "#0b1220",
+  color: "#f8fafc",
+  fontSize: 14,
+  fontWeight: 600,
+  outline: "none",
+  cursor: "pointer"
+}
+
+const desktopUserButton: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid rgba(31, 41, 55, 0.9)",
+  borderRadius: 14,
+  background: "rgba(15, 23, 42, 0.62)",
+  color: "#f8fafc",
+  display: "grid",
+  gridTemplateColumns: "34px 1fr auto",
+  alignItems: "center",
+  gap: 10,
+  padding: "12px 12px",
+  textAlign: "left",
+  cursor: "pointer"
+}
+
+const desktopUtilityButton: React.CSSProperties = {
+  width: "100%",
+  border: "1px solid transparent",
+  borderRadius: 12,
+  background: "transparent",
+  color: "#e5e7eb",
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 12px",
+  cursor: "pointer",
+  fontSize: 15
+}
+
+const desktopUserChevron: React.CSSProperties = {
+  color: "#9ca3af",
+  fontSize: 26,
+  lineHeight: 1
 }
 
 const compactUtilityColumn: React.CSSProperties = {

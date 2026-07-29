@@ -2,6 +2,8 @@ import type {
   PlannerStateResponse,
   PlannerWeekResponse
 } from "../../../services/plannerApi"
+import enCommon from "../../../public/locales/en/common.json"
+import itCommon from "../../../public/locales/it/common.json"
 import type {
   PlannerActivity,
   PlannerDailyPlan,
@@ -12,10 +14,13 @@ import type {
 
 export function adaptPlannerStateToUi(response: PlannerStateResponse): PlannerMockData {
   if (response.state === "ACTIVE_WEEK" && response.week) {
-    return adaptPlannerWeekToUi(response.week)
+    return withResponseLifecycle(adaptPlannerWeekToUi(response.week), response)
   }
 
-  return buildStateOnlyPlannerData(response.state, response.learning_coverage)
+  return withResponseLifecycle(
+    buildStateOnlyPlannerData(response.state, response.learning_coverage),
+    response
+  )
 }
 
 export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData {
@@ -23,8 +28,9 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
   const completedSessionIndexes = completedSessionIndexesFromWeek(week)
   const runtimeStatistics = runtimeStatisticsFromWeek(week)
   const calendar = buildCalendar(week, completedSessionIndexes)
+  const italian = isItalianStudyLanguage(week)
   const dailyPlans = week.daily_plans.map((plan, index) =>
-    buildDailyPlan(plan, index, planType, week.id)
+    buildDailyPlan(plan, index, planType, week.id, italian, week.study_language || null)
   )
   const recommendedPlanIndex = recommendedModuleIndex(
     week.daily_plans.length,
@@ -38,13 +44,14 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
     weekId: week.id,
     state: "ACTIVE_WEEK",
     planType,
-    weekLabel: formatWeekLabel(week.start_date, week.end_date),
+    weekLabel: formatWeekLabel(week.start_date, week.end_date, italian),
     todaySessionCompleted: false,
     onboarding: {
       title: "Welcome to your Professor Planner",
       message:
         "Before preparing your first Study Plan, the Professor needs either a short survey or one observation period to understand your study rhythm."
     },
+    coverageLifecycle: coverageLifecycleFromWeek(week),
     preferences: {
       briefing:
         "You have enough learning history to generate a study plan. Choose the module settings and the Professor will prepare a focused sequence.",
@@ -60,48 +67,60 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
       lowerPriorityCategories: inferAdditionalModulesMessage(week)
     },
     statistics: runtimeStatistics
-      ? buildRuntimeStatistics(runtimeStatistics, planType)
+      ? buildRuntimeStatistics(runtimeStatistics, planType, isItalianStudyLanguage(week))
       : [
       {
         label: "Quizzes completed",
         value: String(week.weekly_statistics?.sessions_completed ?? 0),
-        detail: planType === "assessment"
-          ? "No completed Assessment quiz yet"
-          : "No completed Study Plan quiz yet"
+        detail: localizedPlannerLabel(
+          planType === "assessment"
+            ? "No completed Assessment quiz yet"
+            : "No completed Study Plan quiz yet",
+          italian
+        )
       },
       {
         label: "Flashcards reviewed",
         value: formatOptionalPercent(week.weekly_statistics?.flashcard_completion),
-        detail: planType === "assessment"
-          ? "No completed Assessment flashcards yet"
-          : "No completed Study Plan flashcards yet"
+        detail: localizedPlannerLabel(
+          planType === "assessment"
+            ? "No completed Assessment flashcards yet"
+            : "No completed Study Plan flashcards yet",
+          italian
+        )
       },
       {
         label: planType === "assessment"
           ? "Assessment accuracy"
           : "Study Plan accuracy",
         value: formatOptionalPercent(week.weekly_statistics?.quiz_accuracy),
-        detail: planType === "assessment"
-          ? "No Assessment quiz result yet"
-          : "No Study Plan quiz result yet"
+        detail: localizedPlannerLabel(
+          planType === "assessment"
+            ? "No Assessment quiz result yet"
+            : "No Study Plan quiz result yet",
+          italian
+        )
       },
       {
         label: "Study time",
         value: formatStudyTime(week.weekly_statistics?.study_time),
-        detail: planType === "assessment"
-          ? "No completed Assessment module yet"
-          : "No completed Study Plan module yet"
+        detail: localizedPlannerLabel(
+          planType === "assessment"
+            ? "No completed Assessment module yet"
+            : "No completed Study Plan module yet",
+          italian
+        )
       }
     ],
     debriefs: completedPlanEntries
       .filter(entry => Boolean(generatedProfessorText(entry.plan.summary?.professor_debrief)))
-      .map(entry => buildDebrief(entry.plan, entry.index)),
+      .map(entry => buildDebrief(entry.plan, entry.index, italian)),
     homework: completedPlanEntries
       .flatMap(entry =>
         (entry.plan.summary?.homework_recommendations || [])
           .filter(recommendation => Boolean(generatedProfessorText(recommendation.text)))
           .map(recommendation => ({
-            day: plannerModuleLabel(entry.index),
+            day: plannerModuleLabel(entry.index, italian),
             suggestion: generatedProfessorText(recommendation.text) || ""
           }))
       ),
@@ -111,6 +130,36 @@ export function adaptPlannerWeekToUi(week: PlannerWeekResponse): PlannerMockData
       title: "Study Plan Review",
       message: generatedProfessorText(week.weekly_review) || ""
     }
+  }
+}
+
+function withResponseLifecycle(
+  plan: PlannerMockData,
+  response: PlannerStateResponse
+): PlannerMockData {
+  const lifecycle = {
+    ...plan.coverageLifecycle,
+    professorMode: response.professor_mode ?? plan.coverageLifecycle?.professorMode ?? null,
+    coverageStatus: response.coverage_status ?? plan.coverageLifecycle?.coverageStatus ?? null,
+    coverageComplete: response.coverage_complete ?? plan.coverageLifecycle?.coverageComplete ?? null,
+    nextPlanGenerated: response.next_plan_generated ?? plan.coverageLifecycle?.nextPlanGenerated ?? null,
+    requiresNewPlan: response.requires_new_plan ?? plan.coverageLifecycle?.requiresNewPlan ?? null
+  }
+
+  return {
+    ...plan,
+    coverageLifecycle: lifecycle
+  }
+}
+
+function coverageLifecycleFromWeek(week: PlannerWeekResponse) {
+  const metadata = week.weekly_statistics?.metadata || {}
+  return {
+    professorMode: asString(metadata.professor_mode),
+    coverageStatus: asString(metadata.coverage_status),
+    coverageComplete: asBoolean(metadata.coverage_complete),
+    nextPlanGenerated: asBoolean(metadata.next_plan_generated),
+    requiresNewPlan: asBoolean(metadata.requires_new_plan)
   }
 }
 
@@ -131,7 +180,7 @@ function buildStateOnlyPlannerData(
     },
     preferences: {
       briefing:
-        "You have enough learning history to prepare a first Study Plan. Choose the planning settings to continue.",
+        "Planner state only preferences briefing",
       studyDuration: "Not configured yet",
       visibleModules: "Professor-selected",
       preferredExamStyle: "Not configured yet"
@@ -168,6 +217,7 @@ function emptyDailyPlan(): PlannerDailyPlan {
     day: "Module",
     date: "—",
     sessionIndex: 0,
+    studyLanguage: null,
     planType: "study_plan",
     objective: "",
     briefing: "",
@@ -192,14 +242,15 @@ function buildCalendar(
   week: PlannerWeekResponse,
   completedSessionIndexes: Set<number>
 ): PlannerDay[] {
+  const italian = isItalianStudyLanguage(week)
   const activeIndex = recommendedModuleIndex(
     week.daily_plans.length,
     completedSessionIndexes
   )
 
   return week.daily_plans.map((plan, index) => ({
-    day: plannerModuleLabel(index),
-    date: formatPlannerDate(plan.date),
+    day: plannerModuleLabel(index, italian),
+    date: formatPlannerDate(plan.date, italian),
     sessionIndex: index,
     status:
       completedSessionIndexes.has(index)
@@ -207,7 +258,7 @@ function buildCalendar(
         : index === activeIndex
           ? "today"
           : "remaining",
-    title: buildSessionTitle(plan),
+    title: buildSessionTitle(plan, italian),
     categories: unique(plan.planned_allocations.map(allocation => allocation.category)),
     durationMinutes: Math.round(
       plan.planned_allocations.reduce(
@@ -258,19 +309,22 @@ function buildDailyPlan(
   plan: PlannerWeekResponse["daily_plans"][number],
   index: number,
   planType = "study_plan",
-  plannerWeekId?: string | null
+  plannerWeekId?: string | null,
+  italian = false,
+  studyLanguage?: string | null
 ): PlannerDailyPlan {
   return {
     plannerWeekId,
-    day: plannerModuleLabel(index),
-    date: formatPlannerDate(plan.date),
+    day: plannerModuleLabel(index, italian),
+    date: formatPlannerDate(plan.date, italian),
     sessionIndex: index,
+    studyLanguage: studyLanguage || (italian ? "Italian" : "English"),
     planType,
     objective: generatedProfessorText(plan.objective) || "",
     briefing: generatedProfessorText(plan.briefing) || "",
-    activities: plan.activities.map(buildActivity),
+    activities: plan.activities.map(activity => buildActivity(activity, italian)),
     summary: {
-      sessionData: buildSessionData(plan),
+      sessionData: buildSessionData(plan, italian),
       professorDebrief: generatedProfessorText(plan.summary?.professor_debrief) || "",
       homeworkRecommendations:
         plan.summary?.homework_recommendations
@@ -280,13 +334,13 @@ function buildDailyPlan(
         || [],
       activeRecall: generatedProfessorText(plan.summary?.active_recall_offer?.context)
         ? {
-            title: "Optional Active Recall",
+            title: localizedPlannerLabel("Optional Active Recall", italian),
             message: generatedProfessorText(plan.summary?.active_recall_offer?.context) || ""
           }
         : undefined,
       officeHours: generatedProfessorText(plan.summary?.office_hours_offer?.context)
         ? {
-            title: "Ask the Professor",
+            title: localizedPlannerLabel("Ask the Professor", italian),
             message: generatedProfessorText(plan.summary?.office_hours_offer?.context) || ""
           }
         : undefined
@@ -294,23 +348,27 @@ function buildDailyPlan(
   }
 }
 
-function buildActivity(activity: PlannerWeekResponse["daily_plans"][number]["activities"][number]): PlannerActivity {
+function buildActivity(
+  activity: PlannerWeekResponse["daily_plans"][number]["activities"][number],
+  italian = false
+): PlannerActivity {
   const isQuiz = activity.type === "QUIZ"
   const count = isQuiz
     ? activity.configuration.num_questions
     : activity.configuration.num_cards
+  const fallbackCategory = localizedPlannerLabel("Study Plan category", italian)
 
   return {
     id: activity.id,
     type: isQuiz ? "quiz" : "flashcards",
     title: isQuiz ? "Quiz" : "Flashcards",
     configuration: {
-      category: activity.configuration.category || "Study Plan category",
+      category: activity.configuration.category || fallbackCategory,
       selectedTopics: (activity.configuration.selected_topics || []).map(topic => ({
         id: topic.id,
         topic: topic.title,
         title: topic.title,
-        category: activity.configuration.category || "Study Plan category",
+        category: activity.configuration.category || fallbackCategory,
         order: topic.order
       })),
       count: count || activity.configuration.selected_topics?.length || 0,
@@ -323,8 +381,8 @@ function buildActivity(activity: PlannerWeekResponse["daily_plans"][number]["act
       questionStyle: activity.configuration.question_style || undefined
     },
     mockInstructions: isQuiz
-      ? "Answer each question using the topics selected for this Study Plan."
-      : "Review the cards for the topics selected for this Study Plan."
+      ? localizedPlannerLabel("Answer each question using the topics selected for this Study Plan.", italian)
+      : localizedPlannerLabel("Review the cards for the topics selected for this Study Plan.", italian)
   }
 }
 
@@ -348,15 +406,22 @@ function inferSecondsPerAnswer(
   return Math.round((estimatedDurationMinutes * 60) / questionCount)
 }
 
-function buildDebrief(plan: PlannerWeekResponse["daily_plans"][number], index: number) {
+function buildDebrief(
+  plan: PlannerWeekResponse["daily_plans"][number],
+  index: number,
+  italian = false
+) {
   return {
-    day: plannerModuleLabel(index),
+    day: plannerModuleLabel(index, italian),
     professorDebrief: generatedProfessorText(plan.summary?.professor_debrief) || "",
-    sessionData: buildSessionData(plan)
+    sessionData: buildSessionData(plan, italian)
   }
 }
 
-function buildSessionData(plan: PlannerWeekResponse["daily_plans"][number]) {
+function buildSessionData(
+  plan: PlannerWeekResponse["daily_plans"][number],
+  italian = false
+) {
   const persistedSessionData = plan.summary?.session_data || {}
   const flashcards = plan.activities
     .filter(activity => activity.type === "FLASHCARDS")
@@ -376,7 +441,7 @@ function buildSessionData(plan: PlannerWeekResponse["daily_plans"][number]) {
     quiz: persistedSessionData.quiz ?? quiz,
     accuracy: persistedSessionData.accuracy || "—",
     time: persistedSessionData.time || `${time} min`,
-    focus: unique(plan.planned_allocations.map(allocation => allocation.category)).join(", ") || "Study Plan focus"
+    focus: unique(plan.planned_allocations.map(allocation => allocation.category)).join(", ") || localizedPlannerLabel("Study Plan focus", italian)
   }
 }
 
@@ -406,7 +471,8 @@ function buildRuntimeStatistics(
     quizCorrect: number
     studyTimeMinutes: number
   },
-  planType = "study_plan"
+  planType = "study_plan",
+  italian = false
 ) {
   const isAssessmentPlan = planType === "assessment"
   const accuracy = runtimeStatistics.quizQuestions > 0
@@ -418,21 +484,21 @@ function buildRuntimeStatistics(
       label: "Quizzes completed",
       value: String(runtimeStatistics.quizzesCompleted),
       detail: runtimeStatistics.quizzesCompleted > 0
-        ? `${runtimeStatistics.quizQuestions} questions answered`
+        ? localizedQuestionsAnswered(runtimeStatistics.quizQuestions, italian)
         : isAssessmentPlan
-          ? "No completed Assessment quiz yet"
-          : "No completed Study Plan quiz yet"
+          ? localizedPlannerLabel("No completed Assessment quiz yet", italian)
+          : localizedPlannerLabel("No completed Study Plan quiz yet", italian)
     },
     {
       label: "Flashcards reviewed",
       value: String(runtimeStatistics.flashcardsReviewed),
       detail: runtimeStatistics.flashcardsReviewed > 0
         ? isAssessmentPlan
-          ? "Reviewed during this Assessment module"
-          : "Reviewed during this Study Plan module"
+          ? localizedPlannerLabel("Reviewed during this Assessment module", italian)
+          : localizedPlannerLabel("Reviewed during this Study Plan module", italian)
         : isAssessmentPlan
-          ? "No Assessment flashcards reviewed yet"
-          : "No Study Plan flashcards reviewed yet"
+          ? localizedPlannerLabel("No Assessment flashcards reviewed yet", italian)
+          : localizedPlannerLabel("No Study Plan flashcards reviewed yet", italian)
     },
     {
       label: isAssessmentPlan
@@ -440,10 +506,14 @@ function buildRuntimeStatistics(
         : "Study Plan accuracy",
       value: accuracy,
       detail: runtimeStatistics.quizQuestions > 0
-        ? `${runtimeStatistics.quizCorrect}/${runtimeStatistics.quizQuestions} correct`
+        ? localizedCorrectAnswers(
+            runtimeStatistics.quizCorrect,
+            runtimeStatistics.quizQuestions,
+            italian
+          )
         : isAssessmentPlan
-          ? "No Assessment quiz result yet"
-          : "No Study Plan quiz result yet"
+          ? localizedPlannerLabel("No Assessment quiz result yet", italian)
+          : localizedPlannerLabel("No Study Plan quiz result yet", italian)
     },
     {
       label: "Study time",
@@ -451,8 +521,8 @@ function buildRuntimeStatistics(
         ? `${runtimeStatistics.studyTimeMinutes} min`
         : "—",
       detail: isAssessmentPlan
-        ? "Current Assessment module runtime"
-        : "Current Study Plan module runtime"
+        ? localizedPlannerLabel("Current Assessment module runtime", italian)
+        : localizedPlannerLabel("Current Study Plan module runtime", italian)
     }
   ]
 }
@@ -461,71 +531,41 @@ function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
-function buildSessionTitle(plan: PlannerWeekResponse["daily_plans"][number]) {
+function buildSessionTitle(
+  plan: PlannerWeekResponse["daily_plans"][number],
+  italian = false
+) {
   const categories = unique(plan.planned_allocations.map(allocation => allocation.category))
 
   if (categories.length === 0) {
-    return "Open study session"
+    return localizedPlannerLabel("Open study session", italian)
   }
 
   if (categories.length === 1) {
-    return `${categories[0]} session`
+    return `${categories[0]} ${localizedPlannerLabel("session", italian)}`
   }
 
-  return `${categories[0]} + ${categories.length - 1} more`
+  return `${categories[0]} + ${categories.length - 1} ${localizedPlannerLabel("more", italian)}`
 }
 
 function inferWeeklyObjective(week: PlannerWeekResponse) {
   const activities = week.daily_plans.flatMap(plan => plan.activities)
   const quizCount = activities.filter(activity => activity.type === "QUIZ").length
   const flashcardCount = activities.filter(activity => activity.type === "FLASHCARDS").length
-  const categories = unique(
-    week.daily_plans.flatMap(plan =>
-      plan.planned_allocations.map(allocation => allocation.category)
-    )
-  )
-  const anchor = categories[0]
-  const italian = isItalianStudyLanguage(week)
 
   if (activities.length === 0) {
-    return italian
-      ? "L’obiettivo del Piano di Studio sarà definito dal Professore."
-      : "The Study Plan Objective will be defined by the Professor."
+    return "The Study Plan Objective will be defined by the Professor."
   }
 
   if (quizCount > 0 && flashcardCount === 0) {
-    if (italian) {
-      return anchor
-        ? `L’obiettivo è costruire una prima base concettuale attorno a ${anchor}, verificando che cosa è già stabile e dove il lavoro successivo dovrà concentrarsi.`
-        : "L’obiettivo è trasformare questo primo passaggio in evidenza affidabile: ciò che è già stabile, ciò che è incerto e dove concentrare il lavoro successivo."
-    }
-
-    return anchor
-      ? `The objective is to build an initial conceptual foundation around ${anchor}, testing what is already stable and where the next work should concentrate.`
-      : "The objective is to turn this first pass into reliable evidence: what is already secure, what is uncertain, and where the next work should concentrate."
+    return "Study Plan objective quiz only fallback"
   }
 
   if (flashcardCount > 0 && quizCount === 0) {
-    if (italian) {
-      return anchor
-        ? `L’obiettivo è rendere più stabile la base concettuale di ${anchor} prima di aumentare il peso della verifica.`
-        : "L’obiettivo è rendere più stabili i concetti essenziali prima di aumentare il peso della verifica."
-    }
-
-    return anchor
-      ? `The objective is to make the conceptual base around ${anchor} more stable before increasing the pressure of assessment.`
-      : "The objective is to make the essential concepts more stable before increasing the pressure of assessment."
+    return "Study Plan objective flashcards only fallback"
   }
 
-  if (italian) {
-    return anchor
-      ? `L’obiettivo è collegare il consolidamento di ${anchor} alla verifica, così memoria e applicazione crescono insieme.`
-      : "L’obiettivo è collegare consolidamento e verifica, così memoria e applicazione crescono insieme invece di restare separate."
-  }
-
-  return anchor
-    ? `The objective is to connect consolidation around ${anchor} with assessment, so recall and application develop together.`
-    : "The objective is to connect consolidation with assessment, so recall and application develop together instead of remaining separate."
+  return "Study Plan objective mixed activity fallback"
 }
 
 function inferStudyDuration(week: PlannerWeekResponse) {
@@ -565,17 +605,12 @@ function inferMaxVisibleModules(week: PlannerWeekResponse) {
 function inferAdditionalModulesMessage(week: PlannerWeekResponse) {
   const additionalModulesRemain =
     week.weekly_statistics?.metadata?.additional_modules_remain
-  const italian = isItalianStudyLanguage(week)
 
   if (additionalModulesRemain === true) {
-    return italian
-      ? "Questo Piano di Studio copre intenzionalmente la prima parte del percorso. Il prossimo potrà continuare dallo stesso filo, dando priorità agli argomenti che richiedono ancora attenzione."
-      : "This Study Plan intentionally covers the first part of the path. The next one can continue from the same thread, giving priority to the topics that still need attention."
+    return "Additional modules remain fallback"
   }
 
-  return italian
-    ? "Quando questo Piano di Studio sarà completato, il passo successivo dovrà seguire l’evidenza raccolta qui, mantenendo continuità invece di ripartire da zero."
-    : "Once this Study Plan is complete, the next step should follow the evidence collected here, preserving continuity rather than starting again from zero."
+  return "No additional modules remain fallback"
 }
 
 function isItalianStudyLanguage(week: PlannerWeekResponse) {
@@ -601,31 +636,76 @@ function formatStudyTime(value?: number | null) {
   return `${value} min`
 }
 
-function formatWeekLabel(startDate: string, endDate: string) {
-  return `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`
+function formatWeekLabel(startDate: string, endDate: string, italian = false) {
+  return `${formatShortDate(startDate, italian)} – ${formatShortDate(endDate, italian)}`
 }
 
-function formatShortDate(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+function formatShortDate(value: string, italian = false) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(italian ? "it-IT" : undefined, {
     month: "short",
     day: "numeric"
   })
 }
 
-function formatPlannerDate(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+function formatPlannerDate(value: string, italian = false) {
+  return new Date(`${value}T00:00:00`).toLocaleDateString(italian ? "it-IT" : undefined, {
     weekday: "short",
     day: "numeric",
     month: "short"
   })
 }
 
-function plannerModuleLabel(index: number) {
-  return `Module ${index + 1}`
+function plannerModuleLabel(index: number, italian = false) {
+  return `${localizedPlannerLabel("Module", italian)} ${index + 1}`
+}
+
+function localizedQuestionsAnswered(count: number, italian = false) {
+  return interpolatePlannerLabel(
+    localizedPlannerLabel("questions answered count", italian),
+    { count: String(count) }
+  )
+}
+
+function localizedCorrectAnswers(correct: number, total: number, italian = false) {
+  return interpolatePlannerLabel(
+    localizedPlannerLabel("correct answer count", italian),
+    {
+      correct: String(correct),
+      total: String(total)
+    }
+  )
+}
+
+function localizedPlannerLabel(label: string, italian = false) {
+  const stats = italian ? itCommon.stats : enCommon.stats
+  const value = (stats as Record<string, unknown>)[label]
+
+  return typeof value === "string" ? value : label
+}
+
+function interpolatePlannerLabel(
+  template: string,
+  values: Record<string, string>
+) {
+  return Object.entries(values).reduce(
+    (text, [key, value]) =>
+      text
+        .replaceAll(`{{${key}}}`, value)
+        .replaceAll(`{${key}}`, value),
+    template
+  )
 }
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)))
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null
+}
+
+function asBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null
 }
 
 function hasText(value: unknown): value is string {

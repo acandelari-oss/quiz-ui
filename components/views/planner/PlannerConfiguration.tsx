@@ -5,12 +5,14 @@ import {
   EDUCATIONAL_UNIT_THRESHOLD,
   type EducationalUnitChapter
 } from "../../../utils/educationalUnitTitles"
+import CategoryLabel from "@/components/ui/CategoryLabel"
 
 type SurveyAnswer = "confident" | "practice" | "unsure"
 
 type PlannerConfigurationProps = {
   showLearningSurvey: boolean
   categories: string[]
+  priorityCategories?: string[]
   onGenerate: (configuration: PlannerGenerationConfiguration) => Promise<void> | void
   onGenerateAssessment?: (configuration: PlannerGenerationConfiguration) => Promise<void> | void
   generating?: boolean
@@ -63,11 +65,12 @@ const surveyOptions: Array<{
 ]
 
 export default function PlannerConfiguration({
-  showLearningSurvey,
-  categories,
-  onGenerate,
-  onGenerateAssessment,
-  generating = false
+	  showLearningSurvey,
+	  categories,
+	  priorityCategories = [],
+	  onGenerate,
+	  onGenerateAssessment,
+	  generating = false
 }: PlannerConfigurationProps) {
   const { t: translate } = useTranslation()
   const uniqueCategories = useMemo(
@@ -76,42 +79,86 @@ export default function PlannerConfiguration({
   )
   const [surveyAnswers, setSurveyAnswers] = useState<Record<string, SurveyAnswer>>({})
   const [surveyCategoryGroups, setSurveyCategoryGroups] = useState<SurveyCategoryGroup[]>([])
+  const [educationalUnits, setEducationalUnits] = useState<EducationalUnitChapter[]>([])
   const [studyDuration, setStudyDuration] = useState("")
   const [questionPace, setQuestionPace] = useState("90 sec/question")
   const [quizStyle, setQuizStyle] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [onboardingStep, setOnboardingStep] =
-    useState<NewProjectOnboardingStep>("choice")
-  const [selectedOnboardingPath, setSelectedOnboardingPath] =
-    useState<"self_assessment" | "professor_assessment" | null>(null)
+	  const [onboardingStep, setOnboardingStep] =
+	    useState<NewProjectOnboardingStep>("choice")
+	  const [selectedOnboardingPath, setSelectedOnboardingPath] =
+	    useState<"self_assessment" | "professor_assessment" | null>(null)
 
-  const surveyComplete =
+  const remainingCategories = useMemo(() => {
+    const usedCategories = new Set<string>()
+    educationalUnits.forEach(unit => {
+      unit.categories.forEach(category => {
+        usedCategories.add(category)
+      })
+    })
+
+    return uniqueCategories.filter(category => !usedCategories.has(category))
+  }, [educationalUnits, uniqueCategories])
+
+  const diagnosticSurveyComplete =
     !showLearningSurvey
     || selectedOnboardingPath === "professor_assessment"
     || (
       uniqueCategories.length > 0
       && uniqueCategories.every(category => Boolean(surveyAnswers[category]))
     )
-  const preferencesComplete = Boolean(studyDuration && questionPace && quizStyle)
-  const isGenerating = generating || submitting
-  const canGenerate = surveyComplete && preferencesComplete && !isGenerating
-  const canContinueFromSurvey = surveyComplete && !isGenerating
+
+  console.log("===== SURVEY STATE =====")
+  console.log("uniqueCategories", uniqueCategories)
+  console.log("educationalUnits", educationalUnits)
+  console.log("surveyAnswers", surveyAnswers)
+  console.log(
+    "missingCategories",
+    uniqueCategories.filter(c => !surveyAnswers[c])
+  )
+  console.log(
+    "remainingCategories",
+    remainingCategories
+  )
+  console.log("surveyComplete", diagnosticSurveyComplete)
+
+  const surveyComplete = diagnosticSurveyComplete
+		  const preferencesComplete = Boolean(studyDuration && questionPace && quizStyle)
+		  const isGenerating = generating || submitting
+		  const canGenerate = surveyComplete && preferencesComplete && !isGenerating
+	  const canContinueFromSurvey = surveyComplete && !isGenerating
+	  const currentProjectPriorityCategories = priorityCategories.filter(category =>
+	    uniqueCategories.includes(category)
+	  )
 
   const updateSurveyAnswer = (category: string, value: SurveyAnswer) => {
+    console.log("SURVEY updateSurveyAnswer", {
+      category,
+      answer: value
+    })
     setSurveyAnswers(current => ({
       ...current,
       [category]: value
     }))
   }
 
-  const updateSurveyGroup = (categories: string[], value: SurveyAnswer) => {
+  const updateSurveyGroup = (
+    categories: string[],
+    value: SurveyAnswer,
+    groupTitle?: string
+  ) => {
+    console.log("SURVEY updateSurveyGroup", {
+      selectedGroupTitle: groupTitle,
+      categoriesWritten: categories,
+      answer: value
+    })
     setSurveyAnswers(current => ({
       ...current,
       ...Object.fromEntries(categories.map(category => [category, value]))
     }))
   }
 
-  const getGroupAnswer = (categories: string[]) => {
+	  const getGroupAnswer = (categories: string[]) => {
     const answers = categories
       .map(category => surveyAnswers[category])
       .filter(Boolean)
@@ -131,6 +178,13 @@ export default function PlannerConfiguration({
     async function fetchEducationalUnits() {
       if (uniqueCategories.length < EDUCATIONAL_UNIT_THRESHOLD) {
         if (!cancelled) {
+          const fallbackEducationalUnits = [
+            {
+              title: "Categories",
+              categories: uniqueCategories
+            }
+          ]
+          setEducationalUnits(fallbackEducationalUnits)
           setSurveyCategoryGroups([
             {
               key: "categories",
@@ -161,6 +215,7 @@ export default function PlannerConfiguration({
           : []
 
         if (!cancelled) {
+          setEducationalUnits(educationalUnits)
           setSurveyCategoryGroups(
             mapEducationalUnitsToSurveyGroups(
               educationalUnits,
@@ -170,6 +225,13 @@ export default function PlannerConfiguration({
         }
       } catch {
         if (!cancelled) {
+          const fallbackEducationalUnits = [
+            {
+              title: "Categories",
+              categories: uniqueCategories
+            }
+          ]
+          setEducationalUnits(fallbackEducationalUnits)
           setSurveyCategoryGroups([
             {
               key: "categories",
@@ -195,18 +257,21 @@ export default function PlannerConfiguration({
     setSubmitting(true)
 
     try {
-      const configuration = {
+	      const configuration = {
         survey: (
           showLearningSurvey
           && selectedOnboardingPath !== "professor_assessment"
         ) ? surveyAnswers : null,
         study_language: translate("stats.study_language_value"),
-        preferences: {
-          studyDurationMinutes: parseStudyDuration(studyDuration),
-          questionPaceSeconds: parseQuestionPace(questionPace),
-          questionStyle: parseQuizStyle(quizStyle)
-        }
-      }
+	        preferences: {
+	          studyDurationMinutes: parseStudyDuration(studyDuration),
+	          questionPaceSeconds: parseQuestionPace(questionPace),
+	          questionStyle: parseQuizStyle(quizStyle),
+	          priorityCategories: selectedOnboardingPath === "professor_assessment"
+	            ? []
+	            : currentProjectPriorityCategories
+	        }
+	      }
 
       if (selectedOnboardingPath === "professor_assessment" && onGenerateAssessment) {
         await onGenerateAssessment(configuration)
@@ -245,7 +310,12 @@ export default function PlannerConfiguration({
                       </div>
                       <ul style={educationalUnitCategoryList}>
                         {group.items.map(category => (
-                          <li key={category}>{category}</li>
+                          <li key={category}>
+                            <CategoryLabel
+                              category={category}
+                              priorityCategories={priorityCategories}
+                            />
+                          </li>
                         ))}
                       </ul>
 
@@ -268,7 +338,7 @@ export default function PlannerConfiguration({
                                 name={`planner-survey-${group.key}`}
                                 value={option.value}
                                 checked={groupAnswer === option.value}
-                                onChange={() => updateSurveyGroup(group.items, option.value)}
+                                onChange={() => updateSurveyGroup(group.items, option.value, group.title)}
                                 style={radioInput}
                               />
                               {translate(option.labelKey)}
@@ -280,7 +350,12 @@ export default function PlannerConfiguration({
                   ) : (
                     group.items.map(category => (
                       <div key={category} style={categoryRow}>
-                        <div style={categoryName}>{category}</div>
+                        <div style={categoryName}>
+                          <CategoryLabel
+                            category={category}
+                            priorityCategories={priorityCategories}
+                          />
+                        </div>
                         <div style={optionGrid}>
                           {surveyOptions.map(option => (
                             <label
@@ -316,9 +391,9 @@ export default function PlannerConfiguration({
     </>
   )
 
-  const renderPreferences = () => (
-      <section style={card}>
-        <div style={sectionTitle}>{translate("stats.Study Plan Preferences")}</div>
+	  const renderPreferences = () => (
+	      <section style={card}>
+	        <div style={sectionTitle}>{translate("stats.Study Plan Preferences")}</div>
 
         <PreferenceGroup
           label={translate("stats.Study duration")}
@@ -336,15 +411,16 @@ export default function PlannerConfiguration({
           translate={translate}
         />
 
-        <PreferenceGroup
-          label={translate("stats.Quiz Style")}
-          options={quizStyleOptions}
-          value={quizStyle}
-          onChange={setQuizStyle}
-          translate={translate}
-        />
-      </section>
-  )
+	        <PreferenceGroup
+	          label={translate("stats.Quiz Style")}
+	          options={quizStyleOptions}
+	          value={quizStyle}
+	          onChange={setQuizStyle}
+	          translate={translate}
+	        />
+
+	      </section>
+	  )
 
   const learningPathSelected = showLearningSurvey && selectedOnboardingPath !== null
 
@@ -809,7 +885,7 @@ function mapEducationalUnitsToSurveyGroups(
     groups.push({
       key: "remaining-categories",
       title: "Categories",
-      showTitle: false,
+      showTitle: true,
       items: remainingCategories
     })
   }

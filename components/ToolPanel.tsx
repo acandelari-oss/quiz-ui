@@ -3,11 +3,11 @@ import React, { useState } from "react"
 import { useTranslation } from 'react-i18next';
 import { shellHeaderCell } from "./layoutStyles"
 import {
-  getTopicScopeKey,
   logCategoryScope,
   resolveCategoryTopicObjects,
   TopicScopeItem
 } from "../utils/topics"
+import CategoryLabel from "@/components/ui/CategoryLabel"
 
 export default function ToolPanel({
 
@@ -40,11 +40,13 @@ projects,
 
 setProjectName,
 createProject,
+creatingProject = false,
 selectProject,
 projectId,
 files,
 setFiles,
 uploadFiles,
+uploadWorkflowActive = false,
 documents,
 
 topics,
@@ -74,6 +76,7 @@ toolMode,
 questionStyle,
 setQuestionStyle,
 plannerSessionActive = false,
+priorityCategories = [],
 
 
 }: any) {
@@ -89,6 +92,7 @@ plannerSessionActive = false,
     recall: 3,
     quiz: 5
   })
+  const uploadDisabled = Boolean(uploadWorkflowActive)
 
   const categoryGroups = React.useMemo(() => {
     const groups = new Map<string, TopicScopeItem[]>()
@@ -110,7 +114,7 @@ plannerSessionActive = false,
 
   const selectedTopicKeys = new Set(
     (selectedTopics || [])
-      .map(getTopicScopeKey)
+      .flatMap(getTopicScopeComparisonKeys)
       .filter(Boolean)
   )
 
@@ -118,7 +122,7 @@ plannerSessionActive = false,
     categoryTopics: TopicScopeItem[]
   ) => {
     const topicKeys = categoryTopics
-      .map(getTopicScopeKey)
+      .flatMap(getTopicScopeComparisonKeys)
       .filter(Boolean)
 
     return (
@@ -136,7 +140,7 @@ plannerSessionActive = false,
     )
     const categoryTopicKeys = new Set(
       categoryTopics
-        .map(getTopicScopeKey)
+        .flatMap(getTopicScopeComparisonKeys)
         .filter(Boolean)
     )
 
@@ -144,7 +148,7 @@ plannerSessionActive = false,
       setSelectedTopics(
         (selectedTopics || []).filter(
           (topic: string | TopicScopeItem) =>
-            !categoryTopicKeys.has(getTopicScopeKey(topic))
+            !getTopicScopeComparisonKeys(topic).some(key => categoryTopicKeys.has(key))
         )
       )
       console.log("CATEGORY SELECTED:", category)
@@ -155,7 +159,7 @@ plannerSessionActive = false,
 
     const additions = categoryTopics
       .filter(
-        topic => !selectedTopicKeys.has(getTopicScopeKey(topic))
+        topic => !getTopicScopeComparisonKeys(topic).some(key => selectedTopicKeys.has(key))
       )
 
     setSelectedTopics([
@@ -208,7 +212,10 @@ plannerSessionActive = false,
                 style={{ accentColor }}
               />
 
-              {category}
+              <CategoryLabel
+                category={category}
+                priorityCategories={priorityCategories}
+              />
             </label>
           )
         })}
@@ -339,14 +346,16 @@ plannerSessionActive = false,
 
             <button
               onClick={createProject}
-              disabled={!projectName?.trim()}
+              disabled={!projectName?.trim() || creatingProject}
               style={{
                 ...button,
-                opacity: !projectName?.trim() ? 0.5 : 1,
-                cursor: !projectName?.trim() ? "not-allowed" : "pointer"
+                opacity: (!projectName?.trim() || creatingProject) ? 0.5 : 1,
+                cursor: (!projectName?.trim() || creatingProject) ? "not-allowed" : "pointer"
               }}
             >
-              {translate('stats.Create project')}
+              {creatingProject
+                ? translate('stats.Creating project...')
+                : translate('stats.Create project')}
             </button>
           </div>
 
@@ -376,17 +385,21 @@ plannerSessionActive = false,
 
                 <button
                   onClick={uploadFiles}
+                  disabled={uploadDisabled}
                   style={{
                     marginTop: 10,
                     padding: "8px 12px",
-                    background: "#2563eb",
+                    background: uploadDisabled ? "#1f2937" : "#2563eb",
                     color: "white",
                     border: "none",
                     borderRadius: 6,
-                    cursor: "pointer"
+                    cursor: uploadDisabled ? "not-allowed" : "pointer",
+                    opacity: uploadDisabled ? 0.65 : 1
                   }}
                 >
-                  {translate('stats.Upload documents')}
+                  {uploadDisabled
+                    ? translate('stats.Upload in progress')
+                    : translate('stats.Upload documents')}
                 </button>
 
                 {uploadStatus && (
@@ -464,9 +477,16 @@ plannerSessionActive = false,
 
               <button
                 onClick={uploadFiles}
-                style={button}
+                disabled={uploadDisabled}
+                style={{
+                  ...button,
+                  opacity: uploadDisabled ? 0.5 : 1,
+                  cursor: uploadDisabled ? "not-allowed" : "pointer"
+                }}
               >
-                Upload files
+                {uploadDisabled
+                  ? translate('stats.Upload in progress')
+                  : "Upload files"}
               </button>
 
               {uploadStatus && (
@@ -936,6 +956,27 @@ plannerSessionActive = false,
 
     </div>
   )
+}
+
+function getTopicScopeComparisonKeys(
+  topic: string | TopicScopeItem
+) {
+  if (typeof topic === "string") {
+    return [`name:${topic}`]
+  }
+
+  const keys: string[] = []
+
+  if (topic?.id) {
+    keys.push(`id:${topic.id}`)
+  }
+
+  const name = topic?.topic || topic?.title
+  if (name) {
+    keys.push(`name:${name}`)
+  }
+
+  return keys
 }
 
 

@@ -29,9 +29,10 @@ export default function PlannerView({
   plannerRuntime,
   openPlannerDailySession,
   launchPlannerActivity,
-  returnToPlannerDashboard,
-  resetPlannerRuntimeForNewStudyPlan
-}: {
+	  returnToPlannerDashboard,
+	  resetPlannerRuntimeForNewStudyPlan,
+	  priorityCategories = []
+	}: {
   projectId: string
   topics: Array<{
     category?: string | null
@@ -53,9 +54,10 @@ export default function PlannerView({
     dailyPlan: PlannerDailyPlan,
     activityIndex: number
   ) => Promise<void>
-  returnToPlannerDashboard: () => void
-  resetPlannerRuntimeForNewStudyPlan?: () => void
-}) {
+	  returnToPlannerDashboard: () => void
+	  resetPlannerRuntimeForNewStudyPlan?: () => void
+	  priorityCategories?: string[]
+	}) {
   const { t: translate, i18n } = useTranslation()
   const {
     plannerState,
@@ -272,12 +274,13 @@ export default function PlannerView({
     return (
       <>
         {generationError && <PlannerError message={generationError} />}
-        <PlannerConfiguration
-          showLearningSurvey
-          categories={projectCategories}
-          onGenerate={handleGenerateWeeklyPlan}
-          onGenerateAssessment={handleGenerateProfessorAssessment}
-          generating={generatingStudyPlan}
+	        <PlannerConfiguration
+	          showLearningSurvey
+	          categories={projectCategories}
+	          priorityCategories={priorityCategories}
+	          onGenerate={handleGenerateWeeklyPlan}
+	          onGenerateAssessment={handleGenerateProfessorAssessment}
+	          generating={generatingStudyPlan}
         />
       </>
     )
@@ -287,12 +290,13 @@ export default function PlannerView({
     return (
       <>
         {generationError && <PlannerError message={generationError} />}
-        <PlannerConfiguration
-          showLearningSurvey={false}
-          categories={projectCategories}
-          onGenerate={handleGenerateWeeklyPlan}
-          generating={generatingStudyPlan}
-        />
+	        <PlannerConfiguration
+	          showLearningSurvey={false}
+	          categories={projectCategories}
+	          priorityCategories={priorityCategories}
+	          onGenerate={handleGenerateWeeklyPlan}
+	          generating={generatingStudyPlan}
+	        />
       </>
     )
   }
@@ -319,15 +323,24 @@ export default function PlannerView({
           <div style={preferenceGrid}>
             <Preference
               label={translate("stats.Study duration")}
-              value={plannerData.preferences.studyDuration}
+              value={localizedPlannerPreferenceValue(
+                plannerData.preferences.studyDuration,
+                translate
+              )}
             />
             <Preference
               label={translate("stats.Visible modules")}
-              value={plannerData.preferences.visibleModules}
+              value={localizedPlannerPreferenceValue(
+                plannerData.preferences.visibleModules,
+                translate
+              )}
             />
             <Preference
               label={translate("stats.Preferred quiz style")}
-              value={plannerData.preferences.preferredExamStyle}
+              value={localizedPlannerPreferenceValue(
+                plannerData.preferences.preferredExamStyle,
+                translate
+              )}
             />
           </div>
         </section>
@@ -399,6 +412,29 @@ export default function PlannerView({
       onCreateNewStudyPlan={handleGenerateNextStudyPlan}
     />
   )
+}
+
+function localizedPlannerPreferenceValue(
+  value: string,
+  translate: (key: string, options?: Record<string, unknown>) => string
+) {
+  const minutes = value.match(/^(\d+) minutes$/)
+  if (minutes) {
+    return translate("stats.duration minutes count", {
+      count: minutes[1],
+      defaultValue: value
+    })
+  }
+
+  const modules = value.match(/^Up to (\d+) modules$/)
+  if (modules) {
+    return translate("stats.up to modules count", {
+      count: modules[1],
+      defaultValue: value
+    })
+  }
+
+  return translate(`stats.${value}`, { defaultValue: value })
 }
 
 function applyRuntimeSessionResults(

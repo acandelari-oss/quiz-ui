@@ -10,12 +10,32 @@ import {
   EDUCATIONAL_UNIT_THRESHOLD,
   type EducationalUnitChapter
 } from "../../utils/educationalUnitTitles";
+import CategoryLabel from "@/components/ui/CategoryLabel";
 
 type TopicNavigationGroup = {
   key: string
   title: string
   showTitle: boolean
   items: [string, any][]
+}
+
+function normalizePriorityCategoryResponse(
+  responseBody: any,
+  fallback: string[]
+): string[] {
+  const raw = Array.isArray(responseBody?.priorityCategories)
+    ? responseBody.priorityCategories
+    : Array.isArray(responseBody?.study_priority_categories)
+      ? responseBody.study_priority_categories
+      : fallback
+
+  return Array.from(
+    new Set(
+      raw
+        .map((category: any) => String(category || "").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 3)
 }
 
 export default function TopicsView({
@@ -28,12 +48,16 @@ export default function TopicsView({
   previousFlashcards,
   setSelectedTopic,
   setActiveView,
-  summaryStats,
-  resultsData,
-  projectId
-}: any) {
-  const { t: translate, i18n } = useTranslation();
-  const topicCounts: { [key: string]: number } = {};
+	  summaryStats,
+	  resultsData,
+	  projectId,
+	  priorityCategories = [],
+	  setPriorityCategories = () => {},
+	  onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) => {}
+	}: any) {
+	  const { t: translate, i18n } = useTranslation();
+	  const [priorityMessage, setPriorityMessage] = React.useState("")
+	  const topicCounts: { [key: string]: number } = {};
   function normalizeTopic(t) {
   return (t || "")
     .toLowerCase()
@@ -104,19 +128,129 @@ export default function TopicsView({
   console.log("🔥 RESULTS DATA:", resultsData)
   console.log("🔑 RESULTS KEYS:", Object.keys(resultsData || {}))
 
-  const launchCategoryFeature = (
+  const visibleCategorySet = React.useMemo(
+    () => new Set(
+      (topics || []).map((topic: any) => String(topic.category || "General"))
+    ),
+    [topics]
+  )
+
+	  const launchCategoryFeature = (
     category: string,
     destination: string
   ) => {
     const resolvedTopics = resolveCategoryTopicObjects(
       category,
       topics || []
-    )
+	  )
 
     logCategoryScope(category, resolvedTopics)
     setSelectedTopics(resolvedTopics)
     setSelectedTopic(null)
     setActiveView(destination)
+  }
+
+  const togglePriorityCategory = (category: string) => {
+    setPriorityMessage("")
+    setPriorityCategories((current: string[]) => {
+      const normalizedCurrent = Array.from(new Set(current || []))
+      const selected = normalizedCurrent.includes(category)
+
+      if (selected) {
+        const nextPriorityCategories = normalizedCurrent.filter(item => item !== category)
+        console.log("⭐ Study priority toggled", {
+          projectId,
+          category,
+          selected: false,
+          nextPriorityCategories
+        })
+        persistPriorityCategories(nextPriorityCategories)
+        return nextPriorityCategories
+      }
+
+      const selectedVisibleCategories = normalizedCurrent.filter(item =>
+        visibleCategorySet.has(item)
+      )
+
+      if (selectedVisibleCategories.length >= 3) {
+        setPriorityMessage(translate("stats.You can select up to 3 study priorities."))
+        return normalizedCurrent
+      }
+
+      const nextPriorityCategories = [...normalizedCurrent, category]
+      console.log("⭐ Study priority toggled", {
+        projectId,
+        category,
+        selected: true,
+        nextPriorityCategories
+      })
+      persistPriorityCategories(nextPriorityCategories)
+      return nextPriorityCategories
+    })
+  }
+
+  const persistPriorityCategories = async (nextPriorityCategories: string[]) => {
+    if (!projectId) {
+      console.log("⭐ Study priorities not persisted because projectId is missing", {
+        nextPriorityCategories
+      })
+      return
+    }
+
+    const normalizedPriorityCategories = Array.from(
+      new Set(
+        nextPriorityCategories
+          .map(category => String(category || "").trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 3)
+
+    console.log("⭐ Persisting study priorities", {
+      projectId,
+      priorityCategories: normalizedPriorityCategories
+    })
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+
+      if (!token) {
+        console.warn("⭐ Study priorities not persisted because auth token is missing")
+        return
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/study_priorities`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            priority_categories: normalizedPriorityCategories
+          })
+        }
+      )
+
+      const responseBody = await response.json().catch(() => null)
+
+      console.log("⭐ Study priorities save response", {
+        projectId,
+        httpStatus: response.status,
+        ok: response.ok,
+        responseBody
+      })
+
+      if (response.ok) {
+        onPriorityCategoriesSaved(
+          projectId,
+          normalizePriorityCategoryResponse(responseBody, normalizedPriorityCategories)
+        )
+      }
+    } catch (error) {
+      console.error("⭐ Study priorities save failed", error)
+    }
   }
 
   const categorizedTopicEntries = React.useMemo(
@@ -223,14 +357,20 @@ export default function TopicsView({
         </span>
       </h3>
 
-      {topicsOpen && (
-        <>
-          {loadingTopics ? (
-            <p style={{ color: "#9ca3af" }}>{translate('stats.Loading topics...')}</p>
-          ) : topics.length === 0 ? (
-            <p style={{ color: "#9ca3af" }}>{translate('stats.No topics detected yet')}</p>
-          ) : (
-            <div className="topics-mobile-category-list" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+	      {topicsOpen && (
+	        <>
+	          {loadingTopics ? (
+	            <p style={{ color: "#9ca3af" }}>{translate('stats.Loading topics...')}</p>
+	          ) : topics.length === 0 ? (
+	            <p style={{ color: "#9ca3af" }}>{translate('stats.No topics detected yet')}</p>
+	          ) : (
+	            <>
+	            {priorityMessage && (
+	              <div style={priorityWarning}>
+	                {priorityMessage}
+	              </div>
+	            )}
+	            <div className="topics-mobile-category-list" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Categorization Logic */}
               {topicNavigationGroups.map(group => (
                 <div
@@ -245,9 +385,10 @@ export default function TopicsView({
                   )}
 
                   <div className="topics-mobile-category-stack" style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
-                  {group.items.map(([category, categoryTopics]: [string, any]) => {
+	                  {group.items.map(([category, categoryTopics]: [string, any]) => {
+	                const isPriorityCategory = priorityCategories.includes(category)
 
-                const totalQuizQuestions = categoryTopics.reduce(
+	                const totalQuizQuestions = categoryTopics.reduce(
                   (sum: number, topic: any) => {
                     const stats = resultsData?.topic_mastery?.find(
                       (q: any) =>
@@ -373,8 +514,8 @@ export default function TopicsView({
                     boxShadow: "0 0 0 1px rgba(255,255,255,0.03)"
                   }}>
                 
-                 <div
-                  className="topic-mobile-category-header"
+	                 <div
+	                  className="topic-mobile-category-header"
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -385,18 +526,34 @@ export default function TopicsView({
                   }}
                 >
 
-                    <h4
-                      className="topic-mobile-category-title"
-                      style={{
-                        color: "#60a5fa",
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        margin: 0
-                      }}
-                    >
-                      {category}
-                    </h4>
+	                    <h4
+	                      className="topic-mobile-category-title"
+	                      style={{
+	                        color: "#60a5fa",
+	                        fontSize: "18px",
+	                        fontWeight: 700,
+	                        textTransform: "uppercase",
+	                        margin: 0,
+	                        display: "flex",
+	                        alignItems: "center",
+	                        gap: 8
+	                      }}
+	                    >
+	                      <CategoryLabel
+	                        category={category}
+	                        isPriority={isPriorityCategory}
+	                        onTogglePriority={() => togglePriorityCategory(category)}
+	                        toggleLabel={translate(
+	                          isPriorityCategory
+	                            ? "stats.Remove Study Priority"
+	                            : "stats.Mark as Study Priority"
+	                        )}
+	                        starStyle={{
+	                          ...priorityStarButton,
+	                          ...(isPriorityCategory ? selectedPriorityStarButton : {})
+	                        }}
+	                      />
+	                    </h4>
                     
                     <div
                       style={{
@@ -412,8 +569,9 @@ export default function TopicsView({
                       
                     </div>
 
-                    {/* 🔥 BOTTONI MACRO */}
-                    <div className="topic-desktop-action-row" style={{ display: "flex", gap: 10 }}>
+	                    <div style={categoryHeaderActions}>
+	                    {/* 🔥 BOTTONI MACRO */}
+	                    <div className="topic-desktop-action-row" style={{ display: "flex", gap: 10 }}>
                       
                       <button
                         onClick={() => {
@@ -478,9 +636,10 @@ export default function TopicsView({
                         {translate('stats.Study')}
                       </button>
 
-                    </div>
+	                    </div>
+	                    </div>
 
-                  </div>
+	                  </div>
                   <div
                     className="topic-mobile-category-stats"
                     style={{
@@ -827,9 +986,10 @@ export default function TopicsView({
                   </div>
                 </div>
               ))}
-            </div>
-          )}
-        </>
+	            </div>
+	            </>
+	          )}
+	        </>
       )}
 
       {/* Difficulty Footer */}
@@ -889,12 +1049,21 @@ export default function TopicsView({
             padding: 10px 12px 12px !important;
           }
 
-          .topic-mobile-category-header {
-            display: block !important;
-            padding: 0 0 8px !important;
-            border-bottom: none !important;
-            background: transparent !important;
-          }
+	          .topic-mobile-category-header {
+	            display: flex !important;
+	            align-items: flex-start !important;
+	            justify-content: space-between !important;
+	            gap: 8px !important;
+	            padding: 0 0 8px !important;
+	            border-bottom: none !important;
+	            background: transparent !important;
+	          }
+
+	          .topic-priority-star {
+	            min-width: 34px !important;
+	            min-height: 34px !important;
+	            font-size: 20px !important;
+	          }
 
           .topic-mobile-category-title {
             color: #2fb8ff !important;
@@ -1076,6 +1245,49 @@ const educationalUnitTitle = {
   fontWeight: 900,
   lineHeight: 1.2,
   margin: "2px 0 4px"
+};
+
+const categoryHeaderActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  justifyContent: "flex-end",
+  marginLeft: "auto"
+};
+
+const priorityStarButton = {
+  width: 34,
+  height: 34,
+  minWidth: 34,
+  borderRadius: 999,
+  border: "1px solid #374151",
+  background: "#0b111d",
+  color: "#64748b",
+  cursor: "pointer",
+  fontSize: 19,
+  lineHeight: "1",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  transition: "0.18s ease"
+};
+
+const selectedPriorityStarButton = {
+  border: "1px solid #fbbf24",
+  background: "rgba(251, 191, 36, 0.14)",
+  color: "#fbbf24",
+  boxShadow: "0 0 0 1px rgba(251, 191, 36, 0.16)"
+};
+
+const priorityWarning = {
+  color: "#fbbf24",
+  background: "rgba(251, 191, 36, 0.08)",
+  border: "1px solid rgba(251, 191, 36, 0.22)",
+  borderRadius: 10,
+  padding: "10px 12px",
+  fontSize: 13,
+  fontWeight: 700,
+  marginBottom: 12
 };
 
 const macroBtn = (color: string) => ({

@@ -60,6 +60,7 @@ type PlannerRuntimeState = {
 }
 
 const directWorkspaceViews = new Set([
+  "project",
   "results_summary",
   "previous_quizzes",
   "topics",
@@ -97,10 +98,71 @@ function resolveStudentFirstName(user: any): string {
   return rawName.trim().split(/\s+/)[0] || ""
 }
 
+function createUploadSessionId(): string {
+  return Math.random().toString(16).slice(2, 8).toUpperCase()
+}
+
+function uploadFlightLog(sessionId: string | null | undefined, message: string, details?: any) {
+  const prefix = `[${sessionId || "NOSESSION"}]`
+  if (details !== undefined) {
+    console.log(`${prefix} ${message}`, details)
+    return
+  }
+  console.log(`${prefix} ${message}`)
+}
+
+function uploadFlightError(sessionId: string | null | undefined, message: string, error: any) {
+  const prefix = `[${sessionId || "NOSESSION"}]`
+  console.error(`${prefix} ${message}`, {
+    type: error?.name || error?.constructor?.name || typeof error,
+    message: error?.message || String(error),
+    stack: error?.stack
+  })
+}
+
+function uploadTraceStack() {
+  return new Error().stack
+    ?.split("\n")
+    .slice(2, 8)
+    .map(line => line.trim())
+}
+
+function normalizePriorityCategories(value: any): string[] {
+  const parsedValue = typeof value === "string"
+    ? (() => {
+        try {
+          return JSON.parse(value)
+        } catch {
+          return []
+        }
+      })()
+    : value
+  const raw = Array.isArray(parsedValue)
+    ? parsedValue
+    : typeof parsedValue?.priorityCategories === "string"
+      ? normalizePriorityCategories(parsedValue.priorityCategories)
+      : typeof parsedValue?.study_priority_categories === "string"
+        ? normalizePriorityCategories(parsedValue.study_priority_categories)
+        : Array.isArray(parsedValue?.priorityCategories)
+          ? parsedValue.priorityCategories
+          : Array.isArray(parsedValue?.study_priority_categories)
+            ? parsedValue.study_priority_categories
+            : []
+
+  return Array.from(
+    new Set(
+      raw
+        .map((category: any) => String(category || "").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 3)
+}
+
 export default function Home() {
 const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
 const pollingRunRef = useRef(0)
+const uploadSessionRef = useRef<string | null>(null)
 const router = useRouter()
 
 
@@ -123,6 +185,11 @@ useEffect(() => {
 
     if (!session) {
       console.log("❌ No session → redirect login")
+      uploadLifecycleTrace("router.push called", {
+        method: "router.push",
+        nextValue: "/login",
+        reason: "auth session missing"
+      })
       setStudentFirstName("")
       router.push("/login")
       return
@@ -154,6 +221,19 @@ useEffect(() => {
 
     console.log("📦 PROJECTS:", list)
 
+    console.log(
+      "⭐ Persisted study priorities loaded",
+      list.map((project: any) => ({
+        projectId: project.id,
+        priorityCategories: normalizePriorityCategories(project)
+      }))
+    )
+
+    uploadLifecycleTrace("setProjects called", {
+      previousValue: projects.map((project: any) => project.id),
+      nextValue: list.map((project: any) => project.id),
+      reason: "auth session project load"
+    })
     setProjects(list)
   })
 
@@ -190,6 +270,11 @@ const [score,setScore] = useState<number | null>(null)
 const [status,setStatus]=useState("")
 const [uploadStatus,setUploadStatus]=useState("")
 const [uploading,setUploading]=useState(false)
+const [uploadWorkflowActive,setUploadWorkflowActive]=useState(false)
+const uploadWorkflowActiveRef = useRef(false)
+const [uploadFlightSessionId,setUploadFlightSessionId]=useState<string | null>(null)
+const [creatingProject,setCreatingProject]=useState(false)
+const creatingProjectRef = useRef(false)
 
 const [numQuestions,setNumQuestions]=useState(10)
 const [difficulty,setDifficulty]=useState("medium")
@@ -207,9 +292,10 @@ const [finished,setFinished]=useState(false)
 const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
 const [activeView,setActiveView]=useState("project")
 
-const [topicsOpen,setTopicsOpen]=useState(true)
-const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
-const [selectedTopics, setSelectedTopics] = useState<any[]>([])
+	const [topicsOpen,setTopicsOpen]=useState(true)
+	const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+	const [selectedTopics, setSelectedTopics] = useState<any[]>([])
+	const [priorityCategories, setPriorityCategories] = useState<string[]>([])
 
 const [availableFlashcards,setAvailableFlashcards]=useState(0)
 const [studyCount,setStudyCount]=useState(10)
@@ -225,7 +311,7 @@ const [loaderStep, setLoaderStep] = useState(0);
 const [loaderType, setLoaderType] = useState<"quiz" | "flashcards">("quiz");
 const [resultsData, setResultsData] = useState(null);
 const [toolMode, setToolMode] = useState("")
-const [toolPanelCollapsed, setToolPanelCollapsed] = useState(false)
+const [toolPanelCollapsed, setToolPanelCollapsed] = useState(true)
 const [isMobileLayout, setIsMobileLayout] = useState(false)
 const [studyConfig, setStudyConfig] = useState({
   flashcards: 8,
@@ -287,9 +373,27 @@ const toolPanelAvailableForView =
   toolPanelUseful
   && !directWorkspaceViews.has(activeView)
 
-const mobileNavigationSelected = isMobileLayout && activeView !== "project"
-const mobileHome = isMobileLayout && activeView === "project"
-const mobileConfiguration = mobileNavigationSelected && toolPanelAvailableForView && !workspacePrimary
+const uploadWorkspaceActive =
+  uploadWorkflowActive
+  || uploading
+  || status === "Processing topics..."
+  || status === "Project upload completed"
+  || (
+    projectStudyMode === "building"
+    && !projectReadyDismissed
+    && (
+      projectReadyVisible
+      || Boolean(projectId && ((documents?.length || 0) > 0 || (topics?.length || 0) > 0))
+    )
+  )
+
+const mobileNavigationSelected = isMobileLayout
+const mobileHome = false
+const mobileConfiguration =
+  mobileNavigationSelected
+  && toolPanelAvailableForView
+  && !workspacePrimary
+  && !uploadWorkspaceActive
 const mobileExecution = mobileNavigationSelected && !mobileConfiguration
 const mobileSidebarWidth = mobileNavigationSelected ? 56 : 260
 const plannerGuidedSessionActive =
@@ -304,35 +408,206 @@ const plannerActivityProgress = plannerGuidedSessionActive
   ? currentPlannerActivityProgress()
   : []
 
+function uploadStateSnapshot() {
+  return {
+    timestamp: new Date().toISOString(),
+    component: "pages/index.tsx",
+    currentProject: {
+      projectId,
+      projectName,
+      projectStudyMode,
+      projectReadyVisible,
+      projectReadyDismissed
+    },
+    workspaceMode: {
+      activeView,
+      mobileHome,
+      mobileConfiguration,
+      mobileExecution,
+      workspacePrimary,
+      toolPanelAvailableForView,
+      toolPanelCollapsed
+    },
+    upload: {
+      uploading,
+      uploadWorkflowActive,
+      uploadWorkflowActiveRef: uploadWorkflowActiveRef.current,
+      status,
+      uploadStatus,
+      uploadLogPresent: Boolean(uploadLog),
+      filesSelected: files?.length || 0
+    },
+    processing: {
+      loadingTopics,
+      documents: documents?.length || 0,
+      topics: topics?.length || 0
+    },
+    planner: {
+      mode: plannerRuntime.mode,
+      plannerWeekId: plannerRuntime.plannerWeekId,
+      hasDailyPlan: Boolean(plannerRuntime.dailyPlan)
+    },
+    loading: {
+      generatingQuiz,
+      generatingFlashcards,
+      loadingFlashcards,
+      isGenerating
+    }
+  }
+}
+
+function uploadLifecycleTrace(reason: string, details?: Record<string, unknown>) {
+  uploadFlightLog(uploadSessionRef.current, `UPLOAD STATE TRACE — ${reason}`, {
+    ...uploadStateSnapshot(),
+    details,
+    stack: uploadTraceStack()
+  })
+}
+
+function traceSetterCall(
+  setterName: string,
+  previousValue: unknown,
+  nextValue: unknown,
+  reason: string
+) {
+  uploadLifecycleTrace(`${setterName} called`, {
+    setterName,
+    previousValue,
+    nextValue,
+    reason
+  })
+}
+
+function useUploadStateTransitionTrace<T>(
+  name: string,
+  value: T
+) {
+  const previousValueRef = useRef<T>(value)
+
+  useEffect(() => {
+    if (Object.is(previousValueRef.current, value)) {
+      return
+    }
+
+    uploadFlightLog(uploadSessionRef.current, `UPLOAD STATE TRANSITION — ${name}`, {
+      timestamp: new Date().toISOString(),
+      component: "pages/index.tsx",
+      previousValue: previousValueRef.current,
+      newValue: value,
+      snapshot: uploadStateSnapshot(),
+      stack: uploadTraceStack()
+    })
+
+    previousValueRef.current = value
+  }, [name, value])
+}
+
+const workspaceModeTraceValue = JSON.stringify({
+  activeView,
+  mobileHome,
+  mobileConfiguration,
+  mobileExecution,
+  workspacePrimary,
+  toolPanelAvailableForView,
+  toolPanelCollapsed
+})
+const plannerTraceValue = JSON.stringify({
+  mode: plannerRuntime.mode,
+  plannerWeekId: plannerRuntime.plannerWeekId,
+  hasDailyPlan: Boolean(plannerRuntime.dailyPlan)
+})
+const processingTraceValue = JSON.stringify({
+  loadingTopics,
+  documentCount: documents?.length || 0,
+  topicCount: topics?.length || 0
+})
+
+useUploadStateTransitionTrace("currentProject.projectId", projectId)
+useUploadStateTransitionTrace("currentProject.projectName", projectName)
+useUploadStateTransitionTrace("currentProject.studyMode", projectStudyMode)
+useUploadStateTransitionTrace("currentProject.readyVisible", projectReadyVisible)
+useUploadStateTransitionTrace("currentProject.readyDismissed", projectReadyDismissed)
+useUploadStateTransitionTrace("currentView", activeView)
+useUploadStateTransitionTrace("workspaceMode", workspaceModeTraceValue)
+useUploadStateTransitionTrace("upload.uploading", uploading)
+useUploadStateTransitionTrace("upload.workflowActive", uploadWorkflowActive)
+useUploadStateTransitionTrace("upload.status", status)
+useUploadStateTransitionTrace("upload.uploadStatus", uploadStatus)
+useUploadStateTransitionTrace("upload.filesSelected", files?.length || 0)
+useUploadStateTransitionTrace("processing", processingTraceValue)
+useUploadStateTransitionTrace("planner.state", plannerTraceValue)
+
 useEffect(() => {
   if (mobileConfiguration) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      false,
+      "mobileConfiguration true"
+    )
     setToolPanelCollapsed(false)
     return
   }
 
   if (mobileNavigationSelected) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      true,
+      "mobileNavigationSelected true"
+    )
     setToolPanelCollapsed(true)
     return
   }
 
   if (isMobileLayout && !toolPanelAvailableForView) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      true,
+      "mobile layout without tool panel"
+    )
     setToolPanelCollapsed(true)
     return
   }
 
   if (workspacePrimary) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      true,
+      "workspacePrimary true"
+    )
     setToolPanelCollapsed(true)
     return
   }
 
   if (toolPanelAvailableForView) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      false,
+      "toolPanelAvailableForView true"
+    )
     setToolPanelCollapsed(false)
   }
-}, [isMobileLayout, mobileConfiguration, mobileNavigationSelected, workspacePrimary, toolPanelAvailableForView])
+}, [
+  isMobileLayout,
+  mobileConfiguration,
+  mobileNavigationSelected,
+  workspacePrimary,
+  toolPanelAvailableForView,
+  toolPanelCollapsed
+])
 const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
 const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
 
 function handleSidebarNavigation(nextView: string) {
+  uploadLifecycleTrace("handleSidebarNavigation called", {
+    previousValue: activeView,
+    nextValue: nextView,
+    reason: "sidebar navigation"
+  })
   const opensConfigurationPanel =
     configurationDrivenViews.has(nextView)
     || nextView === "quiz"
@@ -365,6 +640,10 @@ function handleSidebarNavigation(nextView: string) {
   }
 
   if (nextView === "create_project") {
+    uploadLifecycleTrace("create_project navigation resetState", {
+      reason: "Create Project selected from sidebar",
+      clears: ["createProjectName", "files", "uploadStatus", "uploadLog", "status"]
+    })
     setCreateProjectName("")
     setFiles(null)
     setUploadStatus("")
@@ -396,19 +675,55 @@ function handleSidebarNavigation(nextView: string) {
   }
 
   setToolPanelCollapsed(!opensConfigurationPanel)
+  traceSetterCall(
+    "setActiveView",
+    activeView,
+    nextView,
+    "handleSidebarNavigation final transition"
+  )
   setActiveView(nextView)
 }
 
 function openProjectUploadWorkspace() {
+  uploadLifecycleTrace("openProjectUploadWorkspace called", {
+    previousValue: activeView,
+    nextValue: "load_project",
+    reason: "Project Ready continue-building/upload another file"
+  })
   setStatus("")
   setUploadStatus("")
   setUploadLog("")
+  traceSetterCall(
+    "setActiveView",
+    activeView,
+    "load_project",
+    "openProjectUploadWorkspace"
+  )
   setActiveView("load_project")
   setToolPanelCollapsed(false)
 }
 
 function openLearningFeature(view: string) {
   handleSidebarNavigation(view)
+}
+
+function updateProjectPriorityCategories(projectId: string, nextPriorityCategories: string[]) {
+  const normalizedPriorityCategories = normalizePriorityCategories(nextPriorityCategories)
+  console.log("⭐ Updating local project study priorities", {
+    projectId,
+    priorityCategories: normalizedPriorityCategories
+  })
+  setProjects(currentProjects =>
+    currentProjects.map(project =>
+      project.id === projectId
+        ? {
+            ...project,
+            study_priority_categories: normalizedPriorityCategories,
+            priorityCategories: normalizedPriorityCategories
+          }
+        : project
+    )
+  )
 }
 
 async function beginStudy() {
@@ -433,6 +748,12 @@ async function beginStudy() {
   const data = await res.json()
   const nextStudyMode = data.study_mode || "learning"
 
+  traceSetterCall(
+    "setProjectStudyMode",
+    projectStudyMode,
+    nextStudyMode,
+    "beginStudy response"
+  )
   setProjectStudyMode(nextStudyMode)
   setProjects(currentProjects =>
     currentProjects.map(project =>
@@ -447,6 +768,12 @@ async function beginStudy() {
   setUploadStatus("")
   setUploadLog("")
   setToolPanelCollapsed(true)
+  traceSetterCall(
+    "setActiveView",
+    activeView,
+    "learning_home",
+    "beginStudy completed"
+  )
   setActiveView("learning_home")
 }
 
@@ -485,7 +812,23 @@ useEffect(() => {
 }, [uploadLog])
 
 useEffect(() => {
+  uploadFlightLog(uploadSessionRef.current, "Status changed", {
+    status
+  })
+}, [status])
+
+useEffect(() => {
+  uploadFlightLog(uploadSessionRef.current, "Uploading state changed", {
+    uploading
+  })
+}, [uploading])
+
+useEffect(() => {
   if(activeView !== "project"){
+    uploadFlightLog(uploadSessionRef.current, "Active view changed; clearing transient status", {
+      activeView,
+      previousStatus: status
+    })
     setStatus("")
   }
 }, [activeView])
@@ -631,8 +974,22 @@ const res=await fetch(
 if(!res.ok) return
 
 const data=await res.json()
+const list = Array.isArray(data)?data:data.projects||[]
 
-setProjects(Array.isArray(data)?data:data.projects||[])
+console.log(
+  "⭐ Persisted study priorities loaded",
+  list.map((project: any) => ({
+    projectId: project.id,
+    priorityCategories: normalizePriorityCategories(project)
+  }))
+)
+
+uploadLifecycleTrace("setProjects called", {
+  previousValue: projects.map((project: any) => project.id),
+  nextValue: list.map((project: any) => project.id),
+  reason: "loadProjects()"
+})
+setProjects(list)
 
 }
 
@@ -662,14 +1019,21 @@ async function loadResults(projectId: string) {
 
 async function createProject(){
 
+if(creatingProjectRef.current) return
+
 const nameToCreate = createProjectName.trim()
 
 if(!nameToCreate) return
+
+creatingProjectRef.current = true
+setCreatingProject(true)
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
 if(!token) {
 setStatus("Please log in again before creating a project")
+creatingProjectRef.current = false
+setCreatingProject(false)
 return
 }
 
@@ -696,14 +1060,44 @@ throw new Error(errorText || "Project creation failed")
 
 const data = await res.json()
 
+uploadLifecycleTrace("createProject response received", {
+  projectId: data.project_id,
+  projectName: data.name,
+  studyMode: data.study_mode || "building"
+})
+uploadLifecycleTrace("setProjects called", {
+  previousValue: projects.map((project: any) => project.id),
+  nextValue: [...projects.map((project: any) => project.id), data.project_id],
+  reason: "createProject success"
+})
 setProjects([...projects,{
 id:data.project_id,
 name:data.name,
-study_mode:data.study_mode || "building"
+study_mode:data.study_mode || "building",
+study_priority_categories: normalizePriorityCategories(data),
+priorityCategories: normalizePriorityCategories(data)
 }])
 
+traceSetterCall(
+  "setProjectId",
+  projectId,
+  data.project_id,
+  "createProject success"
+)
 setProjectId(data.project_id)
+traceSetterCall(
+  "setProjectName",
+  projectName,
+  data.name,
+  "createProject success"
+)
 setProjectName(data.name)
+traceSetterCall(
+  "setProjectStudyMode",
+  projectStudyMode,
+  data.study_mode || "building",
+  "createProject success"
+)
 setProjectStudyMode(data.study_mode || "building")
 setProjectReadyVisible(false)
 setProjectReadyDismissed(false)
@@ -719,6 +1113,9 @@ setTopics([])
 } catch (err) {
 console.error("CREATE PROJECT ERROR:", err)
 setStatus("Project creation failed")
+} finally {
+creatingProjectRef.current = false
+setCreatingProject(false)
 }
 
 }
@@ -747,8 +1144,15 @@ return
 setProjects(projects.filter(p => p.id !== id))
 
 if(projectId === id){
+uploadLifecycleTrace("deleteProject clearing active project", {
+  projectId,
+  reason: "deleted project was active"
+})
+traceSetterCall("setProjectId", projectId, "", "deleteProject active project removed")
 setProjectId("")
+traceSetterCall("setProjectName", projectName, "", "deleteProject active project removed")
 setProjectName("")
+traceSetterCall("setProjectStudyMode", projectStudyMode, "building", "deleteProject active project removed")
 setProjectStudyMode("building")
 setDocuments([])
 setTopics([])
@@ -782,21 +1186,86 @@ setDocuments(data.documents||[])
 
 }
 async function uploadFiles(){
+  uploadLifecycleTrace("uploadFiles invoked", {
+    projectId,
+    activeView,
+    fileCount: files?.length || 0,
+    uploadWorkflowActive: uploadWorkflowActiveRef.current
+  })
   console.log("UPLOAD CLICK");
   console.log("projectId:", projectId);
   console.log("files:", files);
 
-  if(!projectId) return
-  if(!files || files.length === 0) return
+  if(uploadWorkflowActiveRef.current) {
+    uploadFlightLog(uploadSessionRef.current, "Upload ignored because workflow already active", {
+      projectId,
+      uploading,
+      uploadWorkflowActive: uploadWorkflowActiveRef.current
+    })
+    return
+  }
 
+  const uploadSessionId = createUploadSessionId()
+  uploadSessionRef.current = uploadSessionId
+  setUploadFlightSessionId(uploadSessionId)
+  uploadFlightLog(uploadSessionId, `UPLOAD SESSION #${uploadSessionId}`)
+  uploadFlightLog(uploadSessionId, "Upload button clicked")
+  uploadFlightLog(uploadSessionId, "Project ID", projectId)
+  uploadFlightLog(uploadSessionId, "Files selected", {
+    hasFiles: Boolean(files),
+    fileCount: files?.length || 0,
+    filenames: files ? Array.from(files).map((file: any) => file.name) : []
+  })
+
+  if(!projectId) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because project ID is missing")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+  if(!files || files.length === 0) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because no files were selected")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+
+  uploadWorkflowActiveRef.current = true
+  uploadFlightLog(uploadSessionId, "Upload workflow lock acquired")
+  traceSetterCall(
+    "setUploadWorkflowActive",
+    uploadWorkflowActive,
+    true,
+    "uploadFiles start"
+  )
+  setUploadWorkflowActive(true)
+  uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(true)")
+  traceSetterCall("setUploading", uploading, true, "uploadFiles start")
   setUploading(true)
+  uploadFlightLog(uploadSessionId, "setUploading(true)")
+  traceSetterCall("setUploadStatus", uploadStatus, "Uploading...", "uploadFiles start")
   setUploadStatus("Uploading...")
+  uploadFlightLog(uploadSessionId, "setUploadStatus(Uploading...)")
+  if (isMobileLayout) {
+    traceSetterCall(
+      "setToolPanelCollapsed",
+      toolPanelCollapsed,
+      true,
+      "uploadFiles start mobile"
+    )
+    setToolPanelCollapsed(true)
+    uploadFlightLog(uploadSessionId, "setToolPanelCollapsed(true) for mobile upload workspace")
+  }
 
   try{
 
   const docs = []
 
   for(const file of Array.from(files)){
+  uploadFlightLog(uploadSessionId, "File read started", {
+    filename: file.name,
+    size: file.size
+  })
 
   const base64 = await new Promise((resolve,reject)=>{
 
@@ -813,6 +1282,10 @@ async function uploadFiles(){
 
   })
 
+  uploadFlightLog(uploadSessionId, "File read completed", {
+    filename: file.name
+  })
+
   docs.push({
   title:file.name,
   file_bytes:base64
@@ -822,7 +1295,25 @@ async function uploadFiles(){
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
+uploadFlightLog(uploadSessionId, "Auth token available", Boolean(token))
+if(!token) {
+  uploadFlightLog(uploadSessionId, "Stopped because missing token")
+  setUploadStatus("Please log in again before uploading documents")
+  uploadFlightLog(uploadSessionId, "setUploadStatus(Please log in again before uploading documents)")
+  setUploading(false)
+  uploadFlightLog(uploadSessionId, "setUploading(false)")
+  uploadWorkflowActiveRef.current = false
+  setUploadWorkflowActive(false)
+  uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
+  uploadSessionRef.current = null
+  return
+}
 
+uploadFlightLog(uploadSessionId, "Upload request started", {
+  url: `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest_stream`,
+  projectId,
+  documentCount: docs.length
+})
 const res = await fetch(
   `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest_stream`,
   {
@@ -836,11 +1327,17 @@ const res = await fetch(
     })
   }
 )
+uploadFlightLog(uploadSessionId, "Upload request finished", {
+  httpStatus: res.status,
+  ok: res.ok
+})
 
     const reader = res.body.getReader()
+    uploadFlightLog(uploadSessionId, "Stream opened")
 
     const decoder = new TextDecoder();
     let fullText = "";
+    let streamChunkCount = 0
 
     // 1. Leggiamo lo streaming fino alla fine
     while (true) {
@@ -848,30 +1345,73 @@ const res = await fetch(
       
       if (done) {
         console.log("STREAM FINITO");
+        uploadFlightLog(uploadSessionId, "Stream completed", {
+          chunks: streamChunkCount,
+          receivedCharacters: fullText.length
+        })
+        uploadFlightLog(uploadSessionId, "Stream closed")
+        traceSetterCall(
+          "setStatus",
+          status,
+          "Processing topics...",
+          "upload stream completed"
+        )
         setStatus("Processing topics..."); 
+        uploadFlightLog(uploadSessionId, "setStatus(Processing topics...)")
+        traceSetterCall("setUploading", uploading, false, "upload stream completed")
         setUploading(false);
+        uploadFlightLog(uploadSessionId, "setUploading(false)")
         break; 
       }
 
       const chunk = decoder.decode(value, { stream: true });
+      streamChunkCount += 1
+      uploadFlightLog(uploadSessionId, "Stream chunk received", {
+        chunkNumber: streamChunkCount,
+        chunkCharacters: chunk.length
+      })
       fullText += chunk;
       setUploadLog(fullText); 
     }
 
     // 2. Controllo finale: se la risposta NON era OK, fermati qui
     if (!res.ok) {
+      uploadFlightLog(uploadSessionId, "Upload response not OK; entering error block", {
+        httpStatus: res.status
+      })
       setUploadStatus("Upload failed");
+      uploadFlightLog(uploadSessionId, "setUploadStatus(Upload failed)")
       setUploading(false);
+      uploadFlightLog(uploadSessionId, "setUploading(false)")
+      uploadWorkflowActiveRef.current = false;
+      setUploadWorkflowActive(false);
+      uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
+      uploadSessionRef.current = null
       return;
     }
 
     // 3. Successo! Aggiorniamo la UI e facciamo partire i processi post-upload
     setUploading(false);
+    uploadFlightLog(uploadSessionId, "setUploading(false)")
+    traceSetterCall(
+      "setUploadStatus",
+      uploadStatus,
+      "Files uploaded successfully! Processing topics...",
+      "upload response ok"
+    )
     setUploadStatus("Files uploaded successfully! Processing topics...");
+    uploadFlightLog(uploadSessionId, "setUploadStatus(Files uploaded successfully! Processing topics...)")
 
     // Topic processing is the completion signal for upload ingestion.
-    await pollTopicStatus(projectId);
+    await pollTopicStatus(projectId, uploadSessionId);
+    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() started")
     await loadDocuments(projectId);
+    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() completed")
+    uploadWorkflowActiveRef.current = false;
+    setUploadWorkflowActive(false);
+    uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
+    uploadFlightLog(uploadSessionId, "Upload workflow completed")
+    uploadSessionRef.current = null
 
     // Pulizia estetica del log dopo un po'
     setTimeout(() => {
@@ -880,8 +1420,15 @@ const res = await fetch(
 
   } catch (e) {
     console.error("UPLOAD ERROR:", e);
+    uploadFlightError(uploadSessionId, "UPLOAD ERROR", e)
     setUploadStatus("Upload error");
+    uploadFlightLog(uploadSessionId, "setUploadStatus(Upload error)")
     setUploading(false);
+    uploadFlightLog(uploadSessionId, "setUploading(false)")
+    uploadWorkflowActiveRef.current = false;
+    setUploadWorkflowActive(false);
+    uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
+    uploadSessionRef.current = null
   }
 } // Chiusura finale della funzione uploadFiles
 
@@ -924,12 +1471,16 @@ async function loadTopics(projectId:string){
     console.log("🧪 TOPICS RECEIVED:", data)
     console.log("🔥 RAW TOPICS FROM API:", data.topics)
 
-    setTopics(data.topics || [])
+    const loadedTopics = data.topics || []
+
+    setTopics(loadedTopics)
 
     console.log(
       "✅ STATO TOPICS AGGIORNATO:",
-      data.topics?.length
+      loadedTopics?.length
     )
+
+    return loadedTopics
 
   } catch(err){
 
@@ -941,14 +1492,18 @@ async function loadTopics(projectId:string){
     setLoadingTopics(false)
 
   }
+
+  return []
 }
 
-async function pollTopicStatus(projectId:string): Promise<void>{
+async function pollTopicStatus(projectId:string, uploadSessionId?: string): Promise<void>{
   console.log("🧨 pollTopicStatus CALLED")
+  const flightSessionId = uploadSessionId || uploadSessionRef.current
 
   if (pollingRef.current) {
 
     console.log("🛑 CLEARING EXISTING POLL")
+    uploadFlightLog(flightSessionId, "Polling stopped because superseded by a new polling instance")
 
     clearTimeout(pollingRef.current)
 
@@ -960,11 +1515,20 @@ async function pollTopicStatus(projectId:string): Promise<void>{
 
   const { data:sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
+  uploadFlightLog(flightSessionId, "Polling started", {
+    pollRunId,
+    projectId,
+    authTokenAvailable: Boolean(token)
+  })
 
-  if(!token) return
+  if(!token) {
+    uploadFlightLog(flightSessionId, "Polling stopped because missing token")
+    return
+  }
 
   let attempts = 0
-  const maxAttempts = 120
+  const maxPollingMs = 60 * 60 * 1000
+  const pollingStartedAt = Date.now()
 
   let isPolling = false
 
@@ -973,31 +1537,66 @@ async function pollTopicStatus(projectId:string): Promise<void>{
   return new Promise((resolve) => {
   let resolved = false
 
-  const resolvePolling = () => {
+  const resolvePolling = (reason?: string) => {
     if (resolved) return
 
     resolved = true
+    uploadFlightLog(flightSessionId, "resolvePolling()", {
+      reason: reason || "unspecified"
+    })
     resolve()
   }
 
-  const stopPolling = () => {
+  const stopPolling = (reason?: string) => {
     if (pollingRef.current) {
       clearTimeout(pollingRef.current)
       pollingRef.current = null
     }
+    uploadFlightLog(flightSessionId, "Polling stopped", {
+      reason: reason || "unspecified",
+      attempts
+    })
   }
 
   const checkTopicStatus = async () => {
-    if (resolved || pollRunId !== pollingRunRef.current || isPolling) return
+    if (resolved) {
+      uploadFlightLog(flightSessionId, "Polling iteration skipped because promise already resolved", {
+        pollRunId
+      })
+      return
+    }
+    if (pollRunId !== pollingRunRef.current) {
+      uploadFlightLog(flightSessionId, "Polling iteration stopped because superseded", {
+        pollRunId,
+        currentRunId: pollingRunRef.current
+      })
+      return
+    }
+    if (isPolling) {
+      uploadFlightLog(flightSessionId, "Polling iteration skipped because previous request is still active", {
+        pollRunId
+      })
+      return
+    }
     isPolling = true
 
     attempts += 1
     console.log("🔢 POLLING ATTEMPT:", attempts)
     try {
     console.log("🧠 POLLING PROJECT ID:", projectId)
+    const requestUrl = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status?t=${Date.now()}`
+    uploadFlightLog(flightSessionId, "Poll iteration", {
+      pollRunId,
+      pollNumber: attempts,
+      projectId
+    })
+    uploadFlightLog(flightSessionId, "Poll request started", {
+      pollNumber: attempts,
+      requestUrl
+    })
     
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status?t=${Date.now()}`,
+      requestUrl,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1005,22 +1604,40 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         }
       }
     )
+    uploadFlightLog(flightSessionId, "Poll HTTP response", {
+      pollNumber: attempts,
+      httpStatus: res.status,
+      ok: res.ok
+    })
 
     if(!res.ok){
 
-      stopPolling()
+      const retryReason = res.status === 401
+        ? "HTTP 401"
+        : res.status >= 500
+          ? `HTTP ${res.status}`
+          : `HTTP ${res.status}`
 
       console.error("TOPIC STATUS FAILED")
-
-      resolvePolling()
+      uploadFlightLog(flightSessionId, "Poll request failed with non-OK status; polling will continue", {
+        pollNumber: attempts,
+        httpStatus: res.status,
+        reason: retryReason
+      })
       return
     }
 
     const data = await res.json()
+    uploadFlightLog(flightSessionId, "Poll response body", data)
 
     console.log("🔥 FULL TOPIC RESPONSE:", data)
     console.log("🔥 STATUS TYPE:", typeof data.status)
     console.log("🔥 STATUS VALUE:", JSON.stringify(data.status))
+    uploadFlightLog(flightSessionId, "Poll parsed status", {
+      pollNumber: attempts,
+      status: data.status,
+      normalizedStatus: String(data.status).trim().toLowerCase()
+    })
 
     if(
       String(data.status)
@@ -1028,43 +1645,91 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         .toLowerCase() === "completed"
     ){
 
-      stopPolling()
+      stopPolling("completed")
       pollingRunRef.current = pollRunId + 1
 
       console.log("🛑 POLLING STOPPED")
 
       console.log("🟢 TOPIC GENERATION COMPLETED")
       console.log("🧪 ENTERED COMPLETED BLOCK")
+      uploadFlightLog(flightSessionId, "Entering completed block")
 
       try {
 
         console.log("🧪 STARTING loadTopics")
+        uploadFlightLog(flightSessionId, "setUploading(false)")
 
+        traceSetterCall("setUploading", uploading, false, "polling completed block")
         setUploading(false)
+        uploadFlightLog(flightSessionId, "setUploadLog(empty)")
         setUploadLog("")
+        uploadFlightLog(flightSessionId, "setUploadStatus(Topics ready!)")
+        traceSetterCall(
+          "setUploadStatus",
+          uploadStatus,
+          "Topics ready!",
+          "polling completed block"
+        )
         setUploadStatus("Topics ready!")
 
+        uploadFlightLog(flightSessionId, "loadTopics() started")
         await loadTopics(projectId)
+        uploadFlightLog(flightSessionId, "loadTopics() completed")
 
         console.log("🧪 loadTopics FINISHED")
         console.log("✅ TOPICS LOADED")
 
+        traceSetterCall(
+          "setActiveView",
+          activeView,
+          "load_project",
+          "polling completed block keeps upload tool panel selected"
+        )
         setActiveView("load_project")
-        setToolPanelCollapsed(false)
+        traceSetterCall(
+          "setToolPanelCollapsed",
+          toolPanelCollapsed,
+          !isMobileLayout,
+          "polling completed block"
+        )
+        setToolPanelCollapsed(!isMobileLayout)
+        uploadFlightLog(flightSessionId, "setProjectReadyVisible(true)")
         setProjectReadyVisible(true)
         setProjectReadyDismissed(false)
+        uploadFlightLog(flightSessionId, "setStatus(Project upload completed)")
+        traceSetterCall(
+          "setStatus",
+          status,
+          "Project upload completed",
+          "polling completed block"
+        )
         setStatus("Project upload completed")
-        resolvePolling()
+        resolvePolling("completed")
 
       } catch(err){
 
         console.error("❌ FINAL LOAD TOPICS FAILED:", err)
+        uploadFlightError(flightSessionId, "FINAL LOAD TOPICS FAILED", err)
+        uploadFlightLog(flightSessionId, "Entering completed-block error state")
+        uploadFlightLog(flightSessionId, "setUploading(false)")
+        traceSetterCall("setUploading", uploading, false, "completed-block error state")
         setUploading(false)
+        uploadFlightLog(flightSessionId, "setUploadLog(empty)")
         setUploadLog("")
+        uploadFlightLog(flightSessionId, "setUploadStatus(Topics ready, but loading topics failed)")
+        traceSetterCall(
+          "setUploadStatus",
+          uploadStatus,
+          "Topics ready, but loading topics failed",
+          "completed-block error state"
+        )
         setUploadStatus("Topics ready, but loading topics failed")
+        uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
         setProjectReadyVisible(false)
+        uploadFlightLog(flightSessionId, "setStatus(empty)")
+        traceSetterCall("setStatus", status, "", "completed-block error state")
         setStatus("")
-        resolvePolling()
+        resolvePolling("completed-block-error")
 
       }
 
@@ -1079,33 +1744,69 @@ async function pollTopicStatus(projectId:string): Promise<void>{
         .toLowerCase() === "error"
     ){
 
-      stopPolling()
+      stopPolling("error")
       pollingRunRef.current = pollRunId + 1
 
+      uploadFlightLog(flightSessionId, "Entering topic-status error block")
+      uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
       setProjectReadyVisible(false)
+      uploadFlightLog(flightSessionId, "setActiveView(upload_error)")
+      traceSetterCall(
+        "setActiveView",
+        activeView,
+        "upload_error",
+        "topic-status error block"
+      )
       setActiveView("upload_error")
-      resolvePolling()
+      resolvePolling("error")
 
       return
     }
 
-    if(attempts >= maxAttempts){
+    if(Date.now() - pollingStartedAt >= maxPollingMs){
       console.log("⏰ POLLING TIMEOUT REACHED")
       console.log("🔢 FINAL ATTEMPT:", attempts)
-      stopPolling()
+      stopPolling("timeout")
 
+      uploadFlightLog(flightSessionId, "Entering polling timeout block", {
+        elapsedMs: Date.now() - pollingStartedAt,
+        maxPollingMs
+      })
       setUploadStatus("Topic generation timeout")
-      resolvePolling()
+      uploadFlightLog(flightSessionId, "setUploadStatus(Topic generation timeout)")
+      traceSetterCall(
+        "setStatus",
+        status,
+        "Topic generation timeout",
+        "polling timeout block"
+      )
+      setStatus("Topic generation timeout")
+      uploadFlightLog(flightSessionId, "setStatus(Topic generation timeout)")
+      setUploading(false)
+      uploadFlightLog(flightSessionId, "setUploading(false)")
+      setUploadLog("")
+      uploadFlightLog(flightSessionId, "setUploadLog(empty)")
+      resolvePolling("timeout")
+      return
     }
+    uploadFlightLog(flightSessionId, "Retry scheduled", {
+      pollNumber: attempts,
+      retryDelayMs: 3000
+    })
     } catch(err){
 
       console.error("❌ POLLING LOOP ERROR:", err)
+      uploadFlightError(flightSessionId, "Polling request exception", err)
 
     } finally {
       isPolling = false
     }
 
     if (!resolved && pollRunId === pollingRunRef.current) {
+      uploadFlightLog(flightSessionId, "Retry timer armed", {
+        retryDelayMs: 3000,
+        nextPollNumber: attempts + 1
+      })
       pollingRef.current = setTimeout(checkTopicStatus, 3000)
     }
   }
@@ -1394,17 +2095,48 @@ async function loadQuiz(id: string) {
 }
 
 async function selectProject(id: string) {
+  uploadLifecycleTrace("selectProject invoked", {
+    previousProjectId: projectId,
+    nextProjectId: id,
+    activeView,
+    uploadWorkflowActive: uploadWorkflowActiveRef.current,
+    uploading
+  })
   // Se il progetto cliccato è DIVERSO da quello attuale, allora resettiamo il topic
   if (id !== projectId) {
+    uploadLifecycleTrace("selectProject reset selected topics", {
+      reason: "different project selected",
+      previousProjectId: projectId,
+      nextProjectId: id
+    })
     setSelectedTopic(null);
     setSelectedTopics([]); // Puliamo anche la lista dei quiz per sicurezza
   }
 
   const project = projects.find(p => p.id === id);
   const selectedStudyMode = project?.study_mode || "building";
+  const persistedPriorityCategories = normalizePriorityCategories(project)
+  console.log("⭐ Project selected with persisted study priorities", {
+    projectId: id,
+    persistedPriorityCategories
+  })
+  traceSetterCall(
+    "setProjectName",
+    projectName,
+    project?.name || "",
+    "selectProject"
+  )
   setProjectName(project?.name || "");
+  traceSetterCall(
+    "setProjectStudyMode",
+    projectStudyMode,
+    selectedStudyMode,
+    "selectProject"
+  )
   setProjectStudyMode(selectedStudyMode);
+  traceSetterCall("setStatus", status, "Loading project...", "selectProject")
   setStatus("Loading project...");
+  traceSetterCall("setProjectId", projectId, id, "selectProject")
   setProjectId(id);
   setProjectReadyDismissed(false)
   
@@ -1415,10 +2147,27 @@ async function selectProject(id: string) {
   setAnswers({})
   setPreviousQuizzes([])
   setPreviousFlashcards([])
+  setPriorityCategories(persistedPriorityCategories)
 
   try {
     await loadDocuments(id);
-    await loadTopics(id);
+    const loadedTopics = await loadTopics(id);
+    const loadedCategorySet = new Set(
+      (loadedTopics || [])
+        .map((topic: any) => String(topic.category || "General"))
+        .filter(Boolean)
+    )
+    const restoredPriorityCategories = persistedPriorityCategories.filter(category =>
+      loadedCategorySet.has(category)
+    )
+
+    console.log("⭐ Study priorities restored into Topic View state", {
+      projectId: id,
+      persistedPriorityCategories,
+      restoredPriorityCategories,
+      loadedCategories: Array.from(loadedCategorySet)
+    })
+    setPriorityCategories(restoredPriorityCategories)
 
     setStatus("Loading previous material...");
 
@@ -1438,18 +2187,38 @@ async function selectProject(id: string) {
 
     await loadFlashcards(id);
     if (selectedStudyMode === "learning") {
+      uploadLifecycleTrace("selectProject learning-mode workspace transition", {
+        projectId: id,
+        nextView: "learning_home"
+      })
       setProjectReadyVisible(false)
       setProjectReadyDismissed(true)
       setStatus("")
       setToolPanelCollapsed(true)
+      traceSetterCall(
+        "setActiveView",
+        activeView,
+        "learning_home",
+        "selectProject learning mode"
+      )
       setActiveView("learning_home")
       return
     }
 
+    uploadLifecycleTrace("selectProject building-mode workspace transition", {
+      projectId: id,
+      nextView: "load_project"
+    })
     setProjectReadyVisible(true)
     setProjectReadyDismissed(false)
     setStatus("")
     setToolPanelCollapsed(false)
+    traceSetterCall(
+      "setActiveView",
+      activeView,
+      "load_project",
+      "selectProject building mode"
+    )
     setActiveView("load_project")
 
   } catch(e) {
@@ -2507,6 +3276,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               projectName={activeView === "create_project" ? createProjectName : projectName}
               projects={projects}
               createProject={createProject}
+              creatingProject={creatingProject}
               selectProject={selectProject}
               deleteProject={deleteProject}
               projectId={activeView === "create_project" && status !== "Project created" ? "" : projectId}
@@ -2541,6 +3311,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               setStudyCount={setStudyCount}
               status={status}
               uploadStatus={uploadStatus}
+              uploadWorkflowActive={uploadWorkflowActive}
+              uploadFlightSessionId={uploadFlightSessionId}
               setProjectName={activeView === "create_project" ? setCreateProjectName : setProjectName}
               uploadFiles={uploadFiles}
               loadStudyFlashcards={loadStudyFlashcards}
@@ -2552,6 +3324,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               questionStyle={questionStyle}
               setQuestionStyle={setQuestionStyle}
               plannerSessionActive={plannerRuntime.mode !== "dashboard"}
+              priorityCategories={priorityCategories}
             />
           )}
         </div>
@@ -2592,6 +3365,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         key={quizId}
         activeView={activeView}
         setActiveView={setActiveView}
+        handleSidebarNavigation={handleSidebarNavigation}
         summaryStats={summaryStats}
         quiz={quiz}
         answers={answers}
@@ -2657,15 +3431,19 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         onPlannerFlashcardReview={handlePlannerFlashcardReview}
         continuePlannerActivity={completePlannerActivity}
         returnToPlannerDashboard={returnToPlannerDashboard}
-        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
-        plannerActivityProgress={plannerActivityProgress}
-        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
-        onUploadAnotherFile={openProjectUploadWorkspace}
-        onBeginStudy={beginStudy}
+	        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
+	        plannerActivityProgress={plannerActivityProgress}
+	        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
+	        onUploadAnotherFile={openProjectUploadWorkspace}
+	        onBeginStudy={beginStudy}
         onLearningHomeLaunch={openLearningFeature}
-        
-        
-      />
+        priorityCategories={priorityCategories}
+        setPriorityCategories={setPriorityCategories}
+        onPriorityCategoriesSaved={updateProjectPriorityCategories}
+        uploadFlightSessionId={uploadFlightSessionId}
+	        
+	        
+	      />
       )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import type { PlannerDay } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
+import CategoryLabel from "@/components/ui/CategoryLabel"
 
 export default function WeeklyCalendar({
   weekLabel,
@@ -64,7 +65,9 @@ export default function WeeklyCalendar({
               <div className="planner-mobile-module-categories" style={categoryList}>
                 {day.categories.length > 0
                   ? day.categories.map(category => (
-                    <div key={category} style={categoryText}>{category}</div>
+                    <div key={category} style={categoryText}>
+                      <CategoryLabel category={category} />
+                    </div>
                   ))
                   : (
                     <div style={categoryText}>

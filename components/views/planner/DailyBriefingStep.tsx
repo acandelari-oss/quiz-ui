@@ -1,6 +1,7 @@
 import type { PlannerDailyPlan } from "./PlannerTypes"
 import { useTranslation } from "react-i18next"
 import MarkdownContent from "@/components/ui/MarkdownContent"
+import CategoryLabel from "@/components/ui/CategoryLabel"
 
 export default function DailyBriefingStep({
   dailyPlan,
@@ -11,23 +12,25 @@ export default function DailyBriefingStep({
   onStart: () => void
   onBackToDashboard: () => void
 }) {
-  const { t: translate } = useTranslation()
+  const { i18n } = useTranslation()
+  const plannerLanguage = plannerLanguageCode(dailyPlan.studyLanguage, i18n.language)
+  const plannerTranslate = i18n.getFixedT(plannerLanguage)
   const isAssessmentPlan = dailyPlan.planType === "assessment"
 
   return (
     <div style={container}>
       <button onClick={onBackToDashboard} style={backButton}>
-        {translate("stats.Back to Planner")}
+        {plannerTranslate("stats.Back to Planner")}
       </button>
 
       <section style={heroCard}>
         {isAssessmentPlan ? (
-          <div style={eyebrow}>{translate("stats.Professor Assessment")}</div>
+          <div style={eyebrow}>{plannerTranslate("stats.Professor Assessment")}</div>
         ) : (
-          <div style={eyebrow}>{translate("stats.Professor Module Briefing")}</div>
+          <div style={eyebrow}>{plannerTranslate("stats.Professor Module Briefing")}</div>
         )}
         <h2 style={title}>
-          {translate(isAssessmentPlan
+          {plannerTranslate(isAssessmentPlan
             ? "stats.Assessment Module Session"
             : "stats.Module Session", { module: dailyPlan.day })}
         </h2>
@@ -35,7 +38,7 @@ export default function DailyBriefingStep({
           <MarkdownContent
             text={
               isAssessmentPlan
-                ? translate("stats.This module contributes to your initial assessment. Answer honestly; if you are unsure, choose your best answer. Every answer helps improve the Study Plan that follows.")
+                ? plannerTranslate("stats.This module contributes to your initial assessment. Answer honestly; if you are unsure, choose your best answer. Every answer helps improve the Study Plan that follows.")
                 : dailyPlan.briefing
             }
           />
@@ -44,7 +47,7 @@ export default function DailyBriefingStep({
 
       {!isAssessmentPlan && dailyPlan.objective && (
         <section style={card}>
-          <div style={sectionTitle}>{translate("stats.Module objective")}</div>
+          <div style={sectionTitle}>{plannerTranslate("stats.Module objective")}</div>
           <div style={paragraph}>
             <MarkdownContent text={dailyPlan.objective} />
           </div>
@@ -52,24 +55,24 @@ export default function DailyBriefingStep({
       )}
 
       <section style={card}>
-        <div style={sectionTitle}>{translate("stats.Planned activities")}</div>
+        <div style={sectionTitle}>{plannerTranslate("stats.Planned activities")}</div>
         <div style={activityList}>
           {dailyPlan.activities.map((activity, index) => (
             <div key={activity.id} style={activityRow}>
               <div>
                 <div style={activityTitle}>
-                  {index + 1}. {activity.title}
+                  {index + 1}. {plannerTranslate(`stats.${activity.title}`, { defaultValue: activity.title })}
                 </div>
                 <div style={activityMeta}>
-                  {activity.configuration.category} · {activity.configuration.count}
+                  <CategoryLabel category={activity.configuration.category} /> · {activity.configuration.count}
                   {activity.type === "quiz"
-                    ? ` ${translate("stats.questions")}`
-                    : ` ${translate("stats.cards")}`}
+                    ? ` ${plannerTranslate("stats.questions")}`
+                    : ` ${plannerTranslate("stats.cards")}`}
                   {activity.configuration.difficulty
-                    ? ` · ${activity.configuration.difficulty}`
+                    ? ` · ${plannerTranslate(`stats.${activity.configuration.difficulty}`, { defaultValue: activity.configuration.difficulty })}`
                     : ""}
                   {activity.configuration.style
-                    ? ` · ${activity.configuration.style}`
+                    ? ` · ${plannerTranslate(`stats.${activity.configuration.style}`, { defaultValue: activity.configuration.style })}`
                     : ""}
                 </div>
               </div>
@@ -79,10 +82,29 @@ export default function DailyBriefingStep({
       </section>
 
       <button onClick={onStart} style={primaryButton}>
-        {translate("stats.Start Session")}
+        {plannerTranslate("stats.Start Session")}
       </button>
     </div>
   )
+}
+
+function plannerLanguageCode(
+  studyLanguage?: string | null,
+  fallbackLanguage = "en"
+) {
+  const normalized = String(studyLanguage || fallbackLanguage)
+    .trim()
+    .toLowerCase()
+
+  if (normalized.startsWith("it")) {
+    return "it"
+  }
+
+  if (normalized.startsWith("italian")) {
+    return "it"
+  }
+
+  return "en"
 }
 
 const container = {

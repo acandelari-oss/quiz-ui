@@ -26,13 +26,29 @@ export default function WeeklyStatistics({
               {translate(`stats.${stat.label}`, { defaultValue: stat.label })}
             </div>
             <div style={statDetail}>
-              {translate(`stats.${stat.detail}`, { defaultValue: stat.detail })}
+              {localizedStatisticDetail(stat.detail, translate)}
             </div>
           </div>
         ))}
       </div>
     </section>
   )
+}
+
+function localizedStatisticDetail(
+  detail: string,
+  translate: (key: string, options?: Record<string, unknown>) => string
+) {
+  const topicsCovered = detail.match(/^(\d+)\/(\d+) topics covered$/)
+  if (topicsCovered) {
+    return translate("stats.topics covered count", {
+      covered: topicsCovered[1],
+      total: topicsCovered[2],
+      defaultValue: detail
+    })
+  }
+
+  return translate(`stats.${detail}`, { defaultValue: detail })
 }
 
 const section = {

@@ -82,6 +82,11 @@ export type PlannerWeekResponse = {
 
 export type PlannerStateResponse = {
   state: "NEW_PROJECT" | "READY_FOR_FIRST_PLAN" | "ACTIVE_WEEK" | "WEEK_COMPLETED"
+  professor_mode?: "coverage" | "adaptive" | string | null
+  coverage_status?: "incomplete" | "complete" | string | null
+  coverage_complete?: boolean | null
+  next_plan_generated?: boolean | null
+  requires_new_plan?: boolean | null
   learning_coverage: {
     covered_topics: number
     total_topics: number
@@ -97,6 +102,7 @@ export type PlannerGenerationConfiguration = {
     studyDurationMinutes: 30 | 45 | 60
     questionPaceSeconds: 30 | 60 | 90 | 120
     questionStyle: "exam" | "balanced" | "reasoning"
+    priorityCategories?: string[]
   }
 }
 
