@@ -434,7 +434,17 @@ export default function ActiveRecallView({
         />
         <div className="memory-check-mobile-actions" style={{ display: "flex", gap: 10 }}>
           <button className="memory-check-mobile-action-button" onClick={toggleRecording} style={{ background: recording ? "#ef4444" : "#111827", border: "1px solid #374151", color: "white", padding: 10, borderRadius: 5 }}>
-            {recording ? "⏹️" : "🎙️"}
+            {recording ? "⏹️" : (
+              <img
+                src="/icons/microphone.svg"
+                alt="Microphone"
+                style={{
+                  width: 16,
+                  height: 16,
+                  display: "block"
+                }}
+              />
+            )}
           </button>
           <button className="memory-check-mobile-action-button memory-check-mobile-primary-action" onClick={submitAnswer} style={{ background: "#2FA4A9", color: "white", padding: 10, borderRadius: 5, flex: 1 }}>
             {translate('stats.Submit Answer')}

@@ -2913,7 +2913,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     }
   }
 
-  async function askDocuments() {
+  async function askDocuments(imageFile?: File | null) {
     if (!projectId) return
     if (!askQuestion.trim()) return
     setAsking(true)
@@ -2928,20 +2928,40 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
       console.log("PAYLOAD TOPICS COUNT:", payloadTopicNames.length)
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          project_id: projectId,
-          question: askQuestion,
-          topics: payloadTopicNames,
-          history: chatMessages.slice(-6),
-          expand_search: useGlobalKnowledge
+      let res: Response
+
+      if (imageFile) {
+        const formData = new FormData()
+        formData.append("project_id", projectId)
+        formData.append("question", askQuestion)
+        formData.append("topics", JSON.stringify(payloadTopicNames))
+        formData.append("history", JSON.stringify(chatMessages.slice(-6)))
+        formData.append("expand_search", String(useGlobalKnowledge))
+        formData.append("image", imageFile)
+
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask_with_image`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          body: formData
         })
-      })
+      } else {
+        res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            project_id: projectId,
+            question: askQuestion,
+            topics: payloadTopicNames,
+            history: chatMessages.slice(-6),
+            expand_search: useGlobalKnowledge
+          })
+        })
+      }
 
       if (!res.ok) return
       const data = await res.json()
@@ -2952,7 +2972,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           role: "assistant",
           content: data.answer,
           sources: Array.isArray(data.sources) ? data.sources : [],
-          usedGlobalKnowledge: Boolean(data.used_global_knowledge)
+          usedGlobalKnowledge: Boolean(data.used_global_knowledge),
+          usedImage: Boolean(data.used_image)
         }
       ])
       setAskQuestion("")

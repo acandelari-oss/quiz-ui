@@ -51,6 +51,7 @@ export default function AskView({
   const [recognition, setRecognition] = useState<any>(null)
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [attachedImage, setAttachedImage] = useState<File | null>(null)
   const { t: translate, i18n } = useTranslation();
   
 
@@ -78,6 +79,11 @@ export default function AskView({
       ? `${focusCategories.length} ${translate("stats.categories")}`
       : ""
   const focusTopicCount = selectedTopics?.length || 0
+  const imageInputId = "ask-image-attachment-input"
+
+  useEffect(() => {
+    setAttachedImage(null)
+  }, [projectId])
 
   useEffect(() => {
     let cancelled = false
@@ -161,8 +167,9 @@ export default function AskView({
 
     const sources = uniqueSources(message.sources)
     const usedGlobalKnowledge = Boolean(message.usedGlobalKnowledge)
+    const usedImage = Boolean(message.usedImage)
 
-    if (!sources.length && !usedGlobalKnowledge) return null
+    if (!sources.length && !usedGlobalKnowledge && !usedImage) return null
 
     return (
       <div style={{
@@ -193,6 +200,10 @@ export default function AskView({
               </div>
             )}
           </>
+        )}
+
+        {usedImage && (
+          <div>• {translate("stats.Attached image")}</div>
         )}
       </div>
     )
@@ -446,7 +457,7 @@ function downloadAskPDF() {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 // PASSAGGIO TOPIC ALL'INVIO
-                if (askQuestion.trim()) askDocuments(selectedTopic)
+                if (askQuestion.trim()) askDocuments(attachedImage)
               }
             }}
             placeholder={
@@ -461,7 +472,9 @@ function downloadAskPDF() {
               minHeight: 118,
               maxHeight: 200,
               resize: "none",
-              padding: "12px 110px 12px 12px",
+              padding: attachedImage
+                ? "12px 150px 46px 12px"
+                : "12px 150px 12px 12px",
               borderRadius: 15,
               border: "1px solid #374151",
               background: "#111827",
@@ -473,6 +486,109 @@ function downloadAskPDF() {
               boxSizing: "border-box"
             }}
           />
+
+          {attachedImage && (
+            <div
+              style={{
+                position: "absolute",
+                left: 12,
+                bottom: 17,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                maxWidth: "calc(100% - 176px)",
+                padding: "6px 9px",
+                borderRadius: 999,
+                background: "rgba(47, 164, 169, 0.16)",
+                border: "1px solid rgba(47, 164, 169, 0.38)",
+                color: "#d1d5db",
+                fontSize: 12,
+                boxShadow: "0 6px 18px rgba(0, 0, 0, 0.20)"
+              }}
+            >
+              <img
+                src="/icons/upload-image.svg"
+                alt=""
+                aria-hidden="true"
+                style={{
+                  width: 14,
+                  height: 14,
+                  display: "block",
+                  flexShrink: 0
+                }}
+              />
+              <span style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap"
+              }}>
+                {attachedImage.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#fca5a5",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  lineHeight: 1,
+                  padding: 0,
+                  flexShrink: 0
+                }}
+                aria-label={translate("stats.Remove image")}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          <input
+            id={imageInputId}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0] || null
+              setAttachedImage(file)
+              event.target.value = ""
+            }}
+          />
+
+          {/* IMAGE ATTACHMENT */}
+          <label
+            htmlFor={imageInputId}
+            className="ask-mobile-image-button"
+            title={translate("stats.Attach image")}
+            style={{
+              position: "absolute",
+              right: 90,
+              bottom: 18,
+              background: attachedImage ? "#2FA4A9" : "#1f2937",
+              border: "1px solid #374151",
+              borderRadius: 6,
+              padding: "6px 8px",
+              cursor: "pointer",
+              color: "white",
+              fontSize: 14,
+              lineHeight: 1,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            <img
+              src="/icons/upload-image.svg"
+              alt=""
+              aria-hidden="true"
+              style={{
+                width: 16,
+                height: 16,
+                display: "block"
+              }}
+            />
+          </label>
 
           {/* MIC */}
           <button
@@ -489,13 +605,23 @@ function downloadAskPDF() {
               cursor: "pointer"
             }}
           >
-            {recording ? "⏹️" : "🎙️"}
+            {recording ? "⏹️" : (
+              <img
+                src="/icons/microphone.svg"
+                alt="Microphone"
+                style={{
+                  width: 16,
+                  height: 16,
+                  display: "block"
+                }}
+              />
+            )}
           </button>
 
           {/* SEND */}
           <button
             className="ask-mobile-send-button"
-            onClick={() => askQuestion.trim() && askDocuments(selectedTopic)}
+            onClick={() => askQuestion.trim() && askDocuments(attachedImage)}
             style={{
               position: "absolute",
               right: 10,
