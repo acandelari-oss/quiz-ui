@@ -40,6 +40,7 @@ setOpenCard,
 standaloneFlashcardCompletionAvailable,
 onGenerateMoreFlashcards,
 onFlashcardsBackToDashboard,
+onFlashcardsComplete,
 
 quiz,
 answers,
@@ -114,6 +115,7 @@ plannerActivityDebriefs,
 onUploadAnotherFile,
 onBeginStudy,
 onLearningHomeLaunch,
+onStartFocusStudySession,
 priorityCategories = [],
 setPriorityCategories = (_value: any) => {},
 onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) => {},
@@ -1034,6 +1036,7 @@ return (
               openCard={openCard}
               setOpenCard={setOpenCard}
               onReview={onPlannerFlashcardReview}
+              onFlashcardsComplete={onFlashcardsComplete}
               standaloneCompletionAvailable={standaloneFlashcardCompletionAvailable}
               onGenerateMore={onGenerateMoreFlashcards}
               onBackToDashboard={onFlashcardsBackToDashboard}
@@ -1273,6 +1276,7 @@ return (
               loadQuizStats={loadQuizStats}
               projectId={projectId}
               quizId={quizId}
+              onBackToDashboard={() => handleSidebarNavigation("learning_home")}
             />
             {plannerRuntime?.mode === "activity_review" && (
               <PlannerActivityReviewCheckpoint
@@ -1510,15 +1514,11 @@ return (
     {/* RESULTS & SUMMARY UNITI */}
     {activeView === "results_summary" && (
       <div style={{ padding: 20 }}>
-        <h2 style={{ color: "white", marginBottom: 20 }}>
-          {translate('stats.Results & Summary')}
-        </h2>
-
-        {/* Usiamo solo SummaryView che ora contiene tutto */}
         <SummaryViewNew 
           summaryStats={summaryStats} 
           resultsData={resultsData} // Passiamo anche i dati dei topic
           projectId={projectId}
+          onStartFocusSession={onStartFocusStudySession}
         />
       </div>
     )}

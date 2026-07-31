@@ -7,6 +7,10 @@ import {
   extractTopicIds,
   extractTopicNames
 } from "../../utils/topics"
+import {
+  completeLearningSession,
+  startLearningSession
+} from "../../services/learningSessions"
 
 
 export default function ActiveRecallView({
@@ -37,6 +41,18 @@ export default function ActiveRecallView({
   const [topicIndex, setTopicIndex] = useState(0)
   const [questionLoaded, setQuestionLoaded] = useState(false)
   const { t: translate, i18n } = useTranslation();
+  const learningSessionIdRef = useRef<string | null>(null)
+  const learningSessionCompletedRef = useRef(false)
+
+  useEffect(() => {
+    return () => {
+      if (learningSessionIdRef.current && !learningSessionCompletedRef.current) {
+        const sessionId = learningSessionIdRef.current
+        learningSessionIdRef.current = null
+        void completeLearningSession(sessionId, "abandoned")
+      }
+    }
+  }, [])
 
   // --- LOGICA TOPICS ---
   const topicsToUse =
@@ -189,6 +205,11 @@ export default function ActiveRecallView({
       const { data: { session } } = await supabase.auth.getSession();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
+      if (!learningSessionIdRef.current && !learningSessionCompletedRef.current) {
+        learningSessionIdRef.current =
+          await startLearningSession(projectId, "active_recall")
+      }
+
       // URL mapped to your backend: @app.post("/active_recall_evaluate")
       const res = await fetch(`${apiUrl}/active_recall_evaluate`, {
         method: "POST",
@@ -220,9 +241,19 @@ export default function ActiveRecallView({
         content: finalContent,
         topic: "Evaluation"
       }]);
+
+      if (learningSessionIdRef.current && !learningSessionCompletedRef.current) {
+        await completeLearningSession(learningSessionIdRef.current, "completed")
+        learningSessionCompletedRef.current = true
+        learningSessionIdRef.current = null
+      }
       
     } catch (e) {
       console.error("❌ Error in submitAnswer:", e);
+      if (learningSessionIdRef.current && !learningSessionCompletedRef.current) {
+        await completeLearningSession(learningSessionIdRef.current, "abandoned")
+        learningSessionIdRef.current = null
+      }
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: translate('stats.An error occurred while evaluating your answer. Please try again.'),
@@ -417,7 +448,13 @@ export default function ActiveRecallView({
             <strong>{m.role === "assistant" ? "AI:" : "Tu:"}</strong>
             {m.topic && <div style={{ fontSize: "11px", color: "#2FA4A9" }}>Focus: {m.topic}</div>}
             <div style={{ marginTop: 5 }}>
-              <MarkdownContent text={m.content} />
+              <MarkdownContent
+                text={m.content}
+                className={m.role === "assistant"
+                  ? "markdown-content memory-check-answer-markdown"
+                  : "markdown-content"
+                }
+              />
             </div>
           </div>
         ))}
@@ -490,6 +527,41 @@ export default function ActiveRecallView({
         )}
       </div>
       <style jsx global>{`
+        .memory-check-answer-markdown {
+          line-height: 1.42;
+        }
+
+        .memory-check-answer-markdown p {
+          margin: 0 0 0.45em;
+        }
+
+        .memory-check-answer-markdown p:last-child {
+          margin-bottom: 0;
+        }
+
+        .memory-check-answer-markdown ul,
+        .memory-check-answer-markdown ol {
+          margin: 0.25em 0 0.55em;
+          padding-left: 1.25em;
+        }
+
+        .memory-check-answer-markdown li {
+          margin: 0.12em 0;
+          padding-left: 0.1em;
+        }
+
+        .memory-check-answer-markdown li > p {
+          margin: 0.1em 0;
+        }
+
+        .memory-check-answer-markdown h1,
+        .memory-check-answer-markdown h2,
+        .memory-check-answer-markdown h3,
+        .memory-check-answer-markdown h4 {
+          margin: 0.75em 0 0.35em;
+          line-height: 1.2;
+        }
+
         @media (max-width: 900px) {
           .memory-check-mobile-shell {
             padding: 10px 10px 14px !important;

@@ -129,60 +129,83 @@ if(openCard === null){
   if (currentIndex >= flashcards.length) {
     return (
       <div style={{
-        textAlign: "center",
-        color: "white",
-        margin: "60px auto 0",
-        maxWidth: 620,
-        padding: 24,
-        background: "rgba(17, 24, 39, 0.78)",
-        border: "1px solid rgba(47, 164, 169, 0.35)",
-        borderRadius: 16
+        minHeight: "100%",
+        padding: "32px 18px",
+        boxSizing: "border-box",
+        color: "white"
       }}>
-        <h2 style={{ marginTop: 0 }}>🎉 {translate('stats.Study session completed')}</h2>
-        <p style={{ color: "#9ca3af" }}>
-          {standaloneCompletionAvailable
-            ? translate("stats.This was the last card of your exercise, how would you like to proceed?")
-            : `${translate('stats.You reviewed')} ${flashcards.length} ${translate('stats.cards')}.`
-          }
-        </p>
-        {standaloneCompletionAvailable && (
-          <div style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 12,
-            flexWrap: "wrap",
-            marginTop: 22
+        <section style={{
+          margin: "28px auto 0",
+          maxWidth: 760,
+          padding: 22,
+          borderRadius: 16,
+          border: "1px solid rgba(47, 164, 169, 0.34)",
+          background:
+            "radial-gradient(circle at top right, rgba(47, 164, 169, 0.12), transparent 36%), linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.96))",
+          color: "#ffffff",
+          textAlign: "center"
+        }}>
+          <h2 style={{
+            margin: "0 0 10px",
+            fontSize: 22
           }}>
-            <button
-              onClick={onGenerateMore}
-              style={{
-                padding: "11px 18px",
-                borderRadius: 10,
-                border: "1px solid rgba(34, 197, 94, 0.55)",
-                background: "#22c55e",
-                color: "white",
-                fontWeight: 700,
-                cursor: "pointer"
-              }}
-            >
-              {translate("stats.Generate more")}
-            </button>
-            <button
-              onClick={onBackToDashboard}
-              style={{
-                padding: "11px 18px",
-                borderRadius: 10,
-                border: "1px solid rgba(148, 163, 184, 0.35)",
-                background: "#111827",
-                color: "white",
-                fontWeight: 700,
-                cursor: "pointer"
-              }}
-            >
-              {translate("stats.Go back to dashboard")}
-            </button>
-          </div>
-        )}
+            ✅ {translate('stats.Flashcards Session Completed title')}
+          </h2>
+          <p style={{
+            margin: "0 auto 18px",
+            maxWidth: 620,
+            color: "#cbd5e1",
+            lineHeight: 1.55
+          }}>
+            {standaloneCompletionAvailable
+              ? translate("stats.Flashcards Session Completed description")
+              : `${translate('stats.You reviewed')} ${flashcards.length} ${translate('stats.cards')}.`
+            }
+          </p>
+          {(onBackToDashboard || (standaloneCompletionAvailable && onGenerateMore)) && (
+            <div style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: 12,
+              flexWrap: "wrap"
+            }}>
+              {onBackToDashboard && (
+                <button
+                  type="button"
+                  onClick={onBackToDashboard}
+                  style={{
+                    padding: "11px 18px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(47, 164, 169, 0.5)",
+                    background: "#111827",
+                    color: "#ffffff",
+                    fontWeight: 760,
+                    cursor: "pointer"
+                  }}
+                >
+                  ← {translate("stats.Back to Dashboard")}
+                </button>
+              )}
+              {standaloneCompletionAvailable && onGenerateMore && (
+                <button
+                  type="button"
+                  onClick={onGenerateMore}
+                  style={{
+                    padding: "11px 18px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(34, 197, 94, 0.55)",
+                    background: "#22c55e",
+                    color: "#ffffff",
+                    fontWeight: 760,
+                    cursor: "pointer"
+                  }}
+                >
+                  {translate("stats.Generate More Cards")}
+                </button>
+              )}
+            </div>
+          )}
+        </section>
       </div>
     )
   }
@@ -260,9 +283,10 @@ if(openCard === null){
       setCurrentIndex(currentIndex + 1)
     } else {
       console.log("📍 LAST CARD UI")
-      if (standaloneCompletionAvailable) {
-        setCurrentIndex(flashcards.length)
+      if (onFlashcardsComplete) {
+        await onFlashcardsComplete()
       }
+      setCurrentIndex(flashcards.length)
     }
   }
 
@@ -437,6 +461,64 @@ if(openCard === null){
       </div>
 
       <style jsx global>{`
+        .flashcards-completion-shell {
+          min-height: 100%;
+          padding: 32px 18px;
+          box-sizing: border-box;
+          color: white;
+        }
+
+        .flashcards-completion-panel {
+          margin: 28px auto 0;
+          max-width: 760px;
+          padding: 22px;
+          border-radius: 16px;
+          border: 1px solid rgba(47, 164, 169, 0.34);
+          background:
+            radial-gradient(circle at top right, rgba(47, 164, 169, 0.12), transparent 36%),
+            linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.96));
+          color: #ffffff;
+          text-align: center;
+        }
+
+        .flashcards-completion-panel h2 {
+          margin: 0 0 10px;
+          font-size: 22px;
+        }
+
+        .flashcards-completion-panel p {
+          margin: 0 auto 18px;
+          max-width: 620px;
+          color: #cbd5e1;
+          line-height: 1.55;
+        }
+
+        .flashcards-completion-actions {
+          display: flex;
+          justify-content: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .flashcards-completion-back-button,
+        .flashcards-completion-generate-button {
+          padding: 11px 18px;
+          border-radius: 10px;
+          color: #ffffff;
+          font-weight: 760;
+          cursor: pointer;
+        }
+
+        .flashcards-completion-back-button {
+          border: 1px solid rgba(47, 164, 169, 0.5);
+          background: #111827;
+        }
+
+        .flashcards-completion-generate-button {
+          border: 1px solid rgba(34, 197, 94, 0.55);
+          background: #22c55e;
+        }
+
         .flashcards-execution-shell {
           min-height: 100%;
           padding: 18px 18px 32px;

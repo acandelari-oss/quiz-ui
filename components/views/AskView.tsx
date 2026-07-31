@@ -52,6 +52,7 @@ export default function AskView({
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [attachedImage, setAttachedImage] = useState<File | null>(null)
+  const [attachedImagePreviewUrl, setAttachedImagePreviewUrl] = useState<string | null>(null)
   const { t: translate, i18n } = useTranslation();
   
 
@@ -84,6 +85,20 @@ export default function AskView({
   useEffect(() => {
     setAttachedImage(null)
   }, [projectId])
+
+  useEffect(() => {
+    if (!attachedImage) {
+      setAttachedImagePreviewUrl(null)
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(attachedImage)
+    setAttachedImagePreviewUrl(objectUrl)
+
+    return () => {
+      URL.revokeObjectURL(objectUrl)
+    }
+  }, [attachedImage])
 
   useEffect(() => {
     let cancelled = false
@@ -315,6 +330,31 @@ function downloadAskPDF() {
       </div>
 
       <div className="ask-mobile-chat-box" style={chatBox}>
+        {attachedImage && attachedImagePreviewUrl && (
+          <div className="ask-attached-image-preview">
+            <div className="ask-attached-image-preview-header">
+              <div>
+                <strong>{translate("stats.Attached image")}</strong>
+                <span>{attachedImage.name}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachedImage(null)}
+              >
+                {translate("stats.Remove image")}
+              </button>
+            </div>
+            <a
+              href={attachedImagePreviewUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={translate("stats.Open image preview")}
+            >
+              <img src={attachedImagePreviewUrl} alt={translate("stats.Attached image")} />
+            </a>
+          </div>
+        )}
+
         {messages.map((m, i) => (
           <div
             key={i}
@@ -325,17 +365,24 @@ function downloadAskPDF() {
             }}
           >
             <div
+              className={m.role === "assistant" ? "ask-answer-bubble" : "ask-user-bubble"}
               style={{
                 background: m.role === "user" ? "#2563eb" : "#1f2937",
                 padding: "10px 12px",
                 borderRadius: 8,
                 maxWidth: "70%",
                 color: "white",
-                whiteSpace: "pre-wrap",
-                lineHeight: 1.6
+                whiteSpace: m.role === "user" ? "pre-wrap" : "normal",
+                lineHeight: m.role === "user" ? 1.6 : 1.42
               }}
             >
-              <MarkdownContent text={m.content} />
+              <MarkdownContent
+                text={m.content}
+                className={m.role === "assistant"
+                  ? "markdown-content ask-answer-markdown"
+                  : "markdown-content"
+                }
+              />
               {renderSourceNote(m)}
             </div>
           </div>
@@ -453,11 +500,12 @@ function downloadAskPDF() {
             className="ask-mobile-textarea"
             value={askQuestion}
             onChange={(e) => setAskQuestion(e.target.value)}
+            disabled={asking}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 // PASSAGGIO TOPIC ALL'INVIO
-                if (askQuestion.trim()) askDocuments(attachedImage)
+                if (askQuestion.trim() && !asking) askDocuments(attachedImage)
               }
             }}
             placeholder={
@@ -594,6 +642,7 @@ function downloadAskPDF() {
           <button
             className="ask-mobile-mic-button"
             onClick={toggleRecording}
+            disabled={asking}
             style={{
               position: "absolute",
               right: 50,
@@ -602,7 +651,8 @@ function downloadAskPDF() {
               border: "1px solid #374151",
               borderRadius: 6,
               padding: "6px 8px",
-              cursor: "pointer"
+              cursor: asking ? "not-allowed" : "pointer",
+              opacity: asking ? 0.6 : 1
             }}
           >
             {recording ? "⏹️" : (
@@ -621,7 +671,8 @@ function downloadAskPDF() {
           {/* SEND */}
           <button
             className="ask-mobile-send-button"
-            onClick={() => askQuestion.trim() && askDocuments(attachedImage)}
+            onClick={() => askQuestion.trim() && !asking && askDocuments(attachedImage)}
+            disabled={asking || !askQuestion.trim()}
             style={{
               position: "absolute",
               right: 10,
@@ -630,7 +681,8 @@ function downloadAskPDF() {
               border: "none",
               borderRadius: 6,
               padding: "6px 8px",
-              cursor: "pointer",
+              cursor: asking || !askQuestion.trim() ? "not-allowed" : "pointer",
+              opacity: asking || !askQuestion.trim() ? 0.65 : 1,
               fontWeight: 600
             }}
           >
@@ -719,6 +771,107 @@ function downloadAskPDF() {
         )}
       </div>
       <style jsx global>{`
+        .ask-answer-bubble {
+          max-width: min(860px, 82%) !important;
+        }
+
+        .ask-answer-markdown {
+          line-height: 1.42;
+        }
+
+        .ask-answer-markdown p {
+          margin: 0 0 0.45em;
+        }
+
+        .ask-answer-markdown p:last-child {
+          margin-bottom: 0;
+        }
+
+        .ask-answer-markdown ul,
+        .ask-answer-markdown ol {
+          margin: 0.25em 0 0.55em;
+          padding-left: 1.25em;
+        }
+
+        .ask-answer-markdown li {
+          margin: 0.12em 0;
+          padding-left: 0.1em;
+        }
+
+        .ask-answer-markdown li > p {
+          margin: 0.1em 0;
+        }
+
+        .ask-answer-markdown h1,
+        .ask-answer-markdown h2,
+        .ask-answer-markdown h3,
+        .ask-answer-markdown h4 {
+          margin: 0.75em 0 0.35em;
+          line-height: 1.2;
+        }
+
+        .ask-answer-markdown strong {
+          font-weight: 800;
+        }
+
+        .ask-attached-image-preview {
+          margin: 0 0 14px;
+          padding: 12px;
+          border-radius: 14px;
+          border: 1px solid rgba(47, 164, 169, 0.28);
+          background: rgba(15, 23, 42, 0.72);
+        }
+
+        .ask-attached-image-preview-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 10px;
+        }
+
+        .ask-attached-image-preview-header strong {
+          display: block;
+          color: #36f2ed;
+          font-size: 13px;
+          margin-bottom: 2px;
+        }
+
+        .ask-attached-image-preview-header span {
+          display: block;
+          max-width: 520px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #cbd5e1;
+          font-size: 12px;
+        }
+
+        .ask-attached-image-preview-header button {
+          border: 1px solid rgba(248, 113, 113, 0.36);
+          border-radius: 999px;
+          background: rgba(127, 29, 29, 0.2);
+          color: #fca5a5;
+          padding: 6px 10px;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .ask-attached-image-preview a {
+          display: block;
+        }
+
+        .ask-attached-image-preview img {
+          display: block;
+          width: min(420px, 100%);
+          max-height: 260px;
+          object-fit: contain;
+          border-radius: 12px;
+          border: 1px solid rgba(148, 163, 184, 0.16);
+          background: rgba(2, 6, 23, 0.8);
+        }
+
         @media (max-width: 900px) {
           .ask-mobile-shell {
             padding: 10px 10px 14px !important;
@@ -739,6 +892,20 @@ function downloadAskPDF() {
 
           .ask-mobile-chat-box {
             margin-bottom: 6px !important;
+          }
+
+          .ask-attached-image-preview {
+            padding: 10px !important;
+            margin-bottom: 10px !important;
+          }
+
+          .ask-attached-image-preview-header {
+            align-items: flex-start !important;
+          }
+
+          .ask-attached-image-preview img {
+            width: 100% !important;
+            max-height: 220px !important;
           }
 
           .ask-mobile-input-area {

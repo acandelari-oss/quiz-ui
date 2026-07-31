@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { isCorrectQuizOption } from "@/utils/quizAnswers"
 import MarkdownContent from "@/components/ui/MarkdownContent"
+import { useTranslation } from "react-i18next"
 
 export default function QuizView({
   quiz,
@@ -18,10 +19,12 @@ export default function QuizView({
   projectId,
   quizId,
   calculateScore,
+  onBackToDashboard,
   loaderText
   
 }: any) {
 
+  const { t: translate } = useTranslation()
   const [chatOpen, setChatOpen] = useState<{ [key: number]: boolean }>({})
   const [chatMessages, setChatMessages] = useState<{ [key: number]: any[] }>({})
   const [chatInput, setChatInput] = useState<{ [key: number]: string }>({})
@@ -617,7 +620,58 @@ ${input}
           <h2>Score: {calculateScore()} / {quiz.length}</h2>
         </div>
       )}
+
+      {finished && (
+        <section className="quiz-completion-panel">
+          <h2>{translate("stats.Quiz Submitted title")}</h2>
+          <p>{translate("stats.Quiz Submitted description")}</p>
+          {onBackToDashboard && (
+            <button
+              type="button"
+              onClick={onBackToDashboard}
+              className="quiz-completion-back-button"
+            >
+              ← {translate("stats.Back to Dashboard")}
+            </button>
+          )}
+        </section>
+      )}
       <style jsx global>{`
+        .quiz-completion-panel {
+          margin: 28px auto 0;
+          max-width: 760px;
+          padding: 22px;
+          border-radius: 16px;
+          border: 1px solid rgba(47, 164, 169, 0.34);
+          background:
+            radial-gradient(circle at top right, rgba(47, 164, 169, 0.12), transparent 36%),
+            linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.96));
+          color: #ffffff;
+          text-align: center;
+        }
+
+        .quiz-completion-panel h2 {
+          margin: 0 0 10px;
+          font-size: 22px;
+        }
+
+        .quiz-completion-panel p {
+          margin: 0 auto 18px;
+          max-width: 620px;
+          color: #cbd5e1;
+          line-height: 1.55;
+        }
+
+        .quiz-completion-back-button {
+          padding: 11px 18px;
+          border: 1px solid rgba(47, 164, 169, 0.5);
+          border-radius: 10px;
+          background: #111827;
+          color: #ffffff;
+          font-weight: 760;
+          cursor: pointer;
+        }
+
         .quiz-status-mobile-icon {
           display: none;
         }

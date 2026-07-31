@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type MutableRefObject } from "react";
 import Image from "next/image";
 import { supabase } from "../lib/supabase";
 import { useRouter } from "next/router";
@@ -33,6 +33,10 @@ import type {
   PlannerSessionResults
 } from "../components/views/planner/PlannerTypes";
 import { dispatchPlannerActivity } from "../components/views/planner/plannerActivityDispatcher";
+import {
+  completeLearningSession,
+  startLearningSession
+} from "../services/learningSessions";
 
 type LearningGenerationOverrides = {
   selectedTopics?: any[]
@@ -166,6 +170,8 @@ function normalizePriorityCategories(value: any): string[] {
   ).slice(0, 3)
 }
 
+const LAST_ACTIVE_PROJECT_STORAGE_KEY = "douno:lastActiveProjectId"
+
 export default function Home() {
 const { i18n } = useTranslation();
 const pollingRef = useRef<any>(null)
@@ -183,6 +189,7 @@ const [projectReadyDismissed,setProjectReadyDismissed]=useState(false)
 const [createProjectName,setCreateProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
 const [studentFirstName,setStudentFirstName]=useState("")
+const projectRestoreAttemptedRef = useRef(false)
 
 
 useEffect(() => {
@@ -610,6 +617,43 @@ useEffect(() => {
 ])
 const plannerReviewedFlashcardsRef = useRef<Set<string>>(new Set())
 const plannerCompletedActivityIdsRef = useRef<Set<string>>(new Set())
+const quizLearningSessionIdRef = useRef<string | null>(null)
+const flashcardsLearningSessionIdRef = useRef<string | null>(null)
+const askLearningSessionIdRef = useRef<string | null>(null)
+const plannerLearningSessionIdRef = useRef<string | null>(null)
+
+function abandonLearningSessionRef(
+  sessionRef: MutableRefObject<string | null>
+) {
+  const sessionId = sessionRef.current
+  if (!sessionId) return
+
+  sessionRef.current = null
+  void completeLearningSession(sessionId, "abandoned")
+}
+
+function abandonOpenLearningSessions(
+  except: Array<"quiz" | "flashcards" | "ask" | "planner"> = []
+) {
+  if (!except.includes("quiz")) {
+    abandonLearningSessionRef(quizLearningSessionIdRef)
+  }
+  if (!except.includes("flashcards")) {
+    abandonLearningSessionRef(flashcardsLearningSessionIdRef)
+  }
+  if (!except.includes("ask")) {
+    abandonLearningSessionRef(askLearningSessionIdRef)
+  }
+  if (!except.includes("planner")) {
+    abandonLearningSessionRef(plannerLearningSessionIdRef)
+  }
+}
+
+useEffect(() => {
+  return () => {
+    abandonOpenLearningSessions()
+  }
+}, [])
 
 function handleSidebarNavigation(nextView: string) {
   uploadLifecycleTrace("handleSidebarNavigation called", {
@@ -621,6 +665,8 @@ function handleSidebarNavigation(nextView: string) {
     configurationDrivenViews.has(nextView)
     || nextView === "quiz"
     || nextView === "flashcards"
+
+  abandonOpenLearningSessions()
 
   setStarted(false)
   setFinished(false)
@@ -715,6 +761,29 @@ function openProjectUploadWorkspace() {
 
 function openLearningFeature(view: string) {
   handleSidebarNavigation(view)
+}
+
+function startFocusedStudySession(focusTopics: string[]) {
+  const normalizedFocusTopics = Array.from(
+    new Set(
+      (focusTopics || [])
+        .map(topic => String(topic || "").trim())
+        .filter(Boolean)
+    )
+  )
+
+  if (normalizedFocusTopics.length === 0) return
+
+  setSelectedTopic(null)
+  setSelectedTopics(normalizedFocusTopics)
+  setToolPanelCollapsed(true)
+  traceSetterCall(
+    "setActiveView",
+    activeView,
+    "study_session",
+    "Summary focus session"
+  )
+  setActiveView("study_session")
 }
 
 function updateProjectPriorityCategories(projectId: string, nextPriorityCategories: string[]) {
@@ -880,6 +949,28 @@ useEffect(() => {
   init()
 }, [])
 
+useEffect(() => {
+  if (projectRestoreAttemptedRef.current) return
+  if (projectId) return
+  if (!Array.isArray(projects) || projects.length === 0) return
+
+  projectRestoreAttemptedRef.current = true
+
+  let lastActiveProjectId = ""
+  try {
+    lastActiveProjectId = window.localStorage.getItem(LAST_ACTIVE_PROJECT_STORAGE_KEY) || ""
+  } catch {
+    lastActiveProjectId = ""
+  }
+
+  if (!lastActiveProjectId) return
+
+  const projectExists = projects.some((project: any) => project.id === lastActiveProjectId)
+  if (!projectExists) return
+
+  void selectProject(lastActiveProjectId, projects)
+}, [projects, projectId])
+
 // Se l'utente seleziona un topic tramite checkbox, 
 // impostiamo automaticamente l'ultimo selezionato come 'selectedTopic'
 useEffect(() => {
@@ -1000,6 +1091,7 @@ uploadLifecycleTrace("setProjects called", {
   reason: "loadProjects()"
 })
 setProjects(list)
+return list
 
 }
 
@@ -1095,6 +1187,11 @@ traceSetterCall(
   "createProject success"
 )
 setProjectId(data.project_id)
+try {
+  window.localStorage.setItem(LAST_ACTIVE_PROJECT_STORAGE_KEY, data.project_id)
+} catch {
+  // localStorage may be unavailable in restricted browser modes.
+}
 traceSetterCall(
   "setProjectName",
   projectName,
@@ -2060,6 +2157,12 @@ async function loadStudyFlashcards() {
   // SOLO le card selezionate
   setFlashcards(cards)
 
+  if (cards.length > 0) {
+    abandonOpenLearningSessions()
+    flashcardsLearningSessionIdRef.current =
+      await startLearningSession(projectId, "flashcards")
+  }
+
   // VIEW corretta
   setActiveView("flashcards")
 
@@ -2104,7 +2207,7 @@ async function loadQuiz(id: string) {
   setActiveView("quiz")
 }
 
-async function selectProject(id: string) {
+async function selectProject(id: string, availableProjects = projects) {
   uploadLifecycleTrace("selectProject invoked", {
     previousProjectId: projectId,
     nextProjectId: id,
@@ -2123,7 +2226,13 @@ async function selectProject(id: string) {
     setSelectedTopics([]); // Puliamo anche la lista dei quiz per sicurezza
   }
 
-  const project = projects.find(p => p.id === id);
+  try {
+    window.localStorage.setItem(LAST_ACTIVE_PROJECT_STORAGE_KEY, id)
+  } catch {
+    // localStorage may be unavailable in restricted browser modes.
+  }
+
+  const project = availableProjects.find(p => p.id === id);
   const selectedStudyMode = project?.study_mode || "building";
   const persistedPriorityCategories = normalizePriorityCategories(project)
   console.log("⭐ Project selected with persisted study priorities", {
@@ -2278,6 +2387,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       overrides.difficulty ?? difficulty
     const effectiveQuestionStyle =
       overrides.questionStyle ?? questionStyle
+    const quizGenerationSource = overrides.source ?? "standalone"
     const effectiveSecondsPerAnswer =
       overrides.secondsPerAnswer
       ?? (
@@ -2383,6 +2493,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       setQuizTargetDurationSeconds(
         normalizedQuizData.length * Math.max(0, Number(effectiveSecondsPerAnswer || 0))
       )
+      if (quizGenerationSource === "standalone") {
+        abandonOpenLearningSessions()
+        quizLearningSessionIdRef.current =
+          await startLearningSession(projectId, "quiz")
+      }
       setStarted(true)
       setFinished(false)
 
@@ -2498,6 +2613,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               }
             : null
         );
+        if (flashcardGenerationSource === "standalone") {
+          abandonOpenLearningSessions()
+          flashcardsLearningSessionIdRef.current =
+            await startLearningSession(projectId, "flashcards")
+        }
         setOpenCard(0);              // Apre subito la prima carta
         setActiveView("flashcards"); // Sposta la vista sulle flashcards
 
@@ -2536,6 +2656,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     handleSidebarNavigation("learning_home")
   }
 
+  async function completeStandaloneFlashcardsSession() {
+    await completeLearningSession(flashcardsLearningSessionIdRef.current, "completed")
+    flashcardsLearningSessionIdRef.current = null
+  }
+
   function openPlannerDailySession(dailyPlan: PlannerDailyPlan) {
     plannerReviewedFlashcardsRef.current = new Set()
     plannerCompletedActivityIdsRef.current = new Set()
@@ -2559,6 +2684,12 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
     if (!activity) {
       return
+    }
+
+    if (!plannerLearningSessionIdRef.current) {
+      abandonOpenLearningSessions()
+      plannerLearningSessionIdRef.current =
+        await startLearningSession(projectId, "planner")
     }
 
     setPlannerRuntime(prev => ({
@@ -2790,6 +2921,9 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       }
     }
 
+    await completeLearningSession(plannerLearningSessionIdRef.current, "completed")
+    plannerLearningSessionIdRef.current = null
+
     setPlannerRuntime(prev => ({
       ...prev,
       mode: "summary",
@@ -2915,12 +3049,26 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
   async function askDocuments(imageFile?: File | null) {
     if (!projectId) return
-    if (!askQuestion.trim()) return
+    const questionText = askQuestion.trim()
+    if (!questionText) return
+    const previousMessages = chatMessages
     setAsking(true)
+    const isFirstAskMessage = previousMessages.length === 0
+    setChatMessages(currentMessages => [
+      ...currentMessages,
+      { role: "user", content: questionText }
+    ])
+    setAskQuestion("")
 
     try {
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData.session?.access_token
+
+      if (isFirstAskMessage && !askLearningSessionIdRef.current) {
+        abandonOpenLearningSessions()
+        askLearningSessionIdRef.current =
+          await startLearningSession(projectId, "ask")
+      }
 
       const payloadTopicIds = extractTopicIds(selectedTopics || [])
       const payloadTopicNames = extractTopicNames(selectedTopics || [])
@@ -2933,9 +3081,9 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       if (imageFile) {
         const formData = new FormData()
         formData.append("project_id", projectId)
-        formData.append("question", askQuestion)
+        formData.append("question", questionText)
         formData.append("topics", JSON.stringify(payloadTopicNames))
-        formData.append("history", JSON.stringify(chatMessages.slice(-6)))
+        formData.append("history", JSON.stringify(previousMessages.slice(-6)))
         formData.append("expand_search", String(useGlobalKnowledge))
         formData.append("image", imageFile)
 
@@ -2955,19 +3103,31 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           },
           body: JSON.stringify({
             project_id: projectId,
-            question: askQuestion,
+            question: questionText,
             topics: payloadTopicNames,
-            history: chatMessages.slice(-6),
+            history: previousMessages.slice(-6),
             expand_search: useGlobalKnowledge
           })
         })
       }
 
-      if (!res.ok) return
+      if (!res.ok) {
+        setChatMessages(currentMessages => [
+          ...currentMessages,
+          {
+            role: "assistant",
+            content: i18n.t("stats.Ask answer failed")
+          }
+        ])
+        if (isFirstAskMessage) {
+          await completeLearningSession(askLearningSessionIdRef.current, "abandoned")
+          askLearningSessionIdRef.current = null
+        }
+        return
+      }
       const data = await res.json()
-      setChatMessages([
-        ...chatMessages,
-        { role: "user", content: askQuestion },
+      setChatMessages(currentMessages => [
+        ...currentMessages,
         {
           role: "assistant",
           content: data.answer,
@@ -2976,9 +3136,23 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           usedImage: Boolean(data.used_image)
         }
       ])
-      setAskQuestion("")
+      if (isFirstAskMessage) {
+        await completeLearningSession(askLearningSessionIdRef.current, "completed")
+        askLearningSessionIdRef.current = null
+      }
     } catch (e) {
       console.error("ASK ERROR:", e)
+      setChatMessages(currentMessages => [
+        ...currentMessages,
+        {
+          role: "assistant",
+          content: i18n.t("stats.Ask answer failed")
+        }
+      ])
+      if (isFirstAskMessage) {
+        await completeLearningSession(askLearningSessionIdRef.current, "abandoned")
+        askLearningSessionIdRef.current = null
+      }
     } finally {
       setAsking(false)
     }
@@ -3142,6 +3316,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         console.log("✅ Submit e Refresh completati con successo");
 
         setFinished(true)
+        await completeLearningSession(quizLearningSessionIdRef.current, "completed")
+        quizLearningSessionIdRef.current = null
         await loadQuizStats(projectId) // 🔥 QUI
 
         const plannerActivity = plannerRuntime.dailyPlan
@@ -3472,6 +3648,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         }
         onGenerateMoreFlashcards={generateMoreStandaloneFlashcards}
         onFlashcardsBackToDashboard={returnFromStandaloneFlashcardsToDashboard}
+        onFlashcardsComplete={completeStandaloneFlashcardsSession}
         resultsData={resultsData}
         calculateScore={calculateScore}
         uploadLog={uploadLog}
@@ -3508,9 +3685,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 	        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
 	        plannerActivityProgress={plannerActivityProgress}
 	        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
-	        onUploadAnotherFile={openProjectUploadWorkspace}
+        onUploadAnotherFile={openProjectUploadWorkspace}
 	        onBeginStudy={beginStudy}
         onLearningHomeLaunch={openLearningFeature}
+        onStartFocusStudySession={startFocusedStudySession}
         priorityCategories={priorityCategories}
         setPriorityCategories={setPriorityCategories}
         onPriorityCategoriesSaved={updateProjectPriorityCategories}
