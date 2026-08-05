@@ -113,6 +113,7 @@ style={dangerButton}
 <input
 type="file"
 multiple
+accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
 onChange={(e)=>setFiles(e.target.files)}
 style={input}
 />

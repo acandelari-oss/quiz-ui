@@ -376,11 +376,12 @@ priorityCategories = [],
                 <input
                   type="file"
                   multiple
+                  accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                   onChange={(e) => setFiles(e.target.files)}
                   style={input}
                 />
                 <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>
-                  Accepted formats: PDF. Text-based PDFs work best.
+                  Accepted formats: PDF, Word (.docx), and PowerPoint (.pptx). Text-based documents work best.
                 </div>
 
                 <button
@@ -471,6 +472,7 @@ priorityCategories = [],
               <input
                 type="file"
                 multiple
+                accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 onChange={(e)=>setFiles(e.target.files)}
                 style={input}
               />

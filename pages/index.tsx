@@ -72,6 +72,8 @@ type PlannerRuntimeState = {
 }
 
 const directWorkspaceViews = new Set([
+  "create_project",
+  "load_project",
   "project",
   "results_summary",
   "previous_quizzes",
@@ -82,8 +84,6 @@ const directWorkspaceViews = new Set([
 ])
 
 const configurationDrivenViews = new Set([
-  "create_project",
-  "load_project",
   "ask_setup",
   "generate_flashcards",
   "active_recall_setup",
@@ -761,6 +761,51 @@ function openProjectUploadWorkspace() {
 
 function openLearningFeature(view: string) {
   handleSidebarNavigation(view)
+}
+
+function enterLoadedProjectWorkspace(
+  studyMode = projectStudyMode,
+  reason = "enterLoadedProjectWorkspace",
+  targetProjectId = projectId
+) {
+  if (!targetProjectId) return
+
+  if (studyMode === "learning") {
+    uploadLifecycleTrace("enterLoadedProjectWorkspace learning-mode transition", {
+      projectId: targetProjectId,
+      nextView: "learning_home",
+      reason
+    })
+    setProjectReadyVisible(false)
+    setProjectReadyDismissed(true)
+    setStatus("")
+    setToolPanelCollapsed(true)
+    traceSetterCall(
+      "setActiveView",
+      activeView,
+      "learning_home",
+      reason
+    )
+    setActiveView("learning_home")
+    return
+  }
+
+  uploadLifecycleTrace("enterLoadedProjectWorkspace building-mode transition", {
+    projectId: targetProjectId,
+    nextView: "project_ready",
+    reason
+  })
+  setProjectReadyVisible(true)
+  setProjectReadyDismissed(false)
+  setStatus("")
+  setToolPanelCollapsed(true)
+  traceSetterCall(
+    "setActiveView",
+    activeView,
+    "project",
+    reason
+  )
+  setActiveView("project")
 }
 
 function startFocusedStudySession(focusTopics: string[]) {
@@ -2207,7 +2252,11 @@ async function loadQuiz(id: string) {
   setActiveView("quiz")
 }
 
-async function selectProject(id: string, availableProjects = projects) {
+async function selectProject(
+  id: string,
+  availableProjects = projects,
+  options: { previewOnly?: boolean } = {}
+) {
   uploadLifecycleTrace("selectProject invoked", {
     previousProjectId: projectId,
     nextProjectId: id,
@@ -2305,10 +2354,11 @@ async function selectProject(id: string, availableProjects = projects) {
     console.log("✅ Quiz stats richieste per project:", id)
 
     await loadFlashcards(id);
-    if (selectedStudyMode === "learning") {
-      uploadLifecycleTrace("selectProject learning-mode workspace transition", {
+
+    if (options.previewOnly) {
+      uploadLifecycleTrace("selectProject preview-only transition", {
         projectId: id,
-        nextView: "learning_home"
+        nextView: "load_project"
       })
       setProjectReadyVisible(false)
       setProjectReadyDismissed(true)
@@ -2317,28 +2367,18 @@ async function selectProject(id: string, availableProjects = projects) {
       traceSetterCall(
         "setActiveView",
         activeView,
-        "learning_home",
-        "selectProject learning mode"
+        "load_project",
+        "selectProject preview only"
       )
-      setActiveView("learning_home")
+      setActiveView("load_project")
       return
     }
 
-    uploadLifecycleTrace("selectProject building-mode workspace transition", {
-      projectId: id,
-      nextView: "load_project"
-    })
-    setProjectReadyVisible(true)
-    setProjectReadyDismissed(false)
-    setStatus("")
-    setToolPanelCollapsed(false)
-    traceSetterCall(
-      "setActiveView",
-      activeView,
-      "load_project",
-      "selectProject building mode"
+    enterLoadedProjectWorkspace(
+      selectedStudyMode,
+      "selectProject confirmed navigation",
+      id
     )
-    setActiveView("load_project")
 
   } catch(e) {
     console.error("PROJECT LOAD ERROR:", e);
@@ -3634,6 +3674,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         projectReadyVisible={projectReadyVisible}
         projectReadyDismissed={projectReadyDismissed}
         projects={projects}
+        selectProject={(id: string) => selectProject(id, projects, { previewOnly: true })}
         deleteProject={deleteProject}
         quizId={quizId}
         previousQuizzes={previousQuizzes}
@@ -3653,6 +3694,15 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         calculateScore={calculateScore}
         uploadLog={uploadLog}
         uploading={uploading}
+        files={files}
+        setFiles={setFiles}
+        uploadFiles={uploadFiles}
+        uploadStatus={uploadStatus}
+        uploadWorkflowActive={uploadWorkflowActive}
+        createProjectName={createProjectName}
+        setCreateProjectName={setCreateProjectName}
+        createProject={createProject}
+        creatingProject={creatingProject}
         loadQuizStats={loadQuizStats}
         loadHistoryStats={loadQuizStatsByQuiz} // Opzionale: passa quella per i grafici con un altro nome
         loadPreviousQuizzes={loadPreviousQuizzes}
@@ -3686,9 +3736,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 	        plannerActivityProgress={plannerActivityProgress}
 	        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
         onUploadAnotherFile={openProjectUploadWorkspace}
-	        onBeginStudy={beginStudy}
+        onBeginStudy={beginStudy}
         onLearningHomeLaunch={openLearningFeature}
         onStartFocusStudySession={startFocusedStudySession}
+        onUseProject={() => enterLoadedProjectWorkspace(projectStudyMode, "Use This Project clicked")}
         priorityCategories={priorityCategories}
         setPriorityCategories={setPriorityCategories}
         onPriorityCategoriesSaved={updateProjectPriorityCategories}

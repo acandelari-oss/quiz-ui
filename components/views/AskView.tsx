@@ -169,8 +169,8 @@ export default function AskView({
     return sources.filter((source) => {
       const document = source?.document
       const page = source?.page
-      if (!document || page === undefined || page === null) return false
-      const key = `${document}::${page}`
+      if (!document) return false
+      const key = `${document}::${page ?? ""}`
       if (seen.has(key)) return false
       seen.add(key)
       return true
@@ -202,7 +202,10 @@ export default function AskView({
 
         {sources.map((source, index) => (
           <div key={`${source.document}-${source.page}-${index}`}>
-            • {source.document} — {translate("stats.page")} {source.page}
+            • {source.document}
+            {source.page !== undefined && source.page !== null
+              ? ` — ${translate("stats.page")} ${source.page}`
+              : ""}
           </div>
         ))}
 

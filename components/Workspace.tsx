@@ -4,7 +4,7 @@ import QuizView from "./views/QuizView"
 import ResultsView from "./views/ResultsView"
 import SummaryViewNew from "./views/SummaryView"
 import ActiveRecallView from "./views/ActiveRecallView"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import StudySessionView from "./views/StudySessionView"
 import PlannerView from "./views/PlannerView"
 import { Heading2 } from "lucide-react"
@@ -23,7 +23,19 @@ import {
   Layers3,
   HelpCircle,
   Brain,
-  AlertTriangle
+  AlertTriangle,
+  UploadCloud,
+  FileText,
+  FileType,
+  Presentation,
+  NotebookText,
+  ShieldCheck,
+  Target,
+  Ruler,
+  Lock,
+  Coffee,
+  FolderOpen,
+  Search
 } from "lucide-react";
 
 export default function Workspace({
@@ -32,6 +44,7 @@ activeView,
 setActiveView,
 handleSidebarNavigation,
 projects,
+selectProject,
 deleteProject,
 
 flashcards,
@@ -74,6 +87,15 @@ setSelectedTopics,
 uploadLog,
 uploading,
 uploadFlightSessionId,
+files,
+setFiles,
+uploadFiles,
+uploadStatus,
+uploadWorkflowActive,
+createProjectName,
+setCreateProjectName,
+createProject,
+creatingProject,
 projectId,
 projectName,
 studentFirstName,
@@ -116,6 +138,7 @@ onUploadAnotherFile,
 onBeginStudy,
 onLearningHomeLaunch,
 onStartFocusStudySession,
+onUseProject,
 priorityCategories = [],
 setPriorityCategories = (_value: any) => {},
 onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) => {},
@@ -127,6 +150,7 @@ onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) 
 }) {
 console.log("🧠 ACTIVE VIEW:", activeView)
 const quizList = Array.isArray(quiz) ? quiz : []
+const uploadBrowseInputRef = useRef<HTMLInputElement | null>(null)
 
 const [mounted, setMounted] = useState(false);
 
@@ -150,6 +174,8 @@ const handleLogout = async () => {
   window.location.reload()
 }
 const [currentStep, setCurrentStep] = useState(0);
+const [loadProjectSelectionExpanded, setLoadProjectSelectionExpanded] = useState(true)
+const [loadProjectSearch, setLoadProjectSearch] = useState("")
 
   useEffect(() => {
   let interval: any;
@@ -163,6 +189,26 @@ const [currentStep, setCurrentStep] = useState(0);
   }
   return () => clearInterval(interval);
 }, [uploading, generatingFlashcards, generatingQuiz]); // <--- Fondamentale che ci siano tutte!
+
+useEffect(() => {
+  if (activeView === "load_project") {
+    setLoadProjectSelectionExpanded(true)
+  }
+}, [activeView])
+
+const handleWorkspaceFileSelection = (fileList: FileList | null) => {
+  if (!fileList || !setFiles) return
+  setFiles(fileList)
+}
+
+const openWorkspaceFileBrowser = () => {
+  uploadBrowseInputRef.current?.click()
+}
+
+const handleWorkspaceDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  event.preventDefault()
+  handleWorkspaceFileSelection(event.dataTransfer.files)
+}
 
 
 const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
@@ -297,7 +343,10 @@ useEffect(()=>{
 console.log("WORKSPACE LOG:", uploadLog)
 console.log("WORKSPACE resultsData:", resultsData);
 console.log("RENDERING ATTUALE - View:", activeView, "Cards:", flashcards?.length, "Gen:", generatingFlashcards);
-const canRenderWithoutProject = activeView === "manage_projects"
+const canRenderWithoutProject =
+  activeView === "manage_projects"
+  || activeView === "create_project"
+  || activeView === "load_project"
 const showProjectReadyScreen =
   projectStudyMode === "building"
   && !projectReadyDismissed
@@ -420,6 +469,69 @@ return (
         }
 
       }
+
+      .upload-workspace-shell {
+        width: min(1080px, 100%);
+        margin: 0 auto;
+        padding: 18px 0 42px;
+      }
+
+      .upload-material-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+
+      .upload-tips-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      @media (max-width: 1024px) {
+        .upload-workspace-shell {
+          padding: 12px 0 34px;
+        }
+
+        .upload-material-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .upload-tips-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 620px) {
+        .upload-workspace-shell {
+          padding: 4px 0 28px;
+        }
+
+        .upload-material-grid,
+        .upload-tips-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .load-project-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(139, 92, 246, 0.72) transparent;
+      }
+
+      .load-project-scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .load-project-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .load-project-scroll::-webkit-scrollbar-thumb {
+        background: rgba(139, 92, 246, 0.62);
+        border-radius: 999px;
+      }
+
+      .load-project-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(167, 139, 250, 0.88);
+      }
     `}</style>
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {workspaceLoaderVisible ? (
@@ -494,11 +606,51 @@ return (
       </div>
     ) : /* --- FINE BLOCCO LOADER --- */
 
+    activeView === "load_project" ? (
+      <LoadProjectWorkspace
+        translate={translate}
+        projects={projects}
+        projectId={projectId}
+        projectName={projectName}
+        selectProject={selectProject}
+        documents={documents}
+        topics={topics}
+        files={files}
+        setFiles={setFiles}
+        uploadFiles={uploadFiles}
+        uploadStatus={uploadStatus}
+        uploadWorkflowActive={uploadWorkflowActive}
+        search={loadProjectSearch}
+        setSearch={setLoadProjectSearch}
+        selectionExpanded={loadProjectSelectionExpanded}
+        setSelectionExpanded={setLoadProjectSelectionExpanded}
+        onShowTopics={() => handleSidebarNavigation ? handleSidebarNavigation("topics") : setActiveView("topics")}
+        onUseProject={onUseProject}
+      />
+    ) :
+
     showProjectReadyScreen ? (
       <ProjectReadyScreen
         translate={translate}
         onUploadAnotherFile={onUploadAnotherFile}
         onBeginStudy={onBeginStudy}
+      />
+    ) :
+
+    activeView === "create_project" ? (
+      <ProjectSetupWorkspace
+        translate={translate}
+        projectId={projectId}
+        projectName={projectName}
+        createProjectName={createProjectName}
+        setCreateProjectName={setCreateProjectName}
+        createProject={createProject}
+        creatingProject={creatingProject}
+        files={files}
+        setFiles={setFiles}
+        uploadFiles={uploadFiles}
+        uploadStatus={uploadStatus}
+        uploadWorkflowActive={uploadWorkflowActive}
       />
     ) :
 
@@ -518,85 +670,322 @@ return (
 
 ) : documents?.length === 0 && !canRenderWithoutProject ? (
 
-  // 🔥 NUOVA SCHERMATA (DOPO CREAZIONE PROGETTO)
-  <div style={{
-    display:"flex",
-    flexDirection:"column",
-    alignItems:"center",
-    justifyContent:"center",
-    height:"70vh",
-    textAlign:"center"
-  }}>
-
-    <h2 style={{
-      color:"white",
-      fontSize:26,
-      marginBottom:10
-    }}>
-      {translate('stats.Upload your study material')}
-    </h2>
-
-    <p style={{
-      color:"#9ca3af",
-      maxWidth:400,
-      lineHeight:1.6
-    }}>
-      {translate('stats.Upload your files to start generating topics, flashcards and quizzes.')}
-    </p>
+  <div className="upload-workspace-shell">
     <div style={{
-      marginTop: 28,
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(255,255,255,0.08)",
-      borderRadius: 16,
-      padding: "18px 22px",
-      maxWidth: 700,
-      textAlign: "left"
+      textAlign: "center",
+      marginBottom: 34
     }}>
-
       <div style={{
-        color: "white",
-        fontWeight: 600,
-        marginBottom: 12,
-        fontSize: 18
+        width: 68,
+        height: 68,
+        borderRadius: 24,
+        margin: "0 auto 18px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#8b5cf6",
+        background: "radial-gradient(circle at 35% 25%, rgba(139, 92, 246, 0.32), rgba(37, 99, 235, 0.12) 70%)",
+        border: "1px solid rgba(139, 92, 246, 0.35)",
+        boxShadow: "0 18px 60px rgba(79, 70, 229, 0.22)"
       }}>
-        📚 Study Material Tips
+        <UploadCloud size={38} strokeWidth={1.8} />
       </div>
 
-      <div style={{
-        color: "#d1d5db",
-        fontSize: 15,
-        lineHeight: 1.7
+      <h2 style={{
+        color: "white",
+        fontSize: "clamp(34px, 5vw, 54px)",
+        lineHeight: 1.05,
+        letterSpacing: "-0.04em",
+        margin: "0 0 14px",
+        fontWeight: 900
       }}>
+        Upload your study material
+      </h2>
 
-        <div style={{ marginBottom: 10 }}>
-          <strong>Accepted formats</strong><br />
-          • PDF<br />
-          • Word (.docx)<br />
-          • PowerPoint (.pptx)
-        </div>
+      <p style={{
+        color: "#d1d5db",
+        maxWidth: 700,
+        margin: "0 auto",
+        lineHeight: 1.6,
+        fontSize: 18
+      }}>
+        Upload your files and <span style={{ color: "#a78bfa", fontWeight: 800 }}>DO·U·NO</span> will analyze the content to build your personalized learning workspace.
+      </p>
+    </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <strong>Best results</strong><br />
-          • text-based documents work best<br />
-          • chapter-based uploads improve topic quality<br />
-          • smaller thematic uploads generate more precise quizzes and flashcards
-        </div>
+    <div
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={handleWorkspaceDrop}
+      onClick={openWorkspaceFileBrowser}
+      style={{
+        cursor: setFiles ? "pointer" : "default",
+        borderRadius: 24,
+        border: "1px dashed rgba(129, 140, 248, 0.62)",
+        background: "linear-gradient(145deg, rgba(15, 23, 42, 0.78), rgba(17, 24, 39, 0.46))",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 24px 80px rgba(0,0,0,0.24)",
+        minHeight: 300,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        textAlign: "center",
+        padding: 28,
+        marginBottom: 20
+      }}
+    >
+      <input
+        ref={uploadBrowseInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        onChange={(event) => handleWorkspaceFileSelection(event.target.files)}
+        style={{ display: "none" }}
+      />
 
-        <div style={{ marginBottom: 10 }}>
-          <strong>Recommended size</strong><br />
-          • ~40–80 pages per upload for optimal study analysis<br />
-          • very large academic files may require additional processing time
-        </div>
+      <div style={{
+        width: 92,
+        height: 92,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 18,
+        color: "#a78bfa",
+        background: "radial-gradient(circle at 40% 30%, rgba(139, 92, 246, 0.36), rgba(37, 99, 235, 0.12))",
+        border: "1px solid rgba(129, 140, 248, 0.35)"
+      }}>
+        <FileText size={42} strokeWidth={1.7} />
+      </div>
 
-        <div>
-          <strong>Good to know</strong><br />
-          • scanned documents and OCR files may take longer<br />
-          • the platform analyzes conceptual relationships before generating quizzes and flashcards
-        </div>
+      <div style={{ color: "white", fontSize: 24, fontWeight: 850, marginBottom: 8 }}>
+        Drag & Drop
+      </div>
+      <div style={{ color: "#aab2c5", fontSize: 16, marginBottom: 22 }}>
+        or click to browse
+      </div>
 
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          openWorkspaceFileBrowser()
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          border: "none",
+          borderRadius: 12,
+          padding: "14px 30px",
+          color: "white",
+          fontWeight: 850,
+          fontSize: 16,
+          background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+          boxShadow: "0 16px 38px rgba(37, 99, 235, 0.28)",
+          cursor: "pointer"
+        }}
+      >
+        <FolderOpen size={20} />
+        Browse files
+      </button>
+
+      <div style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}>
+        Your files are secure and never modified.
       </div>
     </div>
 
+    <div style={{
+      borderRadius: 20,
+      border: "1px solid rgba(148, 163, 184, 0.16)",
+      background: "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(15,23,42,0.54))",
+      padding: 18,
+      marginBottom: 18
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        color: "white",
+        fontWeight: 850,
+        fontSize: 20,
+        marginBottom: 14
+      }}>
+        <FileType size={24} color="#8b5cf6" />
+        Supported Study Materials
+      </div>
+
+      <div className="upload-material-grid" style={{
+        overflow: "hidden",
+        borderRadius: 16,
+        border: "1px solid rgba(148, 163, 184, 0.12)"
+      }}>
+        {[
+          { ext: ".pdf", name: "PDF Documents", icon: <FileText size={42} />, color: "#ef4444", active: true },
+          { ext: ".docx", name: "Microsoft Word", icon: <FileType size={42} />, color: "#3b82f6", active: true },
+          { ext: ".pptx", name: "PowerPoint", icon: <Presentation size={42} />, color: "#f97316", active: true },
+          { ext: ".txt", name: "Plain Text", icon: <NotebookText size={42} />, color: "#22d3ee", active: false },
+          { ext: ".md", name: "Markdown", icon: <FileText size={42} />, color: "#34d399", active: false }
+        ].map((material, index) => (
+          <div
+            key={material.ext}
+            style={{
+              minHeight: 150,
+              padding: "22px 14px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              textAlign: "center",
+              color: material.active ? "#e5e7eb" : "rgba(229,231,235,0.58)",
+              background: index % 2 === 0 ? "rgba(15, 23, 42, 0.34)" : "rgba(30, 41, 59, 0.24)",
+              borderRight: index < 4 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
+            }}
+          >
+            <div style={{ color: material.color, opacity: material.active ? 1 : 0.65 }}>
+              {material.icon}
+            </div>
+            <div style={{ color: "white", fontWeight: 900, fontSize: 18 }}>{material.ext}</div>
+            <div style={{ fontSize: 14 }}>{material.name}</div>
+            {!material.active && (
+              <div style={{
+                marginTop: 2,
+                padding: "3px 10px",
+                borderRadius: 999,
+                color: "#c4b5fd",
+                background: "rgba(124, 58, 237, 0.14)",
+                border: "1px solid rgba(168, 85, 247, 0.45)",
+                fontSize: 12,
+                fontWeight: 800
+              }}>
+                Coming soon
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <div className="upload-tips-grid" style={{
+      borderRadius: 20,
+      border: "1px solid rgba(148, 163, 184, 0.16)",
+      background: "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(15,23,42,0.54))",
+      overflow: "hidden",
+      marginBottom: 20
+    }}>
+      {[
+        {
+          icon: <Target size={30} />,
+          color: "#c084fc",
+          title: "Get the best results",
+          lines: [
+            "Upload one subject or chapter at a time",
+            "Well-structured documents produce better knowledge maps",
+            "Smaller uploads usually generate more accurate quizzes and flashcards"
+          ]
+        },
+        {
+          icon: <Ruler size={30} />,
+          color: "#60a5fa",
+          title: "Recommended size",
+          lines: [
+            "40–80 pages per upload is ideal",
+            "Larger documents may take longer to process"
+          ]
+        },
+        {
+          icon: <ShieldCheck size={30} />,
+          color: "#22c55e",
+          title: "Good to know",
+          lines: [
+            "Scanned documents are supported using OCR",
+            "DO·U·NO analyzes concepts before building your learning workspace"
+          ]
+        },
+        {
+          icon: <Lock size={30} />,
+          color: "#facc15",
+          title: "Privacy",
+          lines: [
+            "Your files are never modified",
+            "Your documents are processed securely",
+            "Files are only used to build your personal workspace"
+          ]
+        }
+      ].map((card, index) => (
+        <div
+          key={card.title}
+          style={{
+            padding: "24px 22px",
+            borderRight: index < 3 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
+          }}
+        >
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            color: "white",
+            fontWeight: 850,
+            fontSize: 17,
+            marginBottom: 16
+          }}>
+            <span style={{ color: card.color }}>{card.icon}</span>
+            {card.title}
+          </div>
+
+          <div style={{ color: "#d1d5db", fontSize: 15, lineHeight: 1.55 }}>
+            {card.lines.map((line) => (
+              <div key={line} style={{ display: "flex", gap: 8, marginBottom: 9 }}>
+                <span style={{ color: "#94a3b8" }}>•</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{
+      position: "relative",
+      overflow: "hidden",
+      borderRadius: 22,
+      border: "1px solid rgba(168, 85, 247, 0.62)",
+      background: "radial-gradient(circle at 16% 48%, rgba(147, 51, 234, 0.32), transparent 28%), linear-gradient(135deg, rgba(38, 17, 77, 0.8), rgba(15,23,42,0.92) 55%, rgba(49, 25, 77, 0.74))",
+      boxShadow: "0 24px 80px rgba(88, 28, 135, 0.28)",
+      padding: "30px clamp(24px, 5vw, 56px)",
+      minHeight: 172,
+      display: "flex",
+      alignItems: "center",
+      gap: 24
+    }}>
+      <div style={{
+        width: 78,
+        height: 78,
+        borderRadius: 24,
+        flex: "0 0 auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#d8b4fe",
+        background: "rgba(88, 28, 135, 0.34)",
+        border: "1px solid rgba(216, 180, 254, 0.28)"
+      }}>
+        <Coffee size={42} />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{ color: "white", fontWeight: 900, fontSize: "clamp(24px, 3vw, 34px)", marginBottom: 10 }}>
+          ☕ Perfect time for a coffee break!
+        </div>
+        <div style={{ color: "#e5e7eb", fontSize: 17, lineHeight: 1.6, maxWidth: 720 }}>
+          While you're away, DO·U·NO is reading your study material, identifying the key concepts and building your personalized knowledge map.
+        </div>
+        <div style={{ color: "#a78bfa", fontSize: 17, lineHeight: 1.6, fontWeight: 850, marginTop: 10 }}>
+          When you come back, your learning workspace will be ready.
+        </div>
+      </div>
+    </div>
   </div>
   
 
@@ -659,7 +1048,7 @@ return (
           <p>Suggestions:</p>
 
           <p>• Split very large files into chapters</p>
-          <p>• Export the document as a text-based PDF</p>
+          <p>• Export the document as a text-based PDF, DOCX or PPTX</p>
           <p>• Avoid scanned or image-only pages</p>
           <p>• Remove heavily formatted slides when possible</p>
         </div>
@@ -1713,6 +2102,1118 @@ function ProjectReadyScreen({
           >
             {translate("stats.BEGIN STUDY")}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LoadProjectWorkspace({
+  translate,
+  projects,
+  projectId,
+  projectName,
+  selectProject,
+  documents,
+  topics,
+  files,
+  setFiles,
+  uploadFiles,
+  uploadStatus,
+  uploadWorkflowActive,
+  search,
+  setSearch,
+  selectionExpanded,
+  setSelectionExpanded,
+  onShowTopics,
+  onUseProject
+}: any) {
+  const loadFileInputRef = useRef<HTMLInputElement | null>(null)
+  const selectedFileCount = files?.length || 0
+  const hasProject = Boolean(projectId)
+  const uploadDisabled = !hasProject || !selectedFileCount || Boolean(uploadWorkflowActive)
+
+  const orderedProjects = useMemo(() => {
+    const list = Array.isArray(projects) ? [...projects] : []
+    return list.sort((a: any, b: any) => {
+      if (a.id === projectId) return -1
+      if (b.id === projectId) return 1
+
+      const aTime = Date.parse(a.last_used_at || a.last_opened_at || a.updated_at || a.created_at || "")
+      const bTime = Date.parse(b.last_used_at || b.last_opened_at || b.updated_at || b.created_at || "")
+
+      if (!Number.isNaN(aTime) && !Number.isNaN(bTime) && aTime !== bTime) {
+        return bTime - aTime
+      }
+
+      return String(a.name || "").localeCompare(String(b.name || ""))
+    })
+  }, [projects, projectId])
+
+  const visibleProjects = useMemo(() => {
+    const query = String(search || "").trim().toLowerCase()
+    const filtered = query
+      ? orderedProjects.filter((project: any) =>
+          String(project.name || "").toLowerCase().includes(query)
+        )
+      : orderedProjects
+
+    return selectionExpanded ? filtered : filtered.slice(0, 5)
+  }, [orderedProjects, search, selectionExpanded])
+
+  const formatLastStudied = (project: any) => {
+    if (project.id === projectId) return "Current project"
+
+    const rawDate = project.last_used_at || project.last_opened_at || project.updated_at || project.created_at
+    const timestamp = Date.parse(rawDate || "")
+    if (Number.isNaN(timestamp)) return "Not opened yet"
+
+    const diffDays = Math.floor((Date.now() - timestamp) / 86400000)
+    if (diffDays <= 0) return "Recently used"
+    if (diffDays === 1) return "Yesterday"
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} week${Math.floor(diffDays / 7) === 1 ? "" : "s"} ago`
+    return `${Math.floor(diffDays / 30)} month${Math.floor(diffDays / 30) === 1 ? "" : "s"} ago`
+  }
+
+  const handleProjectClick = (id: string) => {
+    setSelectionExpanded(false)
+    selectProject?.(id)
+  }
+
+  const browseFiles = () => {
+    if (!hasProject) return
+    loadFileInputRef.current?.click()
+  }
+
+  const handleFileSelection = (fileList: FileList | null) => {
+    if (!fileList || !setFiles) return
+    setFiles(fileList)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!hasProject) return
+    handleFileSelection(event.dataTransfer.files)
+  }
+
+  const recentMode = hasProject && !selectionExpanded
+  const topicNames = Array.isArray(topics)
+    ? Array.from(new Set(
+        topics
+          .map((topic: any) => String(topic.title || topic.topic || topic.name || "").trim())
+          .filter(Boolean)
+      ))
+    : []
+
+  return (
+    <div className="upload-workspace-shell">
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto 1fr auto 1fr",
+        alignItems: "center",
+        gap: 18,
+        marginBottom: 28,
+        color: "#cbd5e1"
+      }}>
+        {[
+          { number: 1, label: "Load Project", active: selectionExpanded, done: recentMode },
+          { number: 2, label: "Upload / Manage Files", active: recentMode, done: false },
+          { number: 3, label: "Topics Overview", active: recentMode, done: false }
+        ].map((step, index) => (
+          <div key={step.number} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            justifyContent: index === 0 ? "flex-end" : index === 2 ? "flex-start" : "center"
+          }}>
+            <span style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: step.done || step.active ? "white" : "#94a3b8",
+              fontWeight: 900,
+              background: step.done
+                ? "linear-gradient(135deg, #22c55e, #14b8a6)"
+                : step.active
+                  ? "linear-gradient(135deg, #7c3aed, #2563eb)"
+                  : "rgba(15, 23, 42, 0.7)",
+              border: step.done || step.active ? "none" : "1px solid rgba(148, 163, 184, 0.5)"
+            }}>
+              {step.done ? "✓" : step.number}
+            </span>
+            <span style={{ color: step.active || step.done ? "white" : "#94a3b8", fontWeight: 800 }}>
+              {step.label}
+            </span>
+          </div>
+        )).flatMap((node, index, array) => (
+          index < array.length - 1
+            ? [node, <div key={`line-${index}`} style={{ height: 1, minWidth: 90, background: "rgba(148, 163, 184, 0.35)" }} />]
+            : [node]
+        ))}
+      </div>
+
+      <section style={{
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.18)",
+        background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+        padding: selectionExpanded ? 32 : 24,
+        marginBottom: 18
+      }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: selectionExpanded ? "260px 1fr" : "220px 1fr",
+          gap: 28,
+          alignItems: "start"
+        }}>
+          <div>
+            <div style={{
+              display: "inline-flex",
+              alignItems: "center",
+              borderRadius: 999,
+              padding: "5px 10px",
+              color: "#c4b5fd",
+              background: "rgba(124, 58, 237, 0.16)",
+              fontSize: 13,
+              fontWeight: 900,
+              marginBottom: 16
+            }}>
+              Step 1 of 3
+            </div>
+            <h2 style={{ color: "white", fontSize: selectionExpanded ? 32 : 24, fontWeight: 900, margin: "0 0 12px" }}>
+              Select a Project
+            </h2>
+            <p style={{ color: "#cbd5e1", lineHeight: 1.65, margin: 0 }}>
+              Choose one of your existing projects to continue your learning journey.
+            </p>
+          </div>
+
+          <div>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              alignItems: "center",
+              marginBottom: 14
+            }}>
+              <div style={{ color: "white", fontWeight: 850 }}>Your Projects</div>
+              <label style={{
+                width: "min(360px, 46%)",
+                minWidth: 220,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                border: "1px solid rgba(148, 163, 184, 0.18)",
+                borderRadius: 10,
+                padding: "9px 12px",
+                background: "rgba(15, 23, 42, 0.6)"
+              }}>
+                <Search size={16} color="#94a3b8" />
+                <input
+                  value={search || ""}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search projects..."
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    color: "white",
+                    fontSize: 14
+                  }}
+                />
+              </label>
+            </div>
+
+            <div
+              className="load-project-scroll"
+              style={{
+                maxHeight: selectionExpanded ? "min(62vh, 620px)" : 264,
+                overflowY: "auto",
+                borderRadius: 14,
+                border: "1px solid rgba(148, 163, 184, 0.14)",
+                background: "rgba(8, 13, 26, 0.28)",
+                padding: "2px 10px 2px 0"
+              }}
+            >
+              {visibleProjects.length === 0 ? (
+                <div style={{ color: "#94a3b8", padding: 18 }}>
+                  No projects found.
+                </div>
+              ) : visibleProjects.map((project: any) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => handleProjectClick(project.id)}
+                  style={{
+                    width: "100%",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 180px 24px",
+                    gap: 16,
+                    alignItems: "center",
+                    textAlign: "left",
+                    border: "none",
+                    borderBottom: "1px solid rgba(148, 163, 184, 0.11)",
+                    background: project.id === projectId ? "rgba(124, 58, 237, 0.16)" : "transparent",
+                    color: "white",
+                    padding: "14px 16px",
+                    cursor: "pointer",
+                    borderRadius: project.id === projectId ? 10 : 0
+                  }}
+                >
+                  <span style={{ fontWeight: 850 }}>{project.name}</span>
+                  <span style={{ color: "#cbd5e1", fontSize: 14 }}>{formatLastStudied(project)}</span>
+                  <span style={{ color: project.id === projectId ? "#a78bfa" : "#94a3b8", fontSize: 22 }}>
+                    {project.id === projectId ? "✓" : "›"}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {recentMode && orderedProjects.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setSelectionExpanded(true)}
+                style={{
+                  marginTop: 12,
+                  color: "#8b5cf6",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 850
+                }}
+              >
+                Show all projects ({orderedProjects.length}) ↓
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {recentMode && (
+        <>
+          <section style={{
+            borderRadius: 20,
+            border: "1px solid rgba(148, 163, 184, 0.18)",
+            background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+            padding: 28,
+            marginBottom: 18
+          }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "260px 1fr 1fr",
+              gap: 28,
+              alignItems: "stretch"
+            }}>
+              <div>
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  borderRadius: 999,
+                  padding: "5px 10px",
+                  color: "#c4b5fd",
+                  background: "rgba(124, 58, 237, 0.16)",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  marginBottom: 16
+                }}>
+                  Step 2 of 3
+                </div>
+                <h2 style={{ color: "white", fontSize: 28, fontWeight: 900, margin: "0 0 12px" }}>
+                  Upload / Manage Files
+                </h2>
+                <p style={{ color: "#cbd5e1", lineHeight: 1.65, margin: 0 }}>
+                  These are the files in your project. You can add new files anytime to expand your knowledge base.
+                </p>
+              </div>
+
+              <div style={{
+                borderRadius: 16,
+                border: "1px solid rgba(148, 163, 184, 0.14)",
+                background: "rgba(8, 13, 26, 0.28)",
+                padding: 18
+              }}>
+                <div style={{ color: "white", fontWeight: 850, marginBottom: 14 }}>
+                  Uploaded Files ({documents?.length || 0})
+                </div>
+                {documents?.length ? (
+                  documents.map((document: any, index: number) => (
+                    <div
+                      key={`${document.title}-${index}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        color: "#e5e7eb",
+                        padding: "10px 0",
+                        borderBottom: index < documents.length - 1 ? "1px solid rgba(148, 163, 184, 0.1)" : "none",
+                        fontSize: 14
+                      }}
+                    >
+                      <span>{document.title}</span>
+                      <span style={{ color: "#22c55e", fontWeight: 800 }}>Processed</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: "#94a3b8", fontSize: 14 }}>No uploaded documents yet.</div>
+                )}
+              </div>
+
+              <div
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleDrop}
+                onClick={browseFiles}
+                style={{
+                  borderRadius: 16,
+                  border: "1px dashed rgba(129, 140, 248, 0.62)",
+                  background: "rgba(15, 23, 42, 0.44)",
+                  minHeight: 190,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  padding: 20,
+                  cursor: "pointer"
+                }}
+              >
+                <input
+                  ref={loadFileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  onChange={(event) => handleFileSelection(event.target.files)}
+                  style={{ display: "none" }}
+                />
+                <UploadCloud size={42} color="#8b5cf6" />
+                <div style={{ color: "white", fontWeight: 900, marginTop: 10 }}>
+                  Add more files to this project
+                </div>
+                <div style={{ color: "#cbd5e1", marginTop: 4 }}>
+                  Drag & drop files here or click to browse
+                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    browseFiles()
+                  }}
+                  style={{
+                    marginTop: 16,
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "11px 24px",
+                    color: "white",
+                    fontWeight: 900,
+                    background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+                    cursor: "pointer"
+                  }}
+                >
+                  <FolderOpen size={17} style={{ verticalAlign: "middle", marginRight: 8 }} />
+                  Browse files
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    uploadFiles?.()
+                  }}
+                  disabled={uploadDisabled}
+                  style={{
+                    marginTop: 12,
+                    border: "none",
+                    borderRadius: 10,
+                    padding: "10px 20px",
+                    color: "white",
+                    fontWeight: 900,
+                    background: uploadDisabled ? "#1f2937" : "linear-gradient(135deg, #2563eb, #14b8a6)",
+                    cursor: uploadDisabled ? "not-allowed" : "pointer",
+                    opacity: uploadDisabled ? 0.62 : 1
+                  }}
+                >
+                  {uploadWorkflowActive ? "Upload in progress" : "Upload documents"}
+                </button>
+                <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 12 }}>
+                  {selectedFileCount
+                    ? `${selectedFileCount} file${selectedFileCount === 1 ? "" : "s"} selected`
+                    : "Supported formats: PDF, DOCX, PPTX"}
+                </div>
+              </div>
+            </div>
+
+            {uploadStatus && (
+              <div style={{
+                marginTop: 16,
+                borderRadius: 12,
+                padding: "12px 14px",
+                color: "#cbd5e1",
+                background: "rgba(15, 23, 42, 0.65)",
+                border: "1px solid rgba(148, 163, 184, 0.14)"
+              }}>
+                {uploadStatus}
+              </div>
+            )}
+          </section>
+
+          <section style={{
+            borderRadius: 20,
+            border: "1px solid rgba(148, 163, 184, 0.18)",
+            background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+            padding: 28
+          }}>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "260px 1fr",
+              gap: 28,
+              alignItems: "start"
+            }}>
+              <div>
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  borderRadius: 999,
+                  padding: "5px 10px",
+                  color: "#c4b5fd",
+                  background: "rgba(124, 58, 237, 0.16)",
+                  fontSize: 13,
+                  fontWeight: 900,
+                  marginBottom: 16
+                }}>
+                  Step 3 of 3
+                </div>
+                <h2 style={{ color: "white", fontSize: 28, fontWeight: 900, margin: "0 0 12px" }}>
+                  Topics Overview
+                </h2>
+                <p style={{ color: "#cbd5e1", lineHeight: 1.65, margin: 0 }}>
+                  These are the main topics DO·U·NO has generated from your materials.
+                </p>
+              </div>
+
+              <div style={{
+                borderRadius: 16,
+                border: "1px solid rgba(148, 163, 184, 0.14)",
+                background: "rgba(8, 13, 26, 0.28)",
+                padding: 18
+              }}>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14
+                }}>
+                  <div style={{ color: "white", fontWeight: 850 }}>
+                    Generated Topics ({topicNames.length})
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onShowTopics}
+                    style={{
+                      color: "#a78bfa",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 850
+                    }}
+                  >
+                    Show all topics →
+                  </button>
+                </div>
+
+                {topicNames.length ? (
+                  <ul style={{
+                    columns: 4,
+                    columnGap: 34,
+                    color: "#e5e7eb",
+                    fontSize: 14,
+                    lineHeight: 1.8,
+                    margin: 0,
+                    paddingLeft: 18
+                  }}>
+                    {topicNames.slice(0, 48).map((topic) => (
+                      <li key={topic} style={{ breakInside: "avoid", paddingLeft: 4 }}>
+                        {topic}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={{ color: "#94a3b8", fontSize: 14 }}>
+                    No generated topics yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section style={{
+            marginTop: 18,
+            borderRadius: 20,
+            border: "1px solid rgba(148, 163, 184, 0.18)",
+            background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+            padding: "20px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 20
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#c4b5fd",
+                background: "rgba(124, 58, 237, 0.16)",
+                border: "1px solid rgba(167, 139, 250, 0.28)",
+                fontWeight: 900
+              }}>
+                i
+              </div>
+              <div>
+                <div style={{ color: "white", fontWeight: 900, marginBottom: 4 }}>
+                  Ready to continue your learning
+                </div>
+                <div style={{ color: "#cbd5e1", fontSize: 14 }}>
+                  Your project “{projectName}” is loaded. Review the preview, then enter the study workspace when you're ready.
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onUseProject}
+              disabled={!hasProject}
+              style={{
+                border: "none",
+                borderRadius: 12,
+                padding: "14px 28px",
+                color: "white",
+                fontWeight: 900,
+                fontSize: 15,
+                minWidth: 190,
+                background: hasProject
+                  ? "linear-gradient(135deg, #7c3aed, #2563eb)"
+                  : "#1f2937",
+                boxShadow: hasProject ? "0 16px 38px rgba(37, 99, 235, 0.28)" : "none",
+                cursor: hasProject ? "pointer" : "not-allowed",
+                opacity: hasProject ? 1 : 0.62
+              }}
+            >
+              Use This Project →
+            </button>
+          </section>
+        </>
+      )}
+    </div>
+  )
+}
+
+function ProjectSetupWorkspace({
+  translate,
+  projectId,
+  projectName,
+  createProjectName,
+  setCreateProjectName,
+  createProject,
+  creatingProject,
+  files,
+  setFiles,
+  uploadFiles,
+  uploadStatus,
+  uploadWorkflowActive
+}: any) {
+  const setupFileInputRef = useRef<HTMLInputElement | null>(null)
+  const projectCreated = Boolean(projectId)
+  const selectedFileCount = files?.length || 0
+  const uploadDisabled = !projectCreated || !selectedFileCount || Boolean(uploadWorkflowActive)
+
+  const browseFiles = () => {
+    if (!projectCreated) return
+    setupFileInputRef.current?.click()
+  }
+
+  const handleFileSelection = (fileList: FileList | null) => {
+    if (!fileList || !setFiles) return
+    setFiles(fileList)
+  }
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (!projectCreated) return
+    handleFileSelection(event.dataTransfer.files)
+  }
+
+  const materialCards = [
+    { ext: ".pdf", name: "PDF Documents", icon: <FileText size={36} />, color: "#ef4444", active: true },
+    { ext: ".docx", name: "Microsoft Word", icon: <FileType size={36} />, color: "#3b82f6", active: true },
+    { ext: ".pptx", name: "PowerPoint", icon: <Presentation size={36} />, color: "#f97316", active: true },
+    { ext: ".txt", name: "Plain Text", icon: <NotebookText size={36} />, color: "#22d3ee", active: false },
+    { ext: ".md", name: "Markdown", icon: <FileText size={36} />, color: "#34d399", active: false }
+  ]
+
+  const tipCards = [
+    {
+      icon: <Target size={28} />,
+      color: "#c084fc",
+      title: "Get the best results",
+      lines: [
+        "Upload one subject or chapter at a time",
+        "Well-structured documents produce better knowledge maps",
+        "Smaller uploads usually generate more accurate quizzes and flashcards"
+      ]
+    },
+    {
+      icon: <Ruler size={28} />,
+      color: "#60a5fa",
+      title: "Recommended size",
+      lines: [
+        "40–80 pages per upload is ideal",
+        "Larger documents may take longer to process"
+      ]
+    },
+    {
+      icon: <ShieldCheck size={28} />,
+      color: "#22c55e",
+      title: "Good to know",
+      lines: [
+        "Scanned documents are supported using OCR",
+        "DO·U·NO analyzes concepts before building your learning workspace"
+      ]
+    },
+    {
+      icon: <Lock size={28} />,
+      color: "#facc15",
+      title: "Privacy",
+      lines: [
+        "Your files are never modified",
+        "Your documents are processed securely",
+        "Files are only used to build your personal workspace"
+      ]
+    }
+  ]
+
+  return (
+    <div className="upload-workspace-shell">
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto 1fr auto 1fr",
+        alignItems: "center",
+        gap: 18,
+        marginBottom: 28,
+        color: "#cbd5e1"
+      }}>
+        {[
+          { number: 1, label: "Create Project", active: !projectCreated, done: projectCreated },
+          { number: 2, label: "Upload Material", active: projectCreated, done: false },
+          { number: 3, label: "Build Workspace", active: false, done: false }
+        ].map((step, index) => (
+          <div key={step.number} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            justifyContent: index === 0 ? "flex-end" : index === 2 ? "flex-start" : "center"
+          }}>
+            <span style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: step.done || step.active ? "white" : "#94a3b8",
+              fontWeight: 900,
+              background: step.done
+                ? "linear-gradient(135deg, #22c55e, #14b8a6)"
+                : step.active
+                  ? "linear-gradient(135deg, #7c3aed, #2563eb)"
+                  : "rgba(15, 23, 42, 0.7)",
+              border: step.done || step.active ? "none" : "1px solid rgba(148, 163, 184, 0.5)"
+            }}>
+              {step.done ? "✓" : step.number}
+            </span>
+            <span style={{ color: step.active || step.done ? "white" : "#94a3b8", fontWeight: 800 }}>
+              {step.label}
+            </span>
+          </div>
+        )).flatMap((node, index, array) => (
+          index < array.length - 1
+            ? [node, <div key={`line-${index}`} style={{ height: 1, minWidth: 90, background: "rgba(148, 163, 184, 0.35)" }} />]
+            : [node]
+        ))}
+      </div>
+
+      <div style={{
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.18)",
+        background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+        padding: 28,
+        marginBottom: 20,
+        display: "grid",
+        gridTemplateColumns: "minmax(260px, 0.9fr) minmax(320px, 1.4fr)",
+        gap: 28,
+        alignItems: "center"
+      }}>
+        <div>
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            borderRadius: 999,
+            padding: "5px 10px",
+            color: "#c4b5fd",
+            background: "rgba(124, 58, 237, 0.16)",
+            fontSize: 13,
+            fontWeight: 900,
+            marginBottom: 14
+          }}>
+            Step 1 of 3
+          </div>
+          <h2 style={{ color: "white", fontSize: 28, fontWeight: 900, margin: "0 0 10px" }}>
+            {projectCreated ? "Project Created" : "Create a new study project"}
+          </h2>
+          <p style={{ color: "#cbd5e1", lineHeight: 1.6, margin: 0 }}>
+            {projectCreated
+              ? "Your project is ready. You can now upload your first study material."
+              : "Give your project a name to get started."}
+          </p>
+        </div>
+
+        {projectCreated ? (
+          <div style={{
+            borderRadius: 16,
+            border: "1px solid rgba(34, 197, 94, 0.35)",
+            background: "rgba(34, 197, 94, 0.09)",
+            padding: 18,
+            display: "flex",
+            alignItems: "center",
+            gap: 14
+          }}>
+            <div style={{
+              width: 42,
+              height: 42,
+              borderRadius: "50%",
+              background: "#22c55e",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 900
+            }}>
+              ✓
+            </div>
+            <div>
+              <div style={{ color: "#bbf7d0", fontWeight: 900, marginBottom: 4 }}>Project Created</div>
+              <div style={{ color: "white", fontSize: 18, fontWeight: 850 }}>
+                {projectName || createProjectName}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end" }}>
+            <label style={{ display: "block" }}>
+              <div style={{ color: "white", fontWeight: 800, marginBottom: 8 }}>Project name</div>
+              <input
+                value={createProjectName || ""}
+                onChange={(event) => setCreateProjectName?.(event.target.value)}
+                placeholder="e.g. Histology & Embryology, Pharmacology, Anatomy..."
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: "rgba(15, 23, 42, 0.7)",
+                  border: "1px solid rgba(148, 163, 184, 0.28)",
+                  borderRadius: 10,
+                  color: "white",
+                  padding: "14px 16px",
+                  fontSize: 15,
+                  outline: "none"
+                }}
+              />
+              <div style={{ color: "#9ca3af", fontSize: 13, marginTop: 10 }}>
+                ⓘ Every project represents a course or subject you'll study.
+              </div>
+            </label>
+            <button
+              type="button"
+              onClick={createProject}
+              disabled={!createProjectName?.trim() || creatingProject}
+              style={{
+                border: "none",
+                borderRadius: 10,
+                padding: "14px 24px",
+                minWidth: 164,
+                color: "white",
+                fontWeight: 900,
+                background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+                cursor: (!createProjectName?.trim() || creatingProject) ? "not-allowed" : "pointer",
+                opacity: (!createProjectName?.trim() || creatingProject) ? 0.55 : 1
+              }}
+            >
+              {creatingProject ? "Creating..." : "Create project →"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.18)",
+        background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+        padding: 28,
+        marginBottom: 20
+      }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(240px, 0.8fr) minmax(360px, 1.4fr)",
+          gap: 28,
+          alignItems: "center",
+          paddingBottom: 22,
+          borderBottom: "1px solid rgba(148, 163, 184, 0.14)",
+          marginBottom: 18
+        }}>
+          <div>
+            <div style={{
+              display: "inline-flex",
+              alignItems: "center",
+              borderRadius: 999,
+              padding: "5px 10px",
+              color: projectCreated ? "#c4b5fd" : "#94a3b8",
+              background: projectCreated ? "rgba(124, 58, 237, 0.16)" : "rgba(148, 163, 184, 0.08)",
+              fontSize: 13,
+              fontWeight: 900,
+              marginBottom: 14
+            }}>
+              Step 2 of 3
+            </div>
+            <h2 style={{
+              color: projectCreated ? "white" : "#94a3b8",
+              fontSize: 28,
+              fontWeight: 900,
+              margin: "0 0 10px"
+            }}>
+              Upload your study material
+            </h2>
+            <p style={{ color: "#cbd5e1", lineHeight: 1.65, margin: 0 }}>
+              Upload your files and <span style={{ color: "#60a5fa", fontWeight: 900 }}>DO·U·NO</span> will analyze the content to build your personalized learning workspace.
+            </p>
+          </div>
+
+          <div
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={handleDrop}
+            onClick={browseFiles}
+            style={{
+              minHeight: 176,
+              borderRadius: 18,
+              border: "1px dashed rgba(129, 140, 248, 0.62)",
+              background: projectCreated
+                ? "rgba(15, 23, 42, 0.48)"
+                : "rgba(15, 23, 42, 0.28)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: 20,
+              cursor: projectCreated ? "pointer" : "not-allowed",
+              opacity: projectCreated ? 1 : 0.58
+            }}
+          >
+            <input
+              ref={setupFileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.pptx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              onChange={(event) => handleFileSelection(event.target.files)}
+              style={{ display: "none" }}
+            />
+            <UploadCloud size={42} color="#8b5cf6" />
+            <div style={{ color: "white", fontWeight: 900, fontSize: 17, marginTop: 8 }}>
+              Drag & Drop your files here
+            </div>
+            <div style={{ color: "#cbd5e1", marginTop: 4 }}>or click to browse</div>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                browseFiles()
+              }}
+              disabled={!projectCreated}
+              style={{
+                marginTop: 16,
+                border: "none",
+                borderRadius: 10,
+                padding: "11px 24px",
+                color: "white",
+                fontWeight: 900,
+                background: "linear-gradient(135deg, #7c3aed, #2563eb)",
+                cursor: projectCreated ? "pointer" : "not-allowed"
+              }}
+            >
+              <FolderOpen size={17} style={{ verticalAlign: "middle", marginRight: 8 }} />
+              Browse files
+            </button>
+            <div style={{ color: "#9ca3af", fontSize: 13, marginTop: 14 }}>
+              {projectCreated
+                ? selectedFileCount
+                  ? `${selectedFileCount} file${selectedFileCount === 1 ? "" : "s"} selected`
+                  : "Your files are secure and never modified."
+                : "Create your project first to enable uploads."}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={uploadFiles}
+            disabled={uploadDisabled}
+            style={{
+              border: "none",
+              borderRadius: 10,
+              padding: "12px 22px",
+              color: "white",
+              fontWeight: 900,
+              background: uploadDisabled ? "#1f2937" : "linear-gradient(135deg, #2563eb, #14b8a6)",
+              cursor: uploadDisabled ? "not-allowed" : "pointer",
+              opacity: uploadDisabled ? 0.62 : 1
+            }}
+          >
+            {uploadWorkflowActive ? "Upload in progress" : "Upload documents"}
+          </button>
+        </div>
+
+        {uploadStatus && (
+          <div style={{
+            marginBottom: 18,
+            borderRadius: 12,
+            padding: "12px 14px",
+            color: "#cbd5e1",
+            background: "rgba(15, 23, 42, 0.65)",
+            border: "1px solid rgba(148, 163, 184, 0.14)"
+          }}>
+            {uploadStatus}
+          </div>
+        )}
+
+        <div style={{ color: "#cbd5e1", fontWeight: 850, fontSize: 16, marginBottom: 12 }}>
+          Supported file types
+        </div>
+        <div className="upload-material-grid" style={{
+          overflow: "hidden",
+          borderRadius: 16,
+          border: "1px solid rgba(148, 163, 184, 0.12)"
+        }}>
+          {materialCards.map((material, index) => (
+            <div
+              key={material.ext}
+              style={{
+                minHeight: 126,
+                padding: "18px 12px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                textAlign: "center",
+                color: material.active ? "#e5e7eb" : "rgba(229,231,235,0.58)",
+                background: index % 2 === 0 ? "rgba(15, 23, 42, 0.34)" : "rgba(30, 41, 59, 0.24)",
+                borderRight: index < materialCards.length - 1 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
+              }}
+            >
+              <div style={{ color: material.color, opacity: material.active ? 1 : 0.65 }}>{material.icon}</div>
+              <div style={{ color: "white", fontWeight: 900, fontSize: 16 }}>{material.ext}</div>
+              <div style={{ fontSize: 13 }}>{material.name}</div>
+              {!material.active && (
+                <div style={{
+                  padding: "3px 10px",
+                  borderRadius: 999,
+                  color: "#c4b5fd",
+                  background: "rgba(124, 58, 237, 0.14)",
+                  border: "1px solid rgba(168, 85, 247, 0.45)",
+                  fontSize: 11,
+                  fontWeight: 800
+                }}>
+                  Coming soon
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="upload-tips-grid" style={{
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.16)",
+        background: "linear-gradient(145deg, rgba(15,23,42,0.82), rgba(15,23,42,0.54))",
+        overflow: "hidden",
+        marginBottom: 20
+      }}>
+        {tipCards.map((card, index) => (
+          <div key={card.title} style={{
+            padding: "22px 20px",
+            borderRight: index < tipCards.length - 1 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
+          }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              color: "white",
+              fontWeight: 850,
+              fontSize: 16,
+              marginBottom: 14
+            }}>
+              <span style={{ color: card.color }}>{card.icon}</span>
+              {card.title}
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: 14, lineHeight: 1.55 }}>
+              {card.lines.map((line) => (
+                <div key={line} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <span style={{ color: "#94a3b8" }}>•</span>
+                  <span>{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        borderRadius: 22,
+        border: "1px solid rgba(168, 85, 247, 0.62)",
+        background: "radial-gradient(circle at 16% 48%, rgba(147, 51, 234, 0.32), transparent 28%), linear-gradient(135deg, rgba(38, 17, 77, 0.8), rgba(15,23,42,0.92) 55%, rgba(49, 25, 77, 0.74))",
+        boxShadow: "0 24px 80px rgba(88, 28, 135, 0.28)",
+        padding: "28px clamp(22px, 5vw, 50px)",
+        display: "flex",
+        alignItems: "center",
+        gap: 22
+      }}>
+        <div style={{
+          width: 70,
+          height: 70,
+          borderRadius: 22,
+          flex: "0 0 auto",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#d8b4fe",
+          background: "rgba(88, 28, 135, 0.34)",
+          border: "1px solid rgba(216, 180, 254, 0.28)"
+        }}>
+          <Coffee size={38} />
+        </div>
+        <div>
+          <div style={{ color: "white", fontWeight: 900, fontSize: "clamp(23px, 3vw, 30px)", marginBottom: 8 }}>
+            ☕ Perfect time for a coffee break!
+          </div>
+          <div style={{ color: "#e5e7eb", fontSize: 16, lineHeight: 1.6, maxWidth: 760 }}>
+            While you're away, DO·U·NO is reading your study material, identifying the key concepts and building your personalized knowledge map.
+          </div>
+          <div style={{ color: "#a78bfa", fontSize: 16, lineHeight: 1.6, fontWeight: 850, marginTop: 8 }}>
+            When you come back, your learning workspace will be ready.
+          </div>
         </div>
       </div>
     </div>

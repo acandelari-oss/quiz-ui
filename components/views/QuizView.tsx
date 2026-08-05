@@ -387,7 +387,10 @@ ${input}
                         paddingTop: 8
                       }}
                     >
-                      Source: {q.source_document} – page {q.source_page}
+                      Source: {q.source_document}
+                      {q.source_page !== undefined && q.source_page !== null && q.source_page !== ""
+                        ? ` – page ${q.source_page}`
+                        : ""}
                     </div>
                   )}
                 </div>
