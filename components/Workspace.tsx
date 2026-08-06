@@ -523,6 +523,10 @@ return (
           grid-template-columns: 1fr !important;
         }
 
+        .mobile-hide-topics-preview {
+          display: none !important;
+        }
+
         .setup-action-grid {
           align-items: stretch !important;
         }
@@ -560,6 +564,17 @@ return (
           width: 100% !important;
           min-width: 0 !important;
         }
+
+        .workspace-loader-mobile {
+          text-align: center !important;
+          padding: 0 22px !important;
+        }
+
+        .workspace-loader-mobile-text {
+          text-align: center !important;
+          max-width: min(86vw, 360px) !important;
+          line-height: 1.4 !important;
+        }
       }
 
       .load-project-scroll {
@@ -586,7 +601,7 @@ return (
     `}</style>
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {workspaceLoaderVisible ? (
-      <div style={loaderContainer}>
+      <div className="workspace-loader-mobile" style={loaderContainer}>
         
         {/* 1. SPINNER O CHECK DI SUCCESSO */}
         {status === "Project loaded successfully" ||
@@ -610,7 +625,7 @@ return (
         )}
 
         {/* 2. TITOLO DINAMICO TRADOTTO */}
-        <div style={loaderTitle}>
+        <div className="workspace-loader-mobile-text" style={loaderTitle}>
           {!mounted ? (
             "Loading..."
           ) : uploading ? (
@@ -633,7 +648,7 @@ return (
         </div>
 
         {/* 3. SOTTOTITOLO DINAMICO TRADOTTO */}
-       <div style={loaderSubtitle}>
+       <div className="workspace-loader-mobile-text" style={loaderSubtitle}>
         {mounted ? (
           uploading ? (
             uploadLog?.includes("LARGE_FILE_WARNING")
@@ -2447,7 +2462,7 @@ function LoadProjectWorkspace({
 
       {recentMode && (
         <>
-          <section style={{
+          <section className="mobile-hide-topics-preview" style={{
             borderRadius: 20,
             border: "1px solid rgba(148, 163, 184, 0.18)",
             background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",

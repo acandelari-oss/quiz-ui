@@ -697,12 +697,10 @@ function handleSidebarNavigation(nextView: string) {
   if (nextView === "create_project") {
     uploadLifecycleTrace("create_project navigation resetState", {
       reason: "Create Project selected from sidebar",
-      clears: ["createProjectName", "files", "uploadStatus", "uploadLog", "status"]
+      clears: ["active project", "project-dependent data", "createProjectName", "files", "uploadStatus", "uploadLog", "status"]
     })
+    unloadActiveProject("Create Project selected from sidebar")
     setCreateProjectName("")
-    setFiles(null)
-    setUploadStatus("")
-    setUploadLog("")
     setStatus("")
   }
 
@@ -761,6 +759,97 @@ function openProjectUploadWorkspace() {
 
 function openLearningFeature(view: string) {
   handleSidebarNavigation(view)
+}
+
+function unloadActiveProject(reason = "unload active project") {
+  uploadLifecycleTrace("unloadActiveProject called", {
+    projectId,
+    projectName,
+    reason
+  })
+
+  if (pollingRef.current) {
+    clearTimeout(pollingRef.current)
+    pollingRef.current = null
+  }
+  pollingRunRef.current += 1
+  uploadSessionRef.current = null
+
+  try {
+    window.localStorage.removeItem(LAST_ACTIVE_PROJECT_STORAGE_KEY)
+  } catch {
+    // localStorage may be unavailable in restricted browser modes.
+  }
+
+  traceSetterCall("setProjectId", projectId, "", reason)
+  setProjectId("")
+  traceSetterCall("setProjectName", projectName, "", reason)
+  setProjectName("")
+  traceSetterCall("setProjectStudyMode", projectStudyMode, "building", reason)
+  setProjectStudyMode("building")
+
+  setDocuments([])
+  setTopics([])
+  setLoadingTopics(false)
+  setSelectedTopic(null)
+  setSelectedTopics([])
+  setPriorityCategories([])
+
+  setQuiz([])
+  setQuizId("")
+  setAnswers({})
+  setScore(null)
+  setExpanded({})
+  setTimeLeft(0)
+  setQuizTargetDurationSeconds(0)
+  setStarted(false)
+  setFinished(false)
+  setPreviousQuizzes([])
+
+  setFlashcards([])
+  setStudyFlashcards([])
+  setPreviousFlashcards([])
+  setOpenCard(null)
+  setStudyMode(null)
+  setLastFlashcardGeneration(null)
+  setAvailableFlashcards(0)
+  setLoadingFlashcards(false)
+  setGeneratingFlashcards(false)
+
+  setAskQuestion("")
+  setAskAnswer("")
+  setChatMessages([])
+  setAsking(false)
+
+  setSummaryStats(null)
+  setResultsData(null)
+  setProjectReadyVisible(false)
+  setProjectReadyDismissed(true)
+
+  setFiles(null)
+  setUploadStatus("")
+  setUploadLog("")
+  setUploading(false)
+  setUploadWorkflowActive(false)
+  uploadWorkflowActiveRef.current = false
+  setUploadFlightSessionId(null)
+
+  plannerReviewedFlashcardsRef.current = new Set()
+  plannerCompletedActivityIdsRef.current = new Set()
+  setPlannerRuntime({
+    plannerWeekId: null,
+    mode: "dashboard",
+    dailyPlan: null,
+    activityIndex: 0,
+    todaySessionCompleted: false,
+    sessionResults: emptyPlannerSessionResults(),
+    completedSessionResults: {},
+    activityDebriefs: {},
+    moduleDebriefs: {},
+    moduleHomework: {},
+    studyPlanDebrief: "",
+    assessmentCompletedAt: null
+  })
 }
 
 function enterLoadedProjectWorkspace(
@@ -3562,7 +3651,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               creatingProject={creatingProject}
               selectProject={selectProject}
               deleteProject={deleteProject}
-              projectId={activeView === "create_project" && status !== "Project created" ? "" : projectId}
+              projectId={projectId}
               numQuestions={numQuestions}
               setNumQuestions={setNumQuestions}
               difficulty={difficulty}
@@ -3579,8 +3668,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               setOpenCard={setOpenCard}
               files={files}
               setFiles={setFiles}
-              documents={activeView === "create_project" && status !== "Project created" ? [] : documents}
-              topics={activeView === "create_project" && status !== "Project created" ? [] : topics}
+              documents={documents}
+              topics={topics}
               loadingTopics={loadingTopics}
               previousFlashcards={previousFlashcards}
               topicsOpen={topicsOpen}
