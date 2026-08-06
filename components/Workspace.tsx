@@ -509,6 +509,57 @@ return (
         .upload-tips-grid {
           grid-template-columns: 1fr;
         }
+
+        .setup-mobile-stepper {
+          display: none !important;
+        }
+
+        .setup-card-grid,
+        .setup-action-grid,
+        .load-project-section-grid,
+        .load-project-row,
+        .load-project-cta,
+        .topics-preview-grid {
+          grid-template-columns: 1fr !important;
+        }
+
+        .setup-action-grid {
+          align-items: stretch !important;
+        }
+
+        .setup-action-grid button,
+        .mobile-primary-file-button,
+        .load-project-cta button {
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+
+        .setup-upload-dropzone {
+          min-height: auto !important;
+          border: none !important;
+          background: transparent !important;
+          padding: 0 !important;
+          align-items: stretch !important;
+          cursor: default !important;
+        }
+
+        .setup-upload-dropzone .mobile-dropzone-extra {
+          display: none !important;
+        }
+
+        .mobile-card-compact {
+          padding: 20px !important;
+        }
+
+        .load-project-search-row {
+          flex-direction: column !important;
+          align-items: stretch !important;
+        }
+
+        .load-project-search-row label {
+          width: 100% !important;
+          min-width: 0 !important;
+        }
       }
 
       .load-project-scroll {
@@ -2208,7 +2259,7 @@ function LoadProjectWorkspace({
 
   return (
     <div className="upload-workspace-shell">
-      <div style={{
+      <div className="setup-mobile-stepper" style={{
         display: "grid",
         gridTemplateColumns: "1fr auto 1fr auto 1fr",
         alignItems: "center",
@@ -2263,7 +2314,7 @@ function LoadProjectWorkspace({
         padding: selectionExpanded ? 32 : 24,
         marginBottom: 18
       }}>
-        <div style={{
+        <div className="load-project-section-grid" style={{
           display: "grid",
           gridTemplateColumns: selectionExpanded ? "260px 1fr" : "220px 1fr",
           gap: 28,
@@ -2292,7 +2343,7 @@ function LoadProjectWorkspace({
           </div>
 
           <div>
-            <div style={{
+            <div className="load-project-search-row" style={{
               display: "flex",
               justifyContent: "space-between",
               gap: 16,
@@ -2348,6 +2399,7 @@ function LoadProjectWorkspace({
                   key={project.id}
                   type="button"
                   onClick={() => handleProjectClick(project.id)}
+                  className="load-project-row"
                   style={{
                     width: "100%",
                     display: "grid",
@@ -2402,7 +2454,7 @@ function LoadProjectWorkspace({
             padding: 28,
             marginBottom: 18
           }}>
-            <div style={{
+            <div className="setup-card-grid" style={{
               display: "grid",
               gridTemplateColumns: "260px 1fr 1fr",
               gap: 28,
@@ -2463,6 +2515,7 @@ function LoadProjectWorkspace({
               </div>
 
               <div
+                className="setup-upload-dropzone"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={handleDrop}
                 onClick={browseFiles}
@@ -2488,14 +2541,15 @@ function LoadProjectWorkspace({
                   onChange={(event) => handleFileSelection(event.target.files)}
                   style={{ display: "none" }}
                 />
-                <UploadCloud size={42} color="#8b5cf6" />
-                <div style={{ color: "white", fontWeight: 900, marginTop: 10 }}>
+                <UploadCloud className="mobile-dropzone-extra" size={42} color="#8b5cf6" />
+                <div className="mobile-dropzone-extra" style={{ color: "white", fontWeight: 900, marginTop: 10 }}>
                   Add more files to this project
                 </div>
-                <div style={{ color: "#cbd5e1", marginTop: 4 }}>
+                <div className="mobile-dropzone-extra" style={{ color: "#cbd5e1", marginTop: 4 }}>
                   Drag & drop files here or click to browse
                 </div>
                 <button
+                  className="mobile-primary-file-button"
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation()
@@ -2564,7 +2618,7 @@ function LoadProjectWorkspace({
             background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
             padding: 28
           }}>
-            <div style={{
+            <div className="topics-preview-grid" style={{
               display: "grid",
               gridTemplateColumns: "260px 1fr",
               gap: 28,
@@ -2647,7 +2701,7 @@ function LoadProjectWorkspace({
             </div>
           </section>
 
-          <section style={{
+          <section className="load-project-cta" style={{
             marginTop: 18,
             borderRadius: 20,
             border: "1px solid rgba(148, 163, 184, 0.18)",
@@ -2798,7 +2852,7 @@ function ProjectSetupWorkspace({
 
   return (
     <div className="upload-workspace-shell">
-      <div style={{
+      <div className="setup-mobile-stepper" style={{
         display: "grid",
         gridTemplateColumns: "1fr auto 1fr auto 1fr",
         alignItems: "center",
@@ -2846,7 +2900,7 @@ function ProjectSetupWorkspace({
         ))}
       </div>
 
-      <div style={{
+      <div className="setup-card-grid mobile-card-compact" style={{
         borderRadius: 20,
         border: "1px solid rgba(148, 163, 184, 0.18)",
         background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
@@ -2912,7 +2966,7 @@ function ProjectSetupWorkspace({
             </div>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end" }}>
+          <div className="setup-action-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end" }}>
             <label style={{ display: "block" }}>
               <div style={{ color: "white", fontWeight: 800, marginBottom: 8 }}>Project name</div>
               <input
@@ -2964,7 +3018,7 @@ function ProjectSetupWorkspace({
         padding: 28,
         marginBottom: 20
       }}>
-        <div style={{
+        <div className="setup-card-grid" style={{
           display: "grid",
           gridTemplateColumns: "minmax(240px, 0.8fr) minmax(360px, 1.4fr)",
           gap: 28,
@@ -3001,6 +3055,7 @@ function ProjectSetupWorkspace({
           </div>
 
           <div
+            className="setup-upload-dropzone"
             onDragOver={(event) => event.preventDefault()}
             onDrop={handleDrop}
             onClick={browseFiles}
@@ -3029,12 +3084,13 @@ function ProjectSetupWorkspace({
               onChange={(event) => handleFileSelection(event.target.files)}
               style={{ display: "none" }}
             />
-            <UploadCloud size={42} color="#8b5cf6" />
-            <div style={{ color: "white", fontWeight: 900, fontSize: 17, marginTop: 8 }}>
+            <UploadCloud className="mobile-dropzone-extra" size={42} color="#8b5cf6" />
+            <div className="mobile-dropzone-extra" style={{ color: "white", fontWeight: 900, fontSize: 17, marginTop: 8 }}>
               Drag & Drop your files here
             </div>
-            <div style={{ color: "#cbd5e1", marginTop: 4 }}>or click to browse</div>
+            <div className="mobile-dropzone-extra" style={{ color: "#cbd5e1", marginTop: 4 }}>or click to browse</div>
             <button
+              className="mobile-primary-file-button"
               type="button"
               onClick={(event) => {
                 event.stopPropagation()
