@@ -102,6 +102,8 @@ studentFirstName,
 projectStudyMode,
 projectReadyVisible,
 projectReadyDismissed,
+loadProjectSelectionExpanded,
+setLoadProjectSelectionExpanded,
 quizId,
 previousQuizzes,
 loadQuiz,
@@ -174,7 +176,6 @@ const handleLogout = async () => {
   window.location.reload()
 }
 const [currentStep, setCurrentStep] = useState(0);
-const [loadProjectSelectionExpanded, setLoadProjectSelectionExpanded] = useState(true)
 const [loadProjectSearch, setLoadProjectSearch] = useState("")
 
   useEffect(() => {
@@ -189,12 +190,6 @@ const [loadProjectSearch, setLoadProjectSearch] = useState("")
   }
   return () => clearInterval(interval);
 }, [uploading, generatingFlashcards, generatingQuiz]); // <--- Fondamentale che ci siano tutte!
-
-useEffect(() => {
-  if (activeView === "load_project") {
-    setLoadProjectSelectionExpanded(true)
-  }
-}, [activeView])
 
 const handleWorkspaceFileSelection = (fileList: FileList | null) => {
   if (!fileList || !setFiles) return
@@ -2152,6 +2147,13 @@ function ProjectReadyScreen({
           <div style={projectReadyInfoText}>
             {translate("stats.Continue adding study material using the Tool Panel.")}
           </div>
+          <button
+            type="button"
+            style={projectReadySecondaryButton}
+            onClick={onUploadAnotherFile}
+          >
+            {translate("stats.UPLOAD ANOTHER FILE")}
+          </button>
         </div>
 
         <div style={projectReadyCard}>
@@ -4528,6 +4530,14 @@ fontWeight: 800,
 fontSize: 13,
 padding: "10px 14px",
 width: "100%"
+}
+
+const projectReadySecondaryButton: React.CSSProperties = {
+...projectReadyButton,
+marginTop: 14,
+background: "rgba(54, 242, 237, 0.08)",
+border: "1px solid rgba(54, 242, 237, 0.28)",
+color: "#dffeff"
 }
 
 const projectReadyInfoText: React.CSSProperties = {

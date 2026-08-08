@@ -190,6 +190,7 @@ const [createProjectName,setCreateProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
 const [studentFirstName,setStudentFirstName]=useState("")
 const projectRestoreAttemptedRef = useRef(false)
+const [loadProjectSelectionExpanded,setLoadProjectSelectionExpanded]=useState(true)
 
 
 useEffect(() => {
@@ -704,6 +705,10 @@ function handleSidebarNavigation(nextView: string) {
     setStatus("")
   }
 
+  if (nextView === "load_project") {
+    setLoadProjectSelectionExpanded(true)
+  }
+
   if (nextView === "quiz") {
     setQuiz([])
     setQuizId("")
@@ -747,6 +752,9 @@ function openProjectUploadWorkspace() {
   setStatus("")
   setUploadStatus("")
   setUploadLog("")
+  setProjectReadyVisible(false)
+  setProjectReadyDismissed(true)
+  setLoadProjectSelectionExpanded(false)
   traceSetterCall(
     "setActiveView",
     activeView,
@@ -1923,17 +1931,17 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         traceSetterCall(
           "setActiveView",
           activeView,
-          "load_project",
-          "polling completed block keeps upload tool panel selected"
+          "project",
+          "polling completed block shows post-upload completion screen"
         )
-        setActiveView("load_project")
+        setActiveView("project")
         traceSetterCall(
           "setToolPanelCollapsed",
           toolPanelCollapsed,
           !isMobileLayout,
           "polling completed block"
         )
-        setToolPanelCollapsed(!isMobileLayout)
+        setToolPanelCollapsed(true)
         uploadFlightLog(flightSessionId, "setProjectReadyVisible(true)")
         setProjectReadyVisible(true)
         setProjectReadyDismissed(false)
@@ -3762,6 +3770,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         projectStudyMode={projectStudyMode}
         projectReadyVisible={projectReadyVisible}
         projectReadyDismissed={projectReadyDismissed}
+        loadProjectSelectionExpanded={loadProjectSelectionExpanded}
+        setLoadProjectSelectionExpanded={setLoadProjectSelectionExpanded}
         projects={projects}
         selectProject={(id: string) => selectProject(id, projects, { previewOnly: true })}
         deleteProject={deleteProject}
