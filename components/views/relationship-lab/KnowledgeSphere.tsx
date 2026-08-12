@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent
 } from "react"
 import { useTranslation } from "react-i18next"
@@ -213,6 +214,16 @@ export default function KnowledgeSphere({
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const detailsPanelRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef({ dragging: false, lastX: 0, lastY: 0, button: 0 })
+  const touchRef = useRef({
+    active: false,
+    mode: "tap" as "tap" | "rotate" | "pan" | "pinch",
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    lastDistance: 0,
+    moved: false
+  })
   const viewRef = useRef({ panX: 0, panY: 0, rotationX: -0.18, rotationY: 0.42, zoom: 1 })
   const projectedStarsRef = useRef<
     Array<{ id: string; x: number; y: number; radius: number; depth?: number }>
@@ -1363,24 +1374,10 @@ export default function KnowledgeSphere({
 
   function handleWheel(event: ReactWheelEvent<HTMLCanvasElement>) {
     event.preventDefault()
-    const minZoom = mode === "universe"
-      ? minimumUniverseZoomForCanvas(canvasRef.current, universe.galaxies)
-      : 0.58
-    viewRef.current.zoom = clamp(
-      viewRef.current.zoom * (event.deltaY > 0 ? 0.92 : 1.08),
-      minZoom,
-      2.6
-    )
-    setViewVersion(version => version + 1)
+    applyZoom(event.deltaY > 0 ? 0.92 : 1.08)
   }
 
-  function handleClick(event: ReactMouseEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-
+  function selectCanvasPoint(x: number, y: number) {
     if (mode === "topic") {
       const starHit = findProjectedStar(x, y, projectedStarsRef.current)
       if (starHit && focusedNeighbors.has(starHit)) {
@@ -1423,6 +1420,159 @@ export default function KnowledgeSphere({
       setSelectedRelationshipKey(null)
       enterGalaxy(galaxyHit)
     }
+  }
+
+  function handleClick(event: ReactMouseEvent<HTMLCanvasElement>) {
+    if (touchRef.current.active) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    selectCanvasPoint(event.clientX - rect.left, event.clientY - rect.top)
+  }
+
+  function handleTouchStart(event: ReactTouchEvent<HTMLCanvasElement>) {
+    if (!isMobileLayout) return
+    event.preventDefault()
+    const touches = Array.from(event.touches)
+    if (touches.length >= 2) {
+      const center = touchCenter(touches)
+      touchRef.current = {
+        active: true,
+        mode: "pinch",
+        startX: center.x,
+        startY: center.y,
+        lastX: center.x,
+        lastY: center.y,
+        lastDistance: touchDistance(touches[0], touches[1]),
+        moved: false
+      }
+      return
+    }
+
+    const touch = touches[0]
+    if (!touch) return
+    touchRef.current = {
+      active: true,
+      mode: "tap",
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastX: touch.clientX,
+      lastY: touch.clientY,
+      lastDistance: 0,
+      moved: false
+    }
+  }
+
+  function handleTouchMove(event: ReactTouchEvent<HTMLCanvasElement>) {
+    if (!isMobileLayout || !touchRef.current.active) return
+    event.preventDefault()
+    const touches = Array.from(event.touches)
+
+    if (touches.length >= 2) {
+      const center = touchCenter(touches)
+      const currentDistance = touchDistance(touches[0], touches[1])
+      const lastDistance = touchRef.current.lastDistance || currentDistance
+      const deltaX = center.x - touchRef.current.lastX
+      const deltaY = center.y - touchRef.current.lastY
+
+      viewRef.current.panX += deltaX
+      viewRef.current.panY += deltaY
+      if (lastDistance > 0) {
+        applyZoom(clamp(currentDistance / lastDistance, 0.86, 1.16))
+      } else {
+        setViewVersion(version => version + 1)
+      }
+
+      touchRef.current = {
+        ...touchRef.current,
+        mode: "pinch",
+        lastX: center.x,
+        lastY: center.y,
+        lastDistance: currentDistance,
+        moved: true
+      }
+      return
+    }
+
+    const touch = touches[0]
+    if (!touch) return
+    const deltaX = touch.clientX - touchRef.current.lastX
+    const deltaY = touch.clientY - touchRef.current.lastY
+    const totalMove = Math.hypot(
+      touch.clientX - touchRef.current.startX,
+      touch.clientY - touchRef.current.startY
+    )
+
+    if (totalMove > 6) {
+      viewRef.current.rotationY += deltaX * 0.006
+      viewRef.current.rotationX = clamp(
+        viewRef.current.rotationX + deltaY * 0.005,
+        -1.1,
+        1.1
+      )
+      touchRef.current.mode = "rotate"
+      touchRef.current.moved = true
+      setViewVersion(version => version + 1)
+    }
+
+    touchRef.current.lastX = touch.clientX
+    touchRef.current.lastY = touch.clientY
+  }
+
+  function handleTouchEnd(event: ReactTouchEvent<HTMLCanvasElement>) {
+    if (!isMobileLayout) return
+    event.preventDefault()
+    const canvas = canvasRef.current
+    const touchState = touchRef.current
+
+    if (
+      canvas
+      && !touchState.moved
+      && touchState.mode === "tap"
+      && event.changedTouches.length > 0
+    ) {
+      const rect = canvas.getBoundingClientRect()
+      const touch = event.changedTouches[0]
+      selectCanvasPoint(touch.clientX - rect.left, touch.clientY - rect.top)
+    }
+
+    if (event.touches.length === 0) {
+      window.setTimeout(() => {
+        touchRef.current.active = false
+      }, 120)
+      return
+    }
+
+    const remainingTouches = Array.from(event.touches)
+    if (remainingTouches.length === 1) {
+      const touch = remainingTouches[0]
+      touchRef.current = {
+        active: true,
+        mode: "tap",
+        startX: touch.clientX,
+        startY: touch.clientY,
+        lastX: touch.clientX,
+        lastY: touch.clientY,
+        lastDistance: 0,
+        moved: false
+      }
+    }
+  }
+
+  function handleTouchCancel() {
+    touchRef.current.active = false
+  }
+
+  function applyZoom(multiplier: number) {
+    const minZoom = mode === "universe"
+      ? minimumUniverseZoomForCanvas(canvasRef.current, universe.galaxies)
+      : 0.58
+    viewRef.current.zoom = clamp(
+      viewRef.current.zoom * multiplier,
+      minZoom,
+      2.6
+    )
+    setViewVersion(version => version + 1)
   }
 
   function enterGalaxy(galaxyId: string) {
@@ -1536,6 +1686,10 @@ export default function KnowledgeSphere({
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
             onMouseLeave={() => {
               handleMouseUp()
               setHoveredStarId(null)
@@ -1545,7 +1699,10 @@ export default function KnowledgeSphere({
             onClick={handleClick}
             onContextMenu={event => event.preventDefault()}
             onWheel={handleWheel}
-            style={canvasStyle}
+            style={{
+              ...canvasStyle,
+              touchAction: isMobileLayout ? "none" : "auto"
+            }}
           />
 
           {loading && (
@@ -4046,6 +4203,21 @@ function focusedRelationshipLineStyle(edge: UniverseEdge, faded: boolean, emphas
         ? familyBase.glow + strength * 7
         : 0
   }
+}
+
+function touchCenter(touches: Touch[]) {
+  const count = Math.max(1, touches.length)
+  return touches.reduce(
+    (center, touch) => ({
+      x: center.x + touch.clientX / count,
+      y: center.y + touch.clientY / count
+    }),
+    { x: 0, y: 0 }
+  )
+}
+
+function touchDistance(a: Touch, b: Touch) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
 }
 
 function drawFocusedRelationshipEdge(
