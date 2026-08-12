@@ -37,8 +37,13 @@ export default function Sidebar({
           console.log("🌍 CHANGE LANGUAGE:", lng)
         }
         const handleLogout = async () => {
-          await supabase.auth.signOut()
-          window.location.reload()
+          try {
+            await supabase.auth.signOut()
+          } catch (error) {
+            console.error("Logout failed:", error)
+          } finally {
+            window.location.reload()
+          }
         }
         const navigate = (view: string) => {
           handleSidebarNavigation(view)
@@ -135,6 +140,20 @@ export default function Sidebar({
           height={24}
         />
         {!compactMode && translate('stats.Topics Dashboard')}
+      </div>
+
+      <div
+        style={navItemStyle(activeView === "relationship_lab", compactMode)}
+        onClick={() => navigate("relationship_lab")}
+        title="Relationship Lab"
+      >
+        <img
+          src="/icons/topic-map.svg"
+          alt=""
+          width={24}
+          height={24}
+        />
+        {!compactMode && "Relationship Lab"}
       </div>
 
       <div style={divider} />

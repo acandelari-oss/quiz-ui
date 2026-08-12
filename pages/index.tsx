@@ -80,7 +80,8 @@ const directWorkspaceViews = new Set([
   "topics",
   "manage_projects",
   "planner_view",
-  "learning_home"
+  "learning_home",
+  "relationship_lab"
 ])
 
 const configurationDrivenViews = new Set([
@@ -191,6 +192,7 @@ const [projects,setProjects]=useState<any[]>([])
 const [studentFirstName,setStudentFirstName]=useState("")
 const projectRestoreAttemptedRef = useRef(false)
 const [loadProjectSelectionExpanded,setLoadProjectSelectionExpanded]=useState(true)
+const relationshipLabQueryClearedAfterUploadRef = useRef(false)
 
 
 useEffect(() => {
@@ -362,6 +364,64 @@ useEffect(() => {
   window.addEventListener("resize", updateLayoutMode)
   return () => window.removeEventListener("resize", updateLayoutMode)
 }, [])
+
+useEffect(() => {
+  if (!router.isReady || !projectId) return
+
+  const labQuery = router.query.relationshipLab
+  const relationshipLabRequested =
+    labQuery === ""
+    || labQuery === "1"
+    || labQuery === "true"
+    || labQuery === "sphere"
+    || (Array.isArray(labQuery) && labQuery.includes(""))
+    || (Array.isArray(labQuery) && labQuery.includes("1"))
+    || (Array.isArray(labQuery) && labQuery.includes("true"))
+    || (Array.isArray(labQuery) && labQuery.includes("sphere"))
+
+  if (!relationshipLabRequested) {
+    relationshipLabQueryClearedAfterUploadRef.current = false
+    return
+  }
+
+  if (activeView === "relationship_lab") return
+
+  const uploadCompletionActive =
+    uploading
+    || uploadStatus
+    || status === "Project upload completed"
+    || projectReadyVisible
+
+  if (uploadCompletionActive) {
+    if (!relationshipLabQueryClearedAfterUploadRef.current) {
+      const { relationshipLab, ...remainingQuery } = router.query
+      relationshipLabQueryClearedAfterUploadRef.current = true
+      router.replace(
+        {
+          pathname: router.pathname,
+          query: remainingQuery
+        },
+        undefined,
+        { shallow: true }
+      )
+    }
+    return
+  }
+
+  setToolPanelCollapsed(true)
+  setActiveView("relationship_lab")
+}, [
+  router,
+  router.isReady,
+  router.query,
+  router.query.relationshipLab,
+  projectId,
+  activeView,
+  uploading,
+  uploadStatus,
+  status,
+  projectReadyVisible
+])
 
 const quizActivityStarted =
   activeView === "quiz"
@@ -3527,6 +3587,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     if (activeView === "previous_quizzes") return i18n.t("stats.Previous quizzes")
     if (activeView === "results_summary") return i18n.t("stats.Results & Summary")
     if (activeView === "topics") return i18n.t("stats.Topics Dashboard")
+    if (activeView === "relationship_lab") return "Relationship Lab"
     if (activeView === "create_project") return i18n.t("stats.Create project")
     if (activeView === "load_project") return i18n.t("stats.Load project")
     if (activeView === "manage_projects") return i18n.t("stats.Manage projects")

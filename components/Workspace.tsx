@@ -7,6 +7,7 @@ import ActiveRecallView from "./views/ActiveRecallView"
 import { useState, useEffect, useRef, useMemo } from "react"
 import StudySessionView from "./views/StudySessionView"
 import PlannerView from "./views/PlannerView"
+import RelationshipLabView from "./views/RelationshipLabView"
 import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import TopicsView from "./views/TopicsView"
@@ -1316,6 +1317,12 @@ return (
           }
         `}</style>
       </div>
+    )}
+    {activeView === "relationship_lab" && (
+      <RelationshipLabView
+        projectId={projectId}
+        projectName={projectName}
+      />
     )}
     {/* ASK */}
     {activeView === "ask" && (
