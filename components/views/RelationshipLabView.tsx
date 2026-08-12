@@ -76,7 +76,18 @@ export default function RelationshipLabView({
       borderline_contextual: true,
       unclassified: true
     })
+  const [isMobileLayout, setIsMobileLayout] = useState(false)
   const requestRunRef = useRef(0)
+
+  useEffect(() => {
+    const updateLayoutMode = () => {
+      setIsMobileLayout(window.innerWidth <= 900)
+    }
+
+    updateLayoutMode()
+    window.addEventListener("resize", updateLayoutMode)
+    return () => window.removeEventListener("resize", updateLayoutMode)
+  }, [])
 
   useEffect(() => {
     if (!projectId) return
@@ -200,6 +211,52 @@ export default function RelationshipLabView({
   const visibleEdges = classifiedEdges.filter(
     edge => visibleClassifications[edge.classification]
   )
+  const mobileLabShell: CSSProperties = isMobileLayout
+    ? {
+      padding: "18px 12px",
+      maxWidth: "100%",
+      overflowX: "hidden"
+    }
+    : {}
+  const mobileHeroCard: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "1fr",
+      gap: 18,
+      padding: 18,
+      borderRadius: 20
+    }
+    : {}
+  const mobileStatsGrid: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))"
+    }
+    : {}
+  const mobileControlGrid: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "1fr"
+    }
+    : {}
+  const mobileFilterGrid: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "1fr"
+    }
+    : {}
+  const mobileTopicHeader: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "1fr"
+    }
+    : {}
+  const mobileEvidenceGrid: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))"
+    }
+    : {}
+  const mobilePanelCard: CSSProperties = isMobileLayout
+    ? {
+      padding: 16,
+      borderRadius: 18
+    }
+    : {}
 
   function applyFilters() {
     const validation = validateFilters(draftFilters, tr)
@@ -285,8 +342,8 @@ export default function RelationshipLabView({
   }
 
   return (
-    <div style={labShell}>
-      <section style={heroCard}>
+    <div style={{ ...labShell, ...mobileLabShell }}>
+      <section style={{ ...heroCard, ...mobileHeroCard }}>
         <div>
           <div style={eyebrow}>{tr("Internal diagnostic tool")}</div>
           <h1 style={title}>{tr("Topic Relationship Lab")}</h1>
@@ -296,7 +353,7 @@ export default function RelationshipLabView({
             })}
           </p>
         </div>
-        <div style={statsGrid}>
+        <div style={{ ...statsGrid, ...mobileStatsGrid }}>
           <Stat label={tr("Nodes")} value={focusedGraph?.node_count ?? overviewGraph?.node_count ?? "—"} />
           <Stat label={tr("Edges")} value={focusedGraph?.edge_count ?? "—"} />
           <Stat label={tr("Pairs evaluated")} value={focusedGraph?.candidate_pairs_evaluated ?? overviewGraph?.candidate_pairs_evaluated ?? "—"} />
@@ -340,8 +397,8 @@ export default function RelationshipLabView({
       ) : (
         <>
 
-      <section style={controlGrid}>
-        <div style={panelCard}>
+      <section style={{ ...controlGrid, ...mobileControlGrid }}>
+        <div style={{ ...panelCard, ...mobilePanelCard }}>
           <h2 style={sectionTitle}>{tr("Topic")}</h2>
           <input
             value={topicSearch}
@@ -368,9 +425,9 @@ export default function RelationshipLabView({
           )}
         </div>
 
-        <div style={panelCard}>
+        <div style={{ ...panelCard, ...mobilePanelCard }}>
           <h2 style={sectionTitle}>{tr("Candidate discovery")}</h2>
-          <div style={filterGrid}>
+          <div style={{ ...filterGrid, ...mobileFilterGrid }}>
             <FilterInput
               label={tr("Min semantic similarity")}
               value={draftFilters.minSemanticSimilarity}
@@ -429,7 +486,7 @@ export default function RelationshipLabView({
         </div>
       </section>
 
-      <section style={panelCard}>
+      <section style={{ ...panelCard, ...mobilePanelCard }}>
         <div style={classificationHeader}>
           <div>
             <h2 style={sectionTitle}>{tr("Relationship classification")}</h2>
@@ -542,22 +599,22 @@ export default function RelationshipLabView({
       </section>
 
       {error && (
-        <section style={errorPanel}>
+        <section style={{ ...errorPanel, ...mobilePanelCard }}>
           <strong>{tr("Relationship Lab error")}</strong>
           <p>{error}</p>
         </section>
       )}
 
       {!selectedTopic && !loadingOverview && (
-        <section style={panelCard}>
+        <section style={{ ...panelCard, ...mobilePanelCard }}>
           <h2 style={sectionTitle}>{tr("No topic selected")}</h2>
           <p style={mutedText}>{tr("Select a topic to inspect its relationships.")}</p>
         </section>
       )}
 
       {selectedTopic && (
-        <section style={panelCard}>
-          <div style={topicHeader}>
+        <section style={{ ...panelCard, ...mobilePanelCard }}>
+          <div style={{ ...topicHeader, ...mobileTopicHeader }}>
             <div>
               <div style={eyebrow}>{tr("Selected topic")}</div>
               <h2 style={topicTitle}>{selectedTopic.topic}</h2>
@@ -565,7 +622,7 @@ export default function RelationshipLabView({
                 {tr("Category")}: {selectedTopic.category || tr("Uncategorized")}
               </div>
             </div>
-            <div style={evidenceGrid}>
+            <div style={{ ...evidenceGrid, ...mobileEvidenceGrid }}>
               <Stat label={tr("Associated chunks")} value={selectedTopic.associated_chunk_count} />
               <Stat label={tr("Documents")} value={selectedTopic.document_count} />
               <Stat label={tr("Sections")} value={selectedTopic.section_count} />
@@ -578,7 +635,7 @@ export default function RelationshipLabView({
         </section>
       )}
 
-      <section style={panelCard}>
+      <section style={{ ...panelCard, ...mobilePanelCard }}>
         <div style={relationshipHeader}>
           <h2 style={sectionTitle}>{tr("Related topics")}</h2>
           {loadingFocus && <span style={loadingPill}>{tr("Loading relationships...")}</span>}

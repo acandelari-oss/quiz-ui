@@ -211,6 +211,7 @@ export default function KnowledgeSphere({
   const { t, i18n } = useTranslation()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const detailsPanelRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef({ dragging: false, lastX: 0, lastY: 0, button: 0 })
   const viewRef = useRef({ panX: 0, panY: 0, rotationX: -0.18, rotationY: 0.42, zoom: 1 })
   const projectedStarsRef = useRef<
@@ -240,6 +241,7 @@ export default function KnowledgeSphere({
   const [relationshipExplanationLoading, setRelationshipExplanationLoading] = useState(false)
   const [relationshipExplanationError, setRelationshipExplanationError] =
     useState<string | null>(null)
+  const [isMobileLayout, setIsMobileLayout] = useState(false)
 
   const universe = useMemo(
     () => buildUniverseModel(graph, thresholds),
@@ -370,6 +372,50 @@ export default function KnowledgeSphere({
   const relationshipFamilyText = (family: RelationshipFamily) =>
     ts(`relationship_family_${family}`)
 
+  const mobileUniverseGrid: CSSProperties = isMobileLayout
+    ? {
+      gridTemplateColumns: "1fr",
+      height: "auto",
+      alignItems: "stretch"
+    }
+    : {}
+  const mobileOrientationPanel: CSSProperties = isMobileLayout
+    ? {
+      height: "auto",
+      maxHeight: "none",
+      overflowY: "visible"
+    }
+    : {}
+  const mobileCanvasWrap: CSSProperties = isMobileLayout
+    ? {
+      height: "min(70vh, 620px)",
+      minHeight: 460,
+      borderRadius: 22
+    }
+    : {}
+  const mobileDiagnosticPanel: CSSProperties = isMobileLayout
+    ? {
+      height: "auto",
+      maxHeight: "none",
+      overflow: "visible"
+    }
+    : {}
+  const mobileRelationshipSidebarPanel: CSSProperties = isMobileLayout
+    ? {
+      height: "auto",
+      maxHeight: "none",
+      overflowY: "visible"
+    }
+    : {}
+  const mobileHoverCard: CSSProperties = isMobileLayout
+    ? {
+      left: 12,
+      right: 12,
+      bottom: 12,
+      maxWidth: "none"
+    }
+    : {}
+
   function loadSelectedRelationshipExplanation(edge: UniverseEdge | null) {
     if (!projectId || !edge) {
       setRelationshipExplanation(null)
@@ -462,7 +508,10 @@ export default function KnowledgeSphere({
         : [])
     ]
     return (
-      <aside className="knowledge-sphere-scrollbar" style={orientationPanel}>
+      <aside
+        className="knowledge-sphere-scrollbar"
+        style={{ ...orientationPanel, ...mobileOrientationPanel }}
+      >
         <div>
           <div style={stageLabel}>{stage.stage}</div>
           <h3 style={orientationTitle}>{stage.title}</h3>
@@ -561,7 +610,10 @@ export default function KnowledgeSphere({
       bridge ? ts("Bridge to another category") : ts("Within this category")
     ].filter(Boolean).join(" · ")
     return (
-      <div className="knowledge-sphere-scrollbar" style={relationshipSidebarPanel}>
+      <div
+        className="knowledge-sphere-scrollbar"
+        style={{ ...relationshipSidebarPanel, ...mobileRelationshipSidebarPanel }}
+      >
         <button
           type="button"
           onClick={() => setSelectedRelationshipKey(null)}
@@ -725,6 +777,36 @@ export default function KnowledgeSphere({
     window.addEventListener("resize", resize)
     return () => window.removeEventListener("resize", resize)
   }, [])
+
+  useEffect(() => {
+    const updateLayoutMode = () => {
+      setIsMobileLayout(window.innerWidth <= 900)
+    }
+
+    updateLayoutMode()
+    window.addEventListener("resize", updateLayoutMode)
+    return () => window.removeEventListener("resize", updateLayoutMode)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobileLayout || !selectedRelationshipKey) return
+    window.setTimeout(() => {
+      detailsPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      })
+    }, 80)
+  }, [isMobileLayout, selectedRelationshipKey])
+
+  useEffect(() => {
+    if (!isMobileLayout || mode !== "topic" || !focusedStarId || selectedRelationshipKey) return
+    window.setTimeout(() => {
+      detailsPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      })
+    }, 80)
+  }, [isMobileLayout, mode, focusedStarId, selectedRelationshipKey])
 
   useEffect(() => {
     drawUniverse()
@@ -1445,10 +1527,10 @@ export default function KnowledgeSphere({
         </label>
       </div>
 
-      <div style={universeGrid}>
+      <div style={{ ...universeGrid, ...mobileUniverseGrid }}>
         {renderOrientationPanel()}
 
-        <div ref={wrapperRef} style={canvasWrap}>
+        <div ref={wrapperRef} style={{ ...canvasWrap, ...mobileCanvasWrap }}>
           <canvas
             ref={canvasRef}
             onMouseDown={handleMouseDown}
@@ -1488,7 +1570,7 @@ export default function KnowledgeSphere({
           )}
 
           {(hoveredStar || hoveredGalaxy || focusedStar || activeRelationshipEdge) && (
-            <div style={hoverCard}>
+            <div style={{ ...hoverCard, ...mobileHoverCard }}>
               {activeRelationshipEdge && activeRelationshipSource && activeRelationshipTarget ? (
                 <>
                   <div style={eyebrow}>
@@ -1552,7 +1634,7 @@ export default function KnowledgeSphere({
           )}
         </div>
 
-        <aside style={diagnosticPanel}>
+        <aside ref={detailsPanelRef} style={{ ...diagnosticPanel, ...mobileDiagnosticPanel }}>
           {selectedRelationshipEdge
             ? renderSelectedRelationshipSidebar()
             : (
