@@ -33,26 +33,6 @@ export default function LoginPage() {
     router.push("/");
   }
 
-  async function register() {
-
-    setLoading(true);
-    setStatus("Creating account...");
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setStatus(error.message);
-      return;
-    }
-
-    setStatus("Account created. Check your email.");
-  }
-
   return (
 
     <div style={{
@@ -135,23 +115,6 @@ export default function LoginPage() {
           Login
         </button>
 
-        <button
-          onClick={register}
-          disabled={loading}
-          style={{
-            width: "100%",
-            padding: 12,
-            marginTop: 10,
-            background: "#3b82f6",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            cursor: "pointer"
-          }}
-        >
-          Register
-        </button>
-
         <p style={{
           color: "#cbd5e1",
           marginTop: 20,
@@ -159,6 +122,30 @@ export default function LoginPage() {
         }}>
           {status}
         </p>
+
+        <div style={{
+          marginTop: 22,
+          paddingTop: 18,
+          borderTop: "1px solid rgba(148, 163, 184, 0.2)",
+          color: "#cbd5e1",
+          fontSize: 14,
+          lineHeight: 1.5,
+          textAlign: "center"
+        }}>
+          <div>DOUNO is currently in private beta.</div>
+          <a
+            href="https://douno.ai/beta-tester"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              color: "#60a5fa",
+              fontWeight: 700,
+              textDecoration: "none"
+            }}
+          >
+            Apply for beta access
+          </a>
+        </div>
 
       </div>
 
