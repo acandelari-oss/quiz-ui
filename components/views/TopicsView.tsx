@@ -19,6 +19,62 @@ type TopicNavigationGroup = {
   items: [string, any][]
 }
 
+function csvCell(value: unknown) {
+  const text = String(value ?? "")
+  return `"${text.replace(/"/g, '""')}"`
+}
+
+function downloadTaxonomyCsv(topics: any[] = [], projectId?: string) {
+  const headers = [
+    "module_name",
+    "module_id",
+    "macrocategory",
+    "category",
+    "topic",
+    "description",
+    "category_order_index",
+    "topic_order_index"
+  ]
+
+  const rows = topics.map((topic: any) => [
+    topic.module_name || "",
+    topic.module_id || "",
+    isStudentProvidedOrganizationMode(topic.organization_mode)
+      ? ""
+      : (topic.macrocategory || topic.source_section || ""),
+    topic.category || "General",
+    topic.topic || topic.title || "",
+    topic.description || "",
+    topic.category_order_index ?? "",
+    topic.topic_order_index ?? ""
+  ])
+
+  const csv = [
+    headers.map(csvCell).join(","),
+    ...rows.map(row => row.map(csvCell).join(","))
+  ].join("\n")
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `douno-taxonomy-${projectId || "project"}.csv`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+function isStudentProvidedOrganizationMode(mode: unknown) {
+  const normalizedMode = String(mode || "").trim().toLowerCase()
+  return normalizedMode === "manual" || normalizedMode === "syllabus"
+}
+
+function canMoveTopic(topic: any, taxonomyReviewEditable = true) {
+  return Boolean(taxonomyReviewEditable)
+    && !Boolean(topic?.taxonomy_locked || topic?.accepted_for_study)
+}
+
 function normalizePriorityCategoryResponse(
   responseBody: any,
   fallback: string[]
@@ -39,7 +95,7 @@ function normalizePriorityCategoryResponse(
 }
 
 export default function TopicsView({
-  
+
   topics,
   loadingTopics,
   topicsOpen,
@@ -51,12 +107,24 @@ export default function TopicsView({
 	  summaryStats,
 	  resultsData,
 	  projectId,
+	  projectStudyMode,
+	  loadTopics,
 	  priorityCategories = [],
 	  setPriorityCategories = () => {},
 	  onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) => {}
 	}: any) {
 	  const { t: translate, i18n } = useTranslation();
 	  const [priorityMessage, setPriorityMessage] = React.useState("")
+	  const [movingTopicId, setMovingTopicId] = React.useState<string | null>(null)
+	  const [editingTopicId, setEditingTopicId] = React.useState<string | null>(null)
+	  const [editingTopicName, setEditingTopicName] = React.useState("")
+	  const [editingCategoryKey, setEditingCategoryKey] = React.useState<string | null>(null)
+	  const [editingCategoryName, setEditingCategoryName] = React.useState("")
+	  const [mergingTopicId, setMergingTopicId] = React.useState<string | null>(null)
+	  const [mergeTargetTopicId, setMergeTargetTopicId] = React.useState("")
+	  const [mergeTopicName, setMergeTopicName] = React.useState("")
+	  const [taxonomyEditBusy, setTaxonomyEditBusy] = React.useState<string | null>(null)
+	  const taxonomyReviewEditable = String(projectStudyMode || "").toLowerCase() !== "learning"
 	  const topicCounts: { [key: string]: number } = {};
   function normalizeTopic(t) {
   return (t || "")
@@ -73,9 +141,210 @@ export default function TopicsView({
       }
     });
   }
-  
+
   const [flashcardDetailedStats, setFlashcardDetailedStats] = React.useState<any>({});
   const [topicNavigationGroups, setTopicNavigationGroups] = React.useState<TopicNavigationGroup[]>([]);
+
+  async function moveTopicToCategory(topic: any, nextCategory: string) {
+    const topicId = topic?.id ? String(topic.id) : ""
+    const category = String(nextCategory || "").trim()
+
+    if (!projectId || !topicId || !category || category === topic?.category) {
+      return
+    }
+
+    setMovingTopicId(topicId)
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const token = sessionData.session?.access_token
+
+      if (!token) {
+        throw new Error("Missing session")
+      }
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics/${topicId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ category })
+        }
+      )
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.detail || "Unable to move topic")
+      }
+
+      if (typeof loadTopics === "function") {
+        await loadTopics(projectId)
+      }
+    } catch (error) {
+      console.error("Topic category update failed", error)
+      alert(translate('stats.Unable to move topic'))
+    } finally {
+      setMovingTopicId(null)
+    }
+  }
+
+  async function getAuthToken() {
+    const { data: sessionData } = await supabase.auth.getSession()
+    const token = sessionData.session?.access_token
+
+    if (!token) {
+      throw new Error("Missing session")
+    }
+
+    return token
+  }
+
+  async function renameTopic(topic: any) {
+    const topicId = topic?.id ? String(topic.id) : ""
+    const nextName = editingTopicName.trim()
+
+    if (!projectId || !topicId || !nextName) {
+      alert(translate('stats.Topic name is required'))
+      return
+    }
+
+    setTaxonomyEditBusy(`topic:${topicId}`)
+
+    try {
+      const token = await getAuthToken()
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics/${topicId}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ topic: nextName })
+        }
+      )
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.detail || "Unable to rename topic")
+      }
+
+      setEditingTopicId(null)
+      setEditingTopicName("")
+      if (typeof loadTopics === "function") {
+        await loadTopics(projectId)
+      }
+    } catch (error) {
+      console.error("Topic rename failed", error)
+      alert(translate('stats.Unable to update taxonomy'))
+    } finally {
+      setTaxonomyEditBusy(null)
+    }
+  }
+
+  async function renameCategory(category: string, categoryTopics: any[]) {
+    const nextName = editingCategoryName.trim()
+    const firstTopic = Array.isArray(categoryTopics) ? categoryTopics[0] : null
+
+    if (!projectId || !category || !nextName) {
+      alert(translate('stats.Category name is required'))
+      return
+    }
+
+    setTaxonomyEditBusy(`category:${category}`)
+
+    try {
+      const token = await getAuthToken()
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic-categories`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            current_category: category,
+            new_category: nextName,
+            module_id: firstTopic?.module_id || null
+          })
+        }
+      )
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.detail || "Unable to rename category")
+      }
+
+      setEditingCategoryKey(null)
+      setEditingCategoryName("")
+      if (typeof loadTopics === "function") {
+        await loadTopics(projectId)
+      }
+    } catch (error) {
+      console.error("Category rename failed", error)
+      alert(translate('stats.Unable to update taxonomy'))
+    } finally {
+      setTaxonomyEditBusy(null)
+    }
+  }
+
+  async function mergeTopicInto(topic: any) {
+    const topicId = topic?.id ? String(topic.id) : ""
+    const targetTopicId = mergeTargetTopicId.trim()
+    const nextName = mergeTopicName.trim()
+
+    if (!projectId || !topicId || !targetTopicId) {
+      alert(translate('stats.Select topic to merge'))
+      return
+    }
+
+    if (!nextName) {
+      alert(translate('stats.Topic name is required'))
+      return
+    }
+
+    setTaxonomyEditBusy(`merge:${topicId}`)
+
+    try {
+      const token = await getAuthToken()
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topics/merge`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            source_topic_id: topicId,
+            target_topic_id: targetTopicId,
+            new_topic_name: nextName
+          })
+        }
+      )
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.detail || "Unable to merge topics")
+      }
+
+      setMergingTopicId(null)
+      setMergeTargetTopicId("")
+      setMergeTopicName("")
+      if (typeof loadTopics === "function") {
+        await loadTopics(projectId)
+      }
+    } catch (error) {
+      console.error("Topic merge failed", error)
+      alert(translate('stats.Unable to update taxonomy'))
+    } finally {
+      setTaxonomyEditBusy(null)
+    }
+  }
 
   // --- AGGIUNGI QUESTO BLOCCO QUI ---
   React.useEffect(() => {
@@ -100,7 +369,7 @@ export default function TopicsView({
         });
 
         if (!response.ok) throw new Error(`Server error: ${response.status}`);
-        
+
         const data = await response.json();
         console.log("🔍 DATI GREZZI DAL SERVER:", data);
         console.log(
@@ -111,7 +380,7 @@ export default function TopicsView({
         // Prova a forzare un match manuale per il primo topic per vedere se funziona
         const primoTopic = topics[0]?.topic;
         if (primoTopic) {
-            console.log(`Test match per ${primoTopic}:`, 
+            console.log(`Test match per ${primoTopic}:`,
                 Object.keys(data).find(k => normalizeTopic(k) === normalizeTopic(primoTopic))
             );
         }
@@ -264,14 +533,23 @@ export default function TopicsView({
     ),
     [topics]
   );
+  const categoryOptions = React.useMemo(
+    () => categorizedTopicEntries.map(([category]) => String(category)),
+    [categorizedTopicEntries]
+  )
 
   React.useEffect(() => {
     let cancelled = false
 
     async function fetchEducationalUnits() {
       const categories = categorizedTopicEntries.map(([category]) => String(category))
+      const hasStudentProvidedOrganization = categorizedTopicEntries.some(([, categoryTopics]) =>
+        (categoryTopics as any[]).some(topic =>
+          isStudentProvidedOrganizationMode(topic?.organization_mode)
+        )
+      )
 
-      if (categories.length < EDUCATIONAL_UNIT_THRESHOLD) {
+      if (categories.length < EDUCATIONAL_UNIT_THRESHOLD || hasStudentProvidedOrganization) {
         if (!cancelled) {
           setTopicNavigationGroups([
             {
@@ -333,29 +611,61 @@ export default function TopicsView({
 
   return (
     <div className="topics-view-mobile-root" style={box}>
-      <h3
+      <div
         className="topics-view-mobile-toggle"
         style={{
-          cursor: "pointer",
           display: "flex",
-          flexDirection: "column",
+          justifyContent: "space-between",
           alignItems: "flex-start",
-          gap: 4,
-          color: "white",
+          gap: 12,
           marginBottom: 6
         }}
-        onClick={() => setTopicsOpen(!topicsOpen)}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {translate('stats.Topics')}
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>
-            {topicsOpen ? "▲" : "▼"}
+        <h3
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 4,
+            color: "white",
+            margin: 0
+          }}
+          onClick={() => setTopicsOpen(!topicsOpen)}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {translate('stats.Topics')}
+            <span style={{ color: "#9ca3af", fontSize: 12 }}>
+              {topicsOpen ? "▲" : "▼"}
+            </span>
+          </div>
+          <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400, marginTop: 4 }}>
+            {translate('stats.Select one or more topics to focus your study.')}
           </span>
-        </div>
-        <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400, marginTop: 4 }}>
-          {translate('stats.Select one or more topics to focus your study.')}
-        </span>
-      </h3>
+        </h3>
+
+        <button
+          type="button"
+          onClick={() => downloadTaxonomyCsv(topics || [], projectId)}
+          disabled={loadingTopics || !Array.isArray(topics) || topics.length === 0}
+          style={{
+            border: "1px solid rgba(96, 165, 250, 0.42)",
+            borderRadius: 10,
+            background: "rgba(37, 99, 235, 0.12)",
+            color: "#93c5fd",
+            cursor: loadingTopics || !Array.isArray(topics) || topics.length === 0
+              ? "not-allowed"
+              : "pointer",
+            fontSize: 12,
+            fontWeight: 800,
+            padding: "8px 11px",
+            opacity: loadingTopics || !Array.isArray(topics) || topics.length === 0 ? 0.55 : 1,
+            whiteSpace: "nowrap"
+          }}
+        >
+          Download CSV
+        </button>
+      </div>
 
 	      {topicsOpen && (
 	        <>
@@ -387,6 +697,9 @@ export default function TopicsView({
                   <div className="topics-mobile-category-stack" style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
 	                  {group.items.map(([category, categoryTopics]: [string, any]) => {
 	                const isPriorityCategory = priorityCategories.includes(category)
+	                const categoryEditable = Array.isArray(categoryTopics)
+	                  && categoryTopics.some((topic: any) => canMoveTopic(topic, taxonomyReviewEditable))
+	                const categoryEditKey = `${category}:${categoryTopics?.[0]?.module_id || "project"}`
 
 	                const totalQuizQuestions = categoryTopics.reduce(
                   (sum: number, topic: any) => {
@@ -513,7 +826,7 @@ export default function TopicsView({
                     overflow: "hidden",
                     boxShadow: "0 0 0 1px rgba(255,255,255,0.03)"
                   }}>
-                
+
 	                 <div
 	                  className="topic-mobile-category-header"
                   style={{
@@ -526,9 +839,9 @@ export default function TopicsView({
                   }}
                 >
 
-	                    <h4
-	                      className="topic-mobile-category-title"
-	                      style={{
+		                    <h4
+		                      className="topic-mobile-category-title"
+		                      style={{
 	                        color: "#60a5fa",
 	                        fontSize: "18px",
 	                        fontWeight: 700,
@@ -551,11 +864,51 @@ export default function TopicsView({
 	                        starStyle={{
 	                          ...priorityStarButton,
 	                          ...(isPriorityCategory ? selectedPriorityStarButton : {})
-	                        }}
-	                      />
-	                    </h4>
-                    
-                    <div
+		                        }}
+		                      />
+		                      {categoryEditable && editingCategoryKey !== categoryEditKey && (
+		                        <button
+		                          type="button"
+		                          onClick={() => {
+		                            setEditingCategoryKey(categoryEditKey)
+		                            setEditingCategoryName(category)
+		                          }}
+		                          style={taxonomyGhostButton}
+		                        >
+		                          {translate('stats.Rename category')}
+		                        </button>
+		                      )}
+		                    </h4>
+		                    {categoryEditable && editingCategoryKey === categoryEditKey && (
+		                      <div style={taxonomyInlineEditor}>
+		                        <input
+		                          value={editingCategoryName}
+		                          onChange={(event) => setEditingCategoryName(event.target.value)}
+		                          style={taxonomyTextInput}
+		                          placeholder={translate('stats.Category name')}
+		                        />
+		                        <button
+		                          type="button"
+		                          disabled={taxonomyEditBusy === `category:${category}`}
+		                          onClick={() => renameCategory(category, categoryTopics)}
+		                          style={taxonomyPrimaryButton}
+		                        >
+		                          {translate('stats.Save')}
+		                        </button>
+		                        <button
+		                          type="button"
+		                          onClick={() => {
+		                            setEditingCategoryKey(null)
+		                            setEditingCategoryName("")
+		                          }}
+		                          style={taxonomyGhostButton}
+		                        >
+		                          {translate('stats.Cancel')}
+		                        </button>
+		                      </div>
+		                    )}
+
+	                    <div
                       style={{
                         display: "flex",
                         gap: 24,
@@ -564,15 +917,15 @@ export default function TopicsView({
                         color: "#9ca3af"
                       }}
                     >
-                     
 
-                      
+
+
                     </div>
 
 	                    <div style={categoryHeaderActions}>
 	                    {/* 🔥 BOTTONI MACRO */}
 	                    <div className="topic-desktop-action-row" style={{ display: "flex", gap: 10 }}>
-                      
+
                       <button
                         onClick={() => {
                           if (!categoryTopics || categoryTopics.length === 0) {
@@ -747,7 +1100,7 @@ export default function TopicsView({
 
                     <div style={{ textAlign: "center" }}>{translate('stats.Last Studied')}</div>
                     <div>{translate('stats.Topic')}</div>
-                    
+
                     <div></div>
                     <div style={{ textAlign: "center" }}>{translate('stats.Wrong')}</div>
                     <div style={{ textAlign: "center" }}>{translate('stats.Hard')}</div>
@@ -772,9 +1125,9 @@ export default function TopicsView({
                           .trim()
                           .toLowerCase() === value.trim().toLowerCase()
                     );
-                    
-                    const topicStats = statsEntry 
-                      ? (statsEntry[1] as any) 
+
+                    const topicStats = statsEntry
+                      ? (statsEntry[1] as any)
                       : { wrong: 0, hard: 0, good: 0, easy: 0, total: 0 };
 
                     // --- LOGICA QUIZ ---
@@ -783,11 +1136,18 @@ export default function TopicsView({
                       (q: any) =>
                         normalizeTopic(q.topic || q.title) ===
                         normalizeTopic(value)
-                    );
-                    const hasQuizAttempts = (quizStats?.total || 0) > 0;
-                    console.log("🧪 TOPIC:", value);
-                    console.log("🧪 QUIZ STATS:", quizStats);
-                    return (
+	                    );
+	                    const hasQuizAttempts = (quizStats?.total || 0) > 0;
+	                    const topicId = topicObj.id ? String(topicObj.id) : ""
+	                    const isTopicEditable = Boolean(topicId && canMoveTopic(topicObj, taxonomyReviewEditable))
+	                    const mergeOptions = (categoryTopics || []).filter((candidate: any) =>
+	                      candidate?.id
+	                      && String(candidate.id) !== topicId
+	                      && canMoveTopic(candidate, taxonomyReviewEditable)
+	                    )
+	                    console.log("🧪 TOPIC:", value);
+	                    console.log("🧪 QUIZ STATS:", quizStats);
+	                    return (
                       <div
                         className="topic-mobile-topic-row"
                         key={value}
@@ -807,10 +1167,161 @@ export default function TopicsView({
                             fontSize: 14,
                             fontWeight: 500,
                             borderRight: "1px solid rgba(255,255,255,0.08)"
-                          }}
-                        >
-                          {value}
-                        </div>
+	                          }}
+	                        >
+	                          {editingTopicId === topicId ? (
+	                            <div style={taxonomyInlineEditor}>
+	                              <input
+	                                value={editingTopicName}
+	                                onChange={(event) => setEditingTopicName(event.target.value)}
+	                                style={taxonomyTextInput}
+	                                placeholder={translate('stats.Topic name')}
+	                              />
+	                              <button
+	                                type="button"
+	                                disabled={taxonomyEditBusy === `topic:${topicId}`}
+	                                onClick={() => renameTopic(topicObj)}
+	                                style={taxonomyPrimaryButton}
+	                              >
+	                                {translate('stats.Save')}
+	                              </button>
+	                              <button
+	                                type="button"
+	                                onClick={() => {
+	                                  setEditingTopicId(null)
+	                                  setEditingTopicName("")
+	                                }}
+	                                style={taxonomyGhostButton}
+	                              >
+	                                {translate('stats.Cancel')}
+	                              </button>
+	                            </div>
+	                          ) : (
+	                            <span>{value}</span>
+	                          )}
+	                          {isTopicEditable && editingTopicId !== topicId && (
+	                            <div style={taxonomyTopicActions}>
+	                              <button
+	                                type="button"
+	                                onClick={() => {
+	                                  setEditingTopicId(topicId)
+	                                  setEditingTopicName(value)
+	                                  setMergingTopicId(null)
+	                                }}
+	                                style={taxonomyGhostButton}
+	                              >
+	                                {translate('stats.Rename topic')}
+	                              </button>
+	                              {mergeOptions.length > 0 && (
+	                                <button
+	                                  type="button"
+	                                  onClick={() => {
+	                                    setMergingTopicId(topicId)
+	                                    setMergeTargetTopicId("")
+	                                    setMergeTopicName(value)
+	                                    setEditingTopicId(null)
+	                                  }}
+	                                  style={taxonomyGhostButton}
+	                                >
+	                                  {translate('stats.Merge')}
+	                                </button>
+	                              )}
+	                            </div>
+	                          )}
+	                          {topicObj.id && categoryOptions.length > 1 && canMoveTopic(topicObj, taxonomyReviewEditable) && (
+	                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                marginTop: 8,
+                                color: "#9ca3af",
+                                fontSize: 11,
+                                fontWeight: 600
+                              }}
+                            >
+                              <span>{translate('stats.Move to')}</span>
+                              <select
+                                value={category}
+                                disabled={movingTopicId === String(topicObj.id)}
+                                onChange={(event) => moveTopicToCategory(topicObj, event.target.value)}
+                                style={{
+                                  maxWidth: 260,
+                                  minWidth: 160,
+                                  border: "1px solid rgba(96, 165, 250, 0.28)",
+                                  borderRadius: 8,
+                                  background: "#0b1220",
+                                  color: "#dbeafe",
+                                  cursor: movingTopicId === String(topicObj.id)
+                                    ? "wait"
+                                    : "pointer",
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: "6px 8px"
+                                }}
+                              >
+                                {categoryOptions.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+	                              </select>
+	                            </label>
+	                          )}
+	                          {isTopicEditable && mergingTopicId === topicId && (
+	                            <div style={taxonomyMergePanel}>
+	                              <label style={taxonomyMiniLabel}>
+	                                {translate('stats.Merge with')}
+	                                <select
+	                                  value={mergeTargetTopicId}
+	                                  onChange={(event) => setMergeTargetTopicId(event.target.value)}
+	                                  style={taxonomySelect}
+	                                >
+	                                  <option value="">
+	                                    {translate('stats.Select topic')}
+	                                  </option>
+	                                  {mergeOptions.map((candidate: any) => (
+	                                    <option key={String(candidate.id)} value={String(candidate.id)}>
+	                                      {candidate.topic || candidate.title}
+	                                    </option>
+	                                  ))}
+	                                </select>
+	                              </label>
+	                              <label style={taxonomyMiniLabel}>
+	                                {translate('stats.New topic name')}
+	                                <input
+	                                  value={mergeTopicName}
+	                                  onChange={(event) => setMergeTopicName(event.target.value)}
+	                                  style={taxonomyTextInput}
+	                                />
+	                              </label>
+	                              <div style={taxonomyTopicActions}>
+	                                <button
+	                                  type="button"
+	                                  disabled={taxonomyEditBusy === `merge:${topicId}`}
+	                                  onClick={() => mergeTopicInto(topicObj)}
+	                                  style={taxonomyPrimaryButton}
+	                                >
+	                                  {translate('stats.Merge topics')}
+	                                </button>
+	                                <button
+	                                  type="button"
+	                                  onClick={() => {
+	                                    setMergingTopicId(null)
+	                                    setMergeTargetTopicId("")
+	                                    setMergeTopicName("")
+	                                  }}
+	                                  style={taxonomyGhostButton}
+	                                >
+	                                  {translate('stats.Cancel')}
+	                                </button>
+	                              </div>
+	                              <div style={taxonomyHint}>
+	                                {translate('stats.Source material from both topics is preserved.')}
+	                              </div>
+	                            </div>
+	                          )}
+	                        </div>
 
                         <div className="topic-mobile-stats-line">
                           <span className="topic-mobile-stat-label">Quiz: </span>
@@ -872,7 +1383,7 @@ export default function TopicsView({
                         <div
                           className="topic-mobile-flashcard-stat topic-mobile-flashcard-hard"
                           style={{
-                            textAlign: "center",  
+                            textAlign: "center",
                             color: "#f97316",
                             fontWeight: 600
                           }}
@@ -896,7 +1407,7 @@ export default function TopicsView({
                           style={{
                             textAlign: "center",
                             color: "#22c55e",
-                            
+
                             fontWeight: 600,
                             borderRight: "1px solid rgba(255,255,255,0.08)"
                           }}
@@ -1288,6 +1799,88 @@ const priorityWarning = {
   fontSize: 13,
   fontWeight: 700,
   marginBottom: 12
+};
+
+const taxonomyInlineEditor = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap" as const,
+  marginTop: 8
+};
+
+const taxonomyTopicActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  flexWrap: "wrap" as const,
+  marginTop: 8
+};
+
+const taxonomyMergePanel = {
+  marginTop: 10,
+  padding: 10,
+  border: "1px solid rgba(96, 165, 250, 0.18)",
+  borderRadius: 10,
+  background: "rgba(15, 23, 42, 0.72)",
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 8,
+  maxWidth: 420
+};
+
+const taxonomyMiniLabel = {
+  display: "flex",
+  flexDirection: "column" as const,
+  gap: 5,
+  color: "#9ca3af",
+  fontSize: 11,
+  fontWeight: 700
+};
+
+const taxonomyTextInput = {
+  border: "1px solid rgba(96, 165, 250, 0.28)",
+  borderRadius: 8,
+  background: "#0b1220",
+  color: "#f8fafc",
+  fontSize: 12,
+  fontWeight: 700,
+  padding: "7px 9px",
+  minWidth: 180,
+  outline: "none"
+};
+
+const taxonomySelect = {
+  ...taxonomyTextInput,
+  cursor: "pointer"
+};
+
+const taxonomyGhostButton = {
+  border: "1px solid rgba(96, 165, 250, 0.26)",
+  borderRadius: 8,
+  background: "rgba(37, 99, 235, 0.08)",
+  color: "#93c5fd",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 800,
+  padding: "6px 8px"
+};
+
+const taxonomyPrimaryButton = {
+  border: "1px solid rgba(54, 242, 237, 0.32)",
+  borderRadius: 8,
+  background: "rgba(20, 184, 166, 0.22)",
+  color: "#ccfbf1",
+  cursor: "pointer",
+  fontSize: 11,
+  fontWeight: 900,
+  padding: "6px 9px"
+};
+
+const taxonomyHint = {
+  color: "#94a3b8",
+  fontSize: 11,
+  lineHeight: 1.35
 };
 
 const macroBtn = (color: string) => ({

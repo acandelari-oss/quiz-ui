@@ -290,6 +290,12 @@ const [status,setStatus]=useState("")
 const [uploadStatus,setUploadStatus]=useState("")
 const [uploading,setUploading]=useState(false)
 const [uploadWorkflowActive,setUploadWorkflowActive]=useState(false)
+const [uploadModuleName,setUploadModuleName]=useState("")
+const [moduleOrganizationMode,setModuleOrganizationMode]=useState<"infer" | "manual" | "syllabus">("infer")
+const [moduleManualCategories,setModuleManualCategories]=useState([
+  { name: "", description: "" }
+])
+const [moduleSyllabusText,setModuleSyllabusText]=useState("")
 const uploadWorkflowActiveRef = useRef(false)
 const [uploadFlightSessionId,setUploadFlightSessionId]=useState<string | null>(null)
 const [creatingProject,setCreatingProject]=useState(false)
@@ -1041,8 +1047,9 @@ async function beginStudy() {
       project.id === projectId
         ? { ...project, study_mode: nextStudyMode }
         : project
-    )
+      )
   )
+  await loadTopics(projectId)
   setProjectReadyVisible(false)
   setProjectReadyDismissed(true)
   setStatus("")
@@ -1538,6 +1545,65 @@ async function uploadFiles(){
     setUploadFlightSessionId(null)
     return
   }
+  if(!uploadModuleName.trim()) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because module name is missing")
+    setUploadStatus("Please enter a Study Module name before uploading")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+
+  const buildOrganizationBlueprint = () => {
+    if (moduleOrganizationMode === "manual") {
+      return {
+        version: 1,
+        categories: moduleManualCategories
+          .map(category => ({
+            name: String(category.name || "").trim(),
+            description: String(category.description || "").trim()
+          }))
+          .filter(category => category.name)
+      }
+    }
+
+    if (moduleOrganizationMode === "syllabus") {
+      return {
+        version: 1,
+        syllabus_text: moduleSyllabusText.trim()
+      }
+    }
+
+    return null
+  }
+
+  const organizationBlueprint = buildOrganizationBlueprint()
+
+  if(moduleOrganizationMode === "manual" && !organizationBlueprint?.categories?.length) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because manual organization has no categories")
+    setUploadStatus("Please add at least one category or choose automatic organization")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+
+  if(moduleOrganizationMode === "syllabus" && !moduleSyllabusText.trim()) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because syllabus organization text is missing")
+    setUploadStatus("Please paste your index/syllabus text or choose automatic organization")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+
+  const uploadProjectId = projectId
+  if(!uploadProjectId) {
+    uploadFlightLog(uploadSessionId, "Upload stopped before request because upload project ID is missing")
+    uploadSessionRef.current = null
+    setUploadFlightSessionId(null)
+    return
+  }
+  uploadFlightLog(uploadSessionId, "Upload project ID frozen", {
+    uploadProjectId
+  })
 
   uploadWorkflowActiveRef.current = true
   uploadFlightLog(uploadSessionId, "Upload workflow lock acquired")
@@ -1619,12 +1685,14 @@ if(!token) {
 }
 
 uploadFlightLog(uploadSessionId, "Upload request started", {
-  url: `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest_stream`,
-  projectId,
+  url: `${process.env.NEXT_PUBLIC_API_URL}/projects/${uploadProjectId}/ingest_stream`,
+  projectId: uploadProjectId,
+  moduleName: uploadModuleName.trim(),
+  organizationMode: moduleOrganizationMode,
   documentCount: docs.length
 })
 const res = await fetch(
-  `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/ingest_stream`,
+  `${process.env.NEXT_PUBLIC_API_URL}/projects/${uploadProjectId}/ingest_stream`,
   {
     method: "POST",
     headers: {
@@ -1632,6 +1700,12 @@ const res = await fetch(
       "Authorization": `Bearer ${token}`
     },
     body: JSON.stringify({
+        module_name: uploadModuleName.trim(),
+        organization_mode: moduleOrganizationMode,
+        organization_blueprint: organizationBlueprint,
+        organization_source_title: moduleOrganizationMode === "syllabus"
+          ? "Student-provided index/syllabus"
+          : null,
         documents: docs
     })
   }
@@ -1712,15 +1786,26 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     uploadFlightLog(uploadSessionId, "setUploadStatus(Files uploaded successfully! Processing topics...)")
 
     // Topic processing is the completion signal for upload ingestion.
-    await pollTopicStatus(projectId, uploadSessionId);
-    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() started")
-    await loadDocuments(projectId);
-    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() completed")
+    uploadFlightLog(uploadSessionId, "pollTopicStatus() starting", {
+      projectId: uploadProjectId
+    })
+    await pollTopicStatus(uploadProjectId, uploadSessionId);
+    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() started", {
+      projectId: uploadProjectId
+    })
+    await loadDocuments(uploadProjectId);
+    uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() completed", {
+      projectId: uploadProjectId
+    })
     uploadWorkflowActiveRef.current = false;
     setUploadWorkflowActive(false);
     uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
     uploadFlightLog(uploadSessionId, "Upload workflow completed")
     uploadSessionRef.current = null
+    setUploadModuleName("")
+    setModuleOrganizationMode("infer")
+    setModuleManualCategories([{ name: "", description: "" }])
+    setModuleSyllabusText("")
 
     // Pulizia estetica del log dopo un po'
     setTimeout(() => {
@@ -3679,6 +3764,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         handleSidebarNavigation={handleSidebarNavigation}
         loadResults={loadResults}
         projectId={projectId}
+        projectName={projectName}
+        projectStudyMode={projectStudyMode}
         loadFlashcards={loadFlashcards}
         availableFlashcards={availableFlashcards}
         previousQuizzes={previousQuizzes}
@@ -3753,6 +3840,14 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               status={status}
               uploadStatus={uploadStatus}
               uploadWorkflowActive={uploadWorkflowActive}
+              uploadModuleName={uploadModuleName}
+              setUploadModuleName={setUploadModuleName}
+              moduleOrganizationMode={moduleOrganizationMode}
+              setModuleOrganizationMode={setModuleOrganizationMode}
+              moduleManualCategories={moduleManualCategories}
+              setModuleManualCategories={setModuleManualCategories}
+              moduleSyllabusText={moduleSyllabusText}
+              setModuleSyllabusText={setModuleSyllabusText}
               uploadFlightSessionId={uploadFlightSessionId}
               setProjectName={activeView === "create_project" ? setCreateProjectName : setProjectName}
               uploadFiles={uploadFiles}
@@ -3859,6 +3954,14 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         uploadFiles={uploadFiles}
         uploadStatus={uploadStatus}
         uploadWorkflowActive={uploadWorkflowActive}
+        uploadModuleName={uploadModuleName}
+        setUploadModuleName={setUploadModuleName}
+        moduleOrganizationMode={moduleOrganizationMode}
+        setModuleOrganizationMode={setModuleOrganizationMode}
+        moduleManualCategories={moduleManualCategories}
+        setModuleManualCategories={setModuleManualCategories}
+        moduleSyllabusText={moduleSyllabusText}
+        setModuleSyllabusText={setModuleSyllabusText}
         createProjectName={createProjectName}
         setCreateProjectName={setCreateProjectName}
         createProject={createProject}
@@ -3875,6 +3978,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         selectedTopics={selectedTopics}
         setSelectedTopics={setSelectedTopics}
         topics={topics}
+        loadTopics={loadTopics}
         loadingTopics={loadingTopics}
         isGenerating={isGenerating}      // Aggiungi questa
         loaderStep={loaderStep}          // Aggiungi questa

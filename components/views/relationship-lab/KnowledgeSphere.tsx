@@ -382,6 +382,16 @@ export default function KnowledgeSphere({
   }), [i18n.language])
   const relationshipFamilyText = (family: RelationshipFamily) =>
     ts(`relationship_family_${family}`)
+  const relationshipSupportText = (supportLevel?: string | null) => {
+    const normalized = String(supportLevel || "").trim().toUpperCase()
+    if (!normalized) return ts("Unknown")
+    return ts(`relationship_support_${normalized}`)
+  }
+  const relationshipFormText = (form?: string | null) => {
+    const normalized = String(form || "").trim()
+    if (!normalized) return ts("Undetermined")
+    return ts(`relationship_form_${normalized}`)
+  }
 
   const mobileUniverseGrid: CSSProperties = isMobileLayout
     ? {
@@ -674,14 +684,26 @@ export default function KnowledgeSphere({
 
         {relationshipExplanation && (
           <>
-            <div style={evidenceBlock}>
-              <h4 style={orientationCardTitle}>{ts("Why they are connected")}</h4>
-              <p style={relationshipExplanationText}>{relationshipExplanation.why_connected}</p>
+            <div style={relationshipDiagnosticCard}>
+              <span>
+                {ts("Evidence support")}:{" "}
+                <strong style={relationshipDiagnosticValue}>
+                  {relationshipSupportText(relationshipExplanation.support_level)}
+                </strong>
+              </span>
+              <span>
+                {ts("Relationship form")}:{" "}
+                <strong style={relationshipDiagnosticValue}>
+                  {relationshipFormText(relationshipExplanation.relationship_form)}
+                </strong>
+              </span>
             </div>
 
             <div style={evidenceBlock}>
-              <h4 style={orientationCardTitle}>{ts("Why this matters for studying")}</h4>
-              <p style={relationshipExplanationText}>{relationshipExplanation.study_relevance}</p>
+              <h4 style={orientationCardTitle}>{ts("Understand this connection")}</h4>
+              <p style={relationshipExplanationText}>
+                {relationshipExplanation.explanation || relationshipExplanation.why_connected}
+              </p>
             </div>
 
             <div style={evidenceBlock}>
@@ -4904,7 +4926,26 @@ const relationshipExplanationText: CSSProperties = {
   fontSize: 12,
   lineHeight: 1.55,
   margin: 0,
+  whiteSpace: "pre-line",
   overflowWrap: "anywhere"
+}
+
+const relationshipDiagnosticCard: CSSProperties = {
+  display: "grid",
+  gap: 6,
+  padding: "9px 10px",
+  borderRadius: 12,
+  border: "1px solid rgba(148,163,184,0.18)",
+  background: "rgba(15,23,42,0.46)",
+  color: "#94a3b8",
+  fontSize: 11,
+  lineHeight: 1.35
+}
+
+const relationshipDiagnosticValue: CSSProperties = {
+  color: "#d8b4fe",
+  fontWeight: 800,
+  letterSpacing: "0.04em"
 }
 
 const evidencePreviewList: CSSProperties = {

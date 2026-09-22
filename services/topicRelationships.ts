@@ -75,6 +75,9 @@ export type TopicRelationshipExplanation = {
     category?: string | null
     description?: string | null
   }
+  support_level?: "STRONG" | "PARTIAL" | "INSUFFICIENT" | string
+  relationship_form?: string
+  explanation: string
   why_connected: string
   study_relevance: string
   evidence_summary: string

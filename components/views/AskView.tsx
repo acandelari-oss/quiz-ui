@@ -303,7 +303,7 @@ function downloadAskPDF() {
         alignItems: "center", 
         marginBottom: 15,
         paddingBottom: 10,
-        borderBottom: selectedTopic ? "1px solid rgba(34, 197, 94, 0.2)" : "1px solid #374151" 
+	        borderBottom: selectedTopic ? "1px solid rgba(47, 164, 255, 0.22)" : "1px solid #374151"
       }}>
         <h3 className="ask-mobile-title" style={{ margin: 0 }}>{translate('stats.Ask your documents')}</h3>
         
@@ -312,13 +312,13 @@ function downloadAskPDF() {
             display: "flex",
             alignItems: "center",
             gap: "8px",
-            background: "#22c55e",
-            color: "white",
+	            background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
+	            color: "white",
             padding: "6px 14px",
             borderRadius: "20px",
             fontSize: "13px",
             fontWeight: "bold",
-            boxShadow: "0 4px 12px rgba(34, 197, 94, 0.3)",
+	            boxShadow: "0 10px 24px rgba(20, 146, 255, 0.22)",
             animation: "fadeIn 0.3s ease-out"
           }}>
             <span style={{ fontSize: "16px" }}>🎯</span>
@@ -407,7 +407,7 @@ function downloadAskPDF() {
               width: 10,
               height: 10,
               borderRadius: "50%",
-              background: "#22c55e",
+	              background: "#36F2ED",
               animation: "pulse 1s infinite"
             }} />
             {translate('stats.Thinking...')}
@@ -680,10 +680,10 @@ function downloadAskPDF() {
               position: "absolute",
               right: 10,
               bottom: 18,
-              background: "#22c55e",
-              border: "none",
-              borderRadius: 6,
-              padding: "6px 8px",
+	              background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
+	              border: "1px solid rgba(45, 212, 191, 0.36)",
+	              borderRadius: 10,
+	              padding: "6px 8px",
               cursor: asking || !askQuestion.trim() ? "not-allowed" : "pointer",
               opacity: asking || !askQuestion.trim() ? 0.65 : 1,
               fontWeight: 600

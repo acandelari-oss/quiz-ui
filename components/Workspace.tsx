@@ -17,6 +17,10 @@ import MarkdownContent from "@/components/ui/MarkdownContent";
 import { CategoryPriorityProvider } from "@/components/ui/CategoryLabel";
 import { shellHeaderCell } from "./layoutStyles"
 import {
+  extractTopicNames,
+  getTopicDisplayName
+} from "../utils/topics"
+import {
   BarChart3,
   Calendar,
   ClipboardList,
@@ -93,6 +97,14 @@ setFiles,
 uploadFiles,
 uploadStatus,
 uploadWorkflowActive,
+uploadModuleName,
+setUploadModuleName,
+moduleOrganizationMode,
+setModuleOrganizationMode,
+moduleManualCategories,
+setModuleManualCategories,
+moduleSyllabusText,
+setModuleSyllabusText,
 createProjectName,
 setCreateProjectName,
 createProject,
@@ -116,6 +128,7 @@ loadingFlashcards,
 generatingFlashcards,
 documents,
 topics,
+loadTopics,
 loadingTopics,
 isGenerating,
 loaderStep,
@@ -154,6 +167,11 @@ onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) 
 console.log("🧠 ACTIVE VIEW:", activeView)
 const quizList = Array.isArray(quiz) ? quiz : []
 const uploadBrowseInputRef = useRef<HTMLInputElement | null>(null)
+const selectedTopicNames = extractTopicNames(selectedTopics || [])
+const selectedTopicLabel =
+  selectedTopicNames.length > 1
+    ? `${selectedTopicNames[0].split(" ")[0]} (${selectedTopicNames.length} topics)`
+    : selectedTopicNames[0] || getTopicDisplayName(selectedTopic) || "general"
 
 const [mounted, setMounted] = useState(false);
 
@@ -235,6 +253,8 @@ useEffect(()=>{
 
   async function loadAllDocs(){
 
+    if(activeView !== "manage_projects") return
+
     if(!projects) return
 
     const { data } = await supabase.auth.getSession()
@@ -279,16 +299,12 @@ useEffect(()=>{
 
   loadAllDocs()
 
-}, [projects])
+}, [activeView, projects])
 
 // 1. Reset delle stats quando cambi vista o progetto
-  useEffect(() => {
+useEffect(() => {
     setStatsLoaded(false);
   }, [activeView, projectId]);
-
-  
-
-
 
   // 2. Caricamento effettivo delle statistiche
   useEffect(() => {
@@ -350,6 +366,11 @@ const showProjectReadyScreen =
     projectReadyVisible
     || Boolean(projectId && ((documents?.length || 0) > 0 || (topics?.length || 0) > 0))
   )
+const showTaxonomyReviewCompletionBar =
+  activeView === "topics"
+  && projectStudyMode === "building"
+  && Boolean(projectId)
+  && Boolean((documents?.length || 0) > 0 || (topics?.length || 0) > 0)
 const plannerGuidedSessionActive =
   plannerRuntime?.dailyPlan
   && (
@@ -515,7 +536,9 @@ return (
         .load-project-section-grid,
         .load-project-row,
         .load-project-cta,
-        .topics-preview-grid {
+        .topics-preview-grid,
+        .module-organization-options,
+        .module-organization-category-row {
           grid-template-columns: 1fr !important;
         }
 
@@ -620,49 +643,60 @@ return (
           <div style={spinner}></div>
         )}
 
-        {/* 2. TITOLO DINAMICO TRADOTTO */}
-        <div className="workspace-loader-mobile-text" style={loaderTitle}>
-          {!mounted ? (
-            "Loading..."
-          ) : uploading ? (
-            (uploadLog || translate('stats.Uploading document...'))
-          ) : generatingFlashcards ? (
-            // Prova senza "common:" se vedi ancora la chiave tecnica
-            translate(`loaders.flashcards_${currentStep}`)
-          ) : generatingQuiz ? (
-            translate(`loaders.quiz_${currentStep}`)
-          ) : (
-            /* LOGICA STATUS */
-            status === "Loading project..." ? translate('stats.Loading project') :
-            status === "Loading previous material..." ? translate('stats.Loading previous material') :
-            status === "Project loaded successfully" ? translate('stats.Project loaded successfully') :
-            status === "Project upload completed" ? translate('stats.Project upload completed') :
-            status === "Processing topics..."
-              ? translate('stats.We are organizing your material into study topics')
-              :status
-          )}
-        </div>
+        {uploading ? (
+          <>
+            <CoffeeBreakProcessingCard translate={translate} compact />
+            {uploadLog?.includes("LARGE_FILE_WARNING") && (
+              <div className="workspace-loader-mobile-text" style={{
+                ...loaderSubtitle,
+                maxWidth: 560,
+                marginTop: 14
+              }}>
+                {translate('stats.Large academic document detected. Processing may take longer than usual.')}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* 2. TITOLO DINAMICO TRADOTTO */}
+            <div className="workspace-loader-mobile-text" style={loaderTitle}>
+              {!mounted ? (
+                "Loading..."
+              ) : generatingFlashcards ? (
+                // Prova senza "common:" se vedi ancora la chiave tecnica
+                translate(`loaders.flashcards_${currentStep}`)
+              ) : generatingQuiz ? (
+                translate(`loaders.quiz_${currentStep}`)
+              ) : (
+                /* LOGICA STATUS */
+                status === "Loading project..." ? translate('stats.Loading project') :
+                status === "Loading previous material..." ? translate('stats.Loading previous material') :
+                status === "Project loaded successfully" ? translate('stats.Project loaded successfully') :
+                status === "Project upload completed" ? translate('stats.Project upload completed') :
+                status === "Processing topics..."
+                  ? translate('stats.We are organizing your material into study topics')
+                  : status
+              )}
+            </div>
 
-        {/* 3. SOTTOTITOLO DINAMICO TRADOTTO */}
-       <div className="workspace-loader-mobile-text" style={loaderSubtitle}>
-        {mounted ? (
-          uploading ? (
-            uploadLog?.includes("LARGE_FILE_WARNING")
-              ? translate('stats.Large academic document detected. Processing may take longer than usual.')
-              : translate('stats.OCR files may take longer to process')
-          ) : generatingQuiz ? (
-            translate('stats.We are building your quiz and checking question quality.')
-          ) : generatingFlashcards ? (
-            translate('stats.We are extracting key concepts and preparing your flashcards.')
-          ) : status === "Processing topics..." ? (
-            translate('stats.We are organizing your material into study topics.')
-          ) : status === "Project upload completed" ? (
-            translate('stats.Your material is ready. Choose the next action from the sidebar.')
-          ) : (
-            translate('stats.Preparing your learning workspace.')
-          )
-        ) : "..."}
-      </div>
+            {/* 3. SOTTOTITOLO DINAMICO TRADOTTO */}
+            <div className="workspace-loader-mobile-text" style={loaderSubtitle}>
+              {mounted ? (
+                generatingQuiz ? (
+                  translate('stats.We are building your quiz and checking question quality.')
+                ) : generatingFlashcards ? (
+                  translate('stats.We are extracting key concepts and preparing your flashcards.')
+                ) : status === "Processing topics..." ? (
+                  translate('stats.We are organizing your material into study topics.')
+                ) : status === "Project upload completed" ? (
+                  translate('stats.Your material is ready. Choose the next action from the sidebar.')
+                ) : (
+                  translate('stats.Preparing your learning workspace.')
+                )
+              ) : "..."}
+            </div>
+          </>
+        )}
 
         
       </div>
@@ -682,6 +716,14 @@ return (
         uploadFiles={uploadFiles}
         uploadStatus={uploadStatus}
         uploadWorkflowActive={uploadWorkflowActive}
+        uploadModuleName={uploadModuleName}
+        setUploadModuleName={setUploadModuleName}
+        moduleOrganizationMode={moduleOrganizationMode}
+        setModuleOrganizationMode={setModuleOrganizationMode}
+        moduleManualCategories={moduleManualCategories}
+        setModuleManualCategories={setModuleManualCategories}
+        moduleSyllabusText={moduleSyllabusText}
+        setModuleSyllabusText={setModuleSyllabusText}
         search={loadProjectSearch}
         setSearch={setLoadProjectSearch}
         selectionExpanded={loadProjectSelectionExpanded}
@@ -695,6 +737,13 @@ return (
       <ProjectReadyScreen
         translate={translate}
         onUploadAnotherFile={onUploadAnotherFile}
+        onReviewTopics={() => {
+          if (handleSidebarNavigation) {
+            handleSidebarNavigation("topics")
+          } else {
+            setActiveView("topics")
+          }
+        }}
         onBeginStudy={onBeginStudy}
       />
     ) :
@@ -713,6 +762,14 @@ return (
         uploadFiles={uploadFiles}
         uploadStatus={uploadStatus}
         uploadWorkflowActive={uploadWorkflowActive}
+        uploadModuleName={uploadModuleName}
+        setUploadModuleName={setUploadModuleName}
+        moduleOrganizationMode={moduleOrganizationMode}
+        setModuleOrganizationMode={setModuleOrganizationMode}
+        moduleManualCategories={moduleManualCategories}
+        setModuleManualCategories={setModuleManualCategories}
+        moduleSyllabusText={moduleSyllabusText}
+        setModuleSyllabusText={setModuleSyllabusText}
       />
     ) :
 
@@ -1008,46 +1065,7 @@ return (
       ))}
     </div>
 
-    <div style={{
-      position: "relative",
-      overflow: "hidden",
-      borderRadius: 22,
-      border: "1px solid rgba(168, 85, 247, 0.62)",
-      background: "radial-gradient(circle at 16% 48%, rgba(147, 51, 234, 0.32), transparent 28%), linear-gradient(135deg, rgba(38, 17, 77, 0.8), rgba(15,23,42,0.92) 55%, rgba(49, 25, 77, 0.74))",
-      boxShadow: "0 24px 80px rgba(88, 28, 135, 0.28)",
-      padding: "30px clamp(24px, 5vw, 56px)",
-      minHeight: 172,
-      display: "flex",
-      alignItems: "center",
-      gap: 24
-    }}>
-      <div style={{
-        width: 78,
-        height: 78,
-        borderRadius: 24,
-        flex: "0 0 auto",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#d8b4fe",
-        background: "rgba(88, 28, 135, 0.34)",
-        border: "1px solid rgba(216, 180, 254, 0.28)"
-      }}>
-        <Coffee size={42} />
-      </div>
-
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ color: "white", fontWeight: 900, fontSize: "clamp(24px, 3vw, 34px)", marginBottom: 10 }}>
-          ☕ Perfect time for a coffee break!
-        </div>
-        <div style={{ color: "#e5e7eb", fontSize: 17, lineHeight: 1.6, maxWidth: 720 }}>
-          While you're away, DO·U·NO is reading your study material, identifying the key concepts and building your personalized knowledge map.
-        </div>
-        <div style={{ color: "#a78bfa", fontSize: 17, lineHeight: 1.6, fontWeight: 850, marginTop: 10 }}>
-          When you come back, your learning workspace will be ready.
-        </div>
-      </div>
-    </div>
+    <CoffeeBreakProcessingCard translate={translate} />
   </div>
   
 
@@ -1261,7 +1279,9 @@ return (
 
         <TopicsView
           topics={topics}
+          loadTopics={loadTopics}
           projectId={projectId}
+          projectStudyMode={projectStudyMode}
           loadingTopics={loadingTopics}
           topicsOpen={topicsOpen}
           setTopicsOpen={() => {}}
@@ -1278,6 +1298,38 @@ return (
 	          setPriorityCategories={setPriorityCategories}
 	          onPriorityCategoriesSaved={onPriorityCategoriesSaved}
 	        />
+        {showTaxonomyReviewCompletionBar && (
+          <div style={taxonomyReviewCompletionBar}>
+            <div>
+              <div style={taxonomyReviewCompletionTitle}>
+                {translate("stats.Finished reviewing your taxonomy?")}
+              </div>
+              <div style={taxonomyReviewCompletionText}>
+                {translate("stats.You can still upload more material, or approve this organization and enter Study Mode.")}
+              </div>
+            </div>
+            <div style={taxonomyReviewCompletionActions}>
+              <button
+                type="button"
+                style={projectReadySecondaryButton}
+                onClick={() => {
+                  onUploadAnotherFile?.()
+                }}
+              >
+                {translate("stats.UPLOAD ANOTHER FILE")}
+              </button>
+              <button
+                type="button"
+                style={projectReadyButton}
+                onClick={() => {
+                  onBeginStudy?.()
+                }}
+              >
+                {translate("stats.APPROVE & START STUDYING")}
+              </button>
+            </div>
+          </div>
+        )}
         <style jsx global>{`
           @media (max-width: 900px) {
             .topics-dashboard-mobile-shell {
@@ -1468,7 +1520,7 @@ return (
             color: "#22c55e",
             fontWeight: "bold"
           }}>
-            🎯 Focusing on: {typeof selectedTopic === 'object' ? selectedTopic.value : selectedTopic}
+            🎯 Focusing on: {getTopicDisplayName(selectedTopic)}
           </div>
         )}
 
@@ -1657,7 +1709,7 @@ return (
               width: 40,
               height: 40,
               border: "4px solid #374151",
-              borderTop: "4px solid #22c55e",
+              borderTop: "4px solid #36F2ED",
               borderRadius: "50%",
               animation: "spin 0.8s linear infinite",
               marginBottom: 20
@@ -1680,9 +1732,7 @@ return (
               {loaderMessages 
                 ? loaderMessages[loaderType][loaderStep] 
                 : `Generating your ${
-                    selectedTopics && selectedTopics.length > 1
-                      ? `${selectedTopics[0].split(" ")[0]} (${selectedTopics.length} topics)`
-                      : selectedTopics?.[0] || selectedTopic || "general"
+                    selectedTopicLabel
                   } quiz...`}
             </p>
           </div>
@@ -1733,6 +1783,12 @@ return (
               loadQuizStats={loadQuizStats}
               projectId={projectId}
               quizId={quizId}
+              hideCompletionPanel={
+                plannerRuntime?.dailyPlan
+                ?.activities?.[plannerRuntime?.activityIndex]
+                ?.type === "quiz"
+                && plannerRuntime?.mode !== "dashboard"
+              }
               onBackToDashboard={() => handleSidebarNavigation("learning_home")}
             />
             {plannerRuntime?.mode === "activity_review" && (
@@ -1788,7 +1844,7 @@ return (
                   <div style={{
                     height: d.score * 2,
                     width: 20,
-                    background:"#22c55e",
+                    background:"linear-gradient(180deg, rgba(54, 242, 237, 0.95), rgba(20, 146, 255, 0.82))",
                     borderRadius:4,
                     transition:"all 0.3s ease"
                   }} />
@@ -1925,13 +1981,13 @@ return (
                 <button
                   onClick={() => loadQuiz(q.id)}
                   style={{
-                    background: "#22c55e",
-                    color: "black",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "6px 10px",
+                    background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
+                    color: "white",
+                    border: "1px solid rgba(45, 212, 191, 0.36)",
+                    borderRadius: 10,
+                    padding: "7px 12px",
                     cursor: "pointer",
-                    fontWeight: 600,
+                    fontWeight: 800,
                     transition: "0.2s"
                   }}
                   onMouseEnter={e => e.currentTarget.style.opacity = "0.8"}
@@ -1975,6 +2031,7 @@ return (
           summaryStats={summaryStats} 
           resultsData={resultsData} // Passiamo anche i dati dei topic
           projectId={projectId}
+          projectName={projectName}
           onStartFocusSession={onStartFocusStudySession}
         />
       </div>
@@ -2129,6 +2186,7 @@ function plannerGuidedActivityLabel(activityType: string, translate: (key: strin
 function ProjectReadyScreen({
   translate,
   onUploadAnotherFile,
+  onReviewTopics,
   onBeginStudy
 }: any) {
   return (
@@ -2140,7 +2198,7 @@ function ProjectReadyScreen({
       <p style={projectReadySubtitle}>
         {translate("stats.Your study material has been successfully processed.")}
         <br />
-        {translate("stats.What would you like to do next?")}
+        {translate("stats.Review your topic organization before entering Study Mode.")}
       </p>
 
       <div style={projectReadyCards}>
@@ -2165,17 +2223,36 @@ function ProjectReadyScreen({
 
         <div style={projectReadyCard}>
           <h3 style={projectReadyCardTitle}>
-            {translate("stats.I'm ready to study")}
+            {translate("stats.Review your topics")}
           </h3>
           <p style={projectReadyCardText}>
-            {translate("stats.Start your learning journey with the material you've prepared.")}
+            {translate("stats.Move topics between categories now if something is misplaced.")}
+          </p>
+          <div style={projectReadyInfoText}>
+            {translate("stats.Once you enter Study Mode, the taxonomy is locked to protect your progress statistics.")}
+          </div>
+          <button
+            type="button"
+            style={projectReadySecondaryButton}
+            onClick={onReviewTopics}
+          >
+            {translate("stats.REVIEW TOPICS")}
+          </button>
+        </div>
+
+        <div style={projectReadyCard}>
+          <h3 style={projectReadyCardTitle}>
+            {translate("stats.Approve taxonomy and start studying")}
+          </h3>
+          <p style={projectReadyCardText}>
+            {translate("stats.Freeze this organization and start your learning journey.")}
           </p>
           <button
             type="button"
             style={projectReadyButton}
             onClick={onBeginStudy}
           >
-            {translate("stats.BEGIN STUDY")}
+            {translate("stats.APPROVE & START STUDYING")}
           </button>
         </div>
       </div>
@@ -2196,6 +2273,14 @@ function LoadProjectWorkspace({
   uploadFiles,
   uploadStatus,
   uploadWorkflowActive,
+  uploadModuleName,
+  setUploadModuleName,
+  moduleOrganizationMode,
+  setModuleOrganizationMode,
+  moduleManualCategories,
+  setModuleManualCategories,
+  moduleSyllabusText,
+  setModuleSyllabusText,
   search,
   setSearch,
   selectionExpanded,
@@ -2206,7 +2291,8 @@ function LoadProjectWorkspace({
   const loadFileInputRef = useRef<HTMLInputElement | null>(null)
   const selectedFileCount = files?.length || 0
   const hasProject = Boolean(projectId)
-  const uploadDisabled = !hasProject || !selectedFileCount || Boolean(uploadWorkflowActive)
+  const moduleNameReady = Boolean(String(uploadModuleName || "").trim())
+  const uploadDisabled = !hasProject || !selectedFileCount || !moduleNameReady || Boolean(uploadWorkflowActive)
 
   const orderedProjects = useMemo(() => {
     const list = Array.isArray(projects) ? [...projects] : []
@@ -2312,7 +2398,7 @@ function LoadProjectWorkspace({
               color: step.done || step.active ? "white" : "#94a3b8",
               fontWeight: 900,
               background: step.done
-                ? "linear-gradient(135deg, #22c55e, #14b8a6)"
+                ? "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))"
                 : step.active
                   ? "linear-gradient(135deg, #7c3aed, #2563eb)"
                   : "rgba(15, 23, 42, 0.7)",
@@ -2620,6 +2706,42 @@ function LoadProjectWorkspace({
                     : "Supported formats: PDF, DOCX, PPTX"}
                 </div>
               </div>
+              <label style={{
+                display: "block",
+                marginTop: 14,
+                color: "#e5e7eb",
+                fontWeight: 800
+              }}>
+                Study Module name
+                <input
+                  value={uploadModuleName || ""}
+                  onChange={(event) => setUploadModuleName?.(event.target.value)}
+                  disabled={!hasProject || uploadWorkflowActive}
+                  placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    marginTop: 8,
+                    borderRadius: 10,
+                    border: "1px solid rgba(148, 163, 184, 0.22)",
+                    background: "rgba(15, 23, 42, 0.72)",
+                    color: "white",
+                    padding: "12px 14px",
+                    outline: "none"
+                  }}
+                />
+              </label>
+              <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
+                <ModuleOrganizationSetup
+                  mode={moduleOrganizationMode}
+                  setMode={setModuleOrganizationMode}
+                  manualCategories={moduleManualCategories}
+                  setManualCategories={setModuleManualCategories}
+                  syllabusText={moduleSyllabusText}
+                  setSyllabusText={setModuleSyllabusText}
+                  disabled={!hasProject || uploadWorkflowActive}
+                />
+              </div>
             </div>
 
             {uploadStatus && (
@@ -2802,12 +2924,21 @@ function ProjectSetupWorkspace({
   setFiles,
   uploadFiles,
   uploadStatus,
-  uploadWorkflowActive
+  uploadWorkflowActive,
+  uploadModuleName,
+  setUploadModuleName,
+  moduleOrganizationMode,
+  setModuleOrganizationMode,
+  moduleManualCategories,
+  setModuleManualCategories,
+  moduleSyllabusText,
+  setModuleSyllabusText
 }: any) {
   const setupFileInputRef = useRef<HTMLInputElement | null>(null)
   const projectCreated = Boolean(projectId)
   const selectedFileCount = files?.length || 0
-  const uploadDisabled = !projectCreated || !selectedFileCount || Boolean(uploadWorkflowActive)
+  const moduleNameReady = Boolean(String(uploadModuleName || "").trim())
+  const uploadDisabled = !projectCreated || !selectedFileCount || !moduleNameReady || Boolean(uploadWorkflowActive)
 
   const browseFiles = () => {
     if (!projectCreated) return
@@ -2905,7 +3036,7 @@ function ProjectSetupWorkspace({
               color: step.done || step.active ? "white" : "#94a3b8",
               fontWeight: 900,
               background: step.done
-                ? "linear-gradient(135deg, #22c55e, #14b8a6)"
+                ? "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))"
                 : step.active
                   ? "linear-gradient(135deg, #7c3aed, #2563eb)"
                   : "rgba(15, 23, 42, 0.7)",
@@ -3145,7 +3276,38 @@ function ProjectSetupWorkspace({
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 18 }}>
+        <div className="setup-action-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end", marginBottom: 18 }}>
+          <label style={{ display: "block", color: "#e5e7eb", fontWeight: 800 }}>
+            Study Module name
+            <input
+              value={uploadModuleName || ""}
+              onChange={(event) => setUploadModuleName?.(event.target.value)}
+              disabled={!projectCreated || uploadWorkflowActive}
+              placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                marginTop: 8,
+                borderRadius: 10,
+                border: "1px solid rgba(148, 163, 184, 0.22)",
+                background: "rgba(15, 23, 42, 0.72)",
+                color: "white",
+                padding: "12px 14px",
+                outline: "none"
+              }}
+            />
+          </label>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <ModuleOrganizationSetup
+              mode={moduleOrganizationMode}
+              setMode={setModuleOrganizationMode}
+              manualCategories={moduleManualCategories}
+              setManualCategories={setModuleManualCategories}
+              syllabusText={moduleSyllabusText}
+              setSyllabusText={setModuleSyllabusText}
+              disabled={!projectCreated || uploadWorkflowActive}
+            />
+          </div>
           <button
             type="button"
             onClick={uploadFiles}
@@ -3260,42 +3422,7 @@ function ProjectSetupWorkspace({
         ))}
       </div>
 
-      <div style={{
-        borderRadius: 22,
-        border: "1px solid rgba(168, 85, 247, 0.62)",
-        background: "radial-gradient(circle at 16% 48%, rgba(147, 51, 234, 0.32), transparent 28%), linear-gradient(135deg, rgba(38, 17, 77, 0.8), rgba(15,23,42,0.92) 55%, rgba(49, 25, 77, 0.74))",
-        boxShadow: "0 24px 80px rgba(88, 28, 135, 0.28)",
-        padding: "28px clamp(22px, 5vw, 50px)",
-        display: "flex",
-        alignItems: "center",
-        gap: 22
-      }}>
-        <div style={{
-          width: 70,
-          height: 70,
-          borderRadius: 22,
-          flex: "0 0 auto",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#d8b4fe",
-          background: "rgba(88, 28, 135, 0.34)",
-          border: "1px solid rgba(216, 180, 254, 0.28)"
-        }}>
-          <Coffee size={38} />
-        </div>
-        <div>
-          <div style={{ color: "white", fontWeight: 900, fontSize: "clamp(23px, 3vw, 30px)", marginBottom: 8 }}>
-            ☕ Perfect time for a coffee break!
-          </div>
-          <div style={{ color: "#e5e7eb", fontSize: 16, lineHeight: 1.6, maxWidth: 760 }}>
-            While you're away, DO·U·NO is reading your study material, identifying the key concepts and building your personalized knowledge map.
-          </div>
-          <div style={{ color: "#a78bfa", fontSize: 16, lineHeight: 1.6, fontWeight: 850, marginTop: 8 }}>
-            When you come back, your learning workspace will be ready.
-          </div>
-        </div>
-      </div>
+      <CoffeeBreakProcessingCard translate={translate} />
     </div>
   )
 }
@@ -4390,7 +4517,7 @@ const spinner = {
 width:40,
 height:40,
 border:"4px solid #374151",
-borderTop:"4px solid #22c55e",
+borderTop:"4px solid #36F2ED",
 borderRadius:"50%",
 animation:"spin 0.8s linear infinite",
 marginBottom:20
@@ -4407,10 +4534,11 @@ marginTop:6
 }
 
 const plannerReviewCheckpoint = {
-background: "#052b2a",
-border: "1px solid #0e6c69",
-borderRadius: 14,
-padding: 18,
+background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+border: "1px solid rgba(47, 164, 255, 0.22)",
+boxShadow: "0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+borderRadius: 20,
+padding: 20,
 marginTop: 24,
 marginBottom: 0,
 display: "flex",
@@ -4421,7 +4549,7 @@ flexWrap: "wrap" as const
 }
 
 const plannerReviewTitle = {
-color: "#36F2ED",
+color: "#e8f7ff",
 fontSize: 18,
 fontWeight: 900,
 marginBottom: 4
@@ -4436,20 +4564,22 @@ lineHeight: 1.5
 const plannerReviewProfessorDebrief = {
 marginTop: 14,
 paddingTop: 14,
-borderTop: "1px solid rgba(54, 242, 237, 0.18)",
+borderTop: "1px solid rgba(47, 164, 255, 0.18)",
 color: "#e5e7eb",
 fontSize: 15,
 lineHeight: 1.65
 }
 
 const plannerReviewButton = {
-background: "#2b7dcb",
-border: "none",
-borderRadius: 10,
+minWidth: 210,
+background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
+border: "1px solid rgba(45, 212, 191, 0.36)",
+borderRadius: 15,
 color: "white",
 cursor: "pointer",
 fontWeight: 800,
-padding: "12px 18px"
+padding: "12px 20px",
+boxShadow: "0 12px 28px rgba(20, 146, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
 }
 
 const plannerReviewButtonLoading = {
@@ -4497,7 +4627,7 @@ const projectReadyCards: React.CSSProperties = {
 display: "grid",
 gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
 gap: 18,
-width: "min(680px, 100%)"
+width: "min(980px, 100%)"
 }
 
 const projectReadyCard: React.CSSProperties = {
@@ -4554,6 +4684,41 @@ fontSize: 13,
 fontWeight: 600,
 lineHeight: 1.45,
 paddingTop: 12
+}
+
+const taxonomyReviewCompletionBar: React.CSSProperties = {
+border: "1px solid rgba(54, 242, 237, 0.26)",
+borderRadius: 16,
+background: "linear-gradient(135deg, rgba(5, 43, 42, 0.62), rgba(15, 23, 42, 0.58))",
+boxShadow: "0 18px 48px rgba(8, 47, 73, 0.18)",
+padding: 18,
+margin: "28px 0 0",
+display: "flex",
+alignItems: "center",
+justifyContent: "space-between",
+gap: 18,
+flexWrap: "wrap"
+}
+
+const taxonomyReviewCompletionTitle: React.CSSProperties = {
+color: "#36f2ed",
+fontSize: 18,
+fontWeight: 900,
+marginBottom: 5
+}
+
+const taxonomyReviewCompletionText: React.CSSProperties = {
+color: "#cbd5e1",
+fontSize: 14,
+lineHeight: 1.45
+}
+
+const taxonomyReviewCompletionActions: React.CSSProperties = {
+display: "grid",
+gridTemplateColumns: "repeat(2, minmax(160px, 1fr))",
+gap: 10,
+minWidth: 340,
+maxWidth: 440
 }
 
 const learningHomeContainer: React.CSSProperties = {
@@ -4686,6 +4851,468 @@ fontWeight: 700,
 fontSize: 13,
 padding: "9px 14px",
 width: "100%"
+}
+
+function CoffeeBreakProcessingCard({
+  translate,
+  compact = false
+}: {
+  translate: (key: string) => string
+  compact?: boolean
+}) {
+  return (
+    <div style={{
+      position: "relative",
+      overflow: "hidden",
+      borderRadius: 22,
+      border: "1px solid rgba(168, 85, 247, 0.62)",
+      background: "radial-gradient(circle at 16% 48%, rgba(147, 51, 234, 0.32), transparent 28%), linear-gradient(135deg, rgba(38, 17, 77, 0.8), rgba(15,23,42,0.92) 55%, rgba(49, 25, 77, 0.74))",
+      boxShadow: "0 24px 80px rgba(88, 28, 135, 0.28)",
+      padding: compact
+        ? "24px clamp(20px, 4vw, 42px)"
+        : "30px clamp(24px, 5vw, 56px)",
+      minHeight: compact ? 150 : 172,
+      display: "flex",
+      alignItems: "center",
+      gap: compact ? 18 : 24,
+      maxWidth: compact ? 980 : "none",
+      width: "min(100%, 980px)",
+      textAlign: "left"
+    }}>
+      <div style={{
+        width: compact ? 64 : 78,
+        height: compact ? 64 : 78,
+        borderRadius: compact ? 20 : 24,
+        flex: "0 0 auto",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#d8b4fe",
+        background: "rgba(88, 28, 135, 0.34)",
+        border: "1px solid rgba(216, 180, 254, 0.28)"
+      }}>
+        <Coffee size={compact ? 34 : 42} />
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <div style={{
+          color: "white",
+          fontWeight: 900,
+          fontSize: compact
+            ? "clamp(22px, 3vw, 30px)"
+            : "clamp(24px, 3vw, 34px)",
+          marginBottom: compact ? 8 : 10
+        }}>
+          {translate("stats.☕ Perfect time for a coffee break!")}
+        </div>
+        <div style={{
+          color: "#e5e7eb",
+          fontSize: compact ? 15 : 17,
+          lineHeight: 1.6,
+          maxWidth: 720
+        }}>
+          {translate("stats.While you're away, DO·U·NO is reading your study material, identifying the key concepts and building your personalized knowledge map.")}
+        </div>
+        <div style={{
+          color: "#a78bfa",
+          fontSize: compact ? 15 : 17,
+          lineHeight: 1.6,
+          fontWeight: 850,
+          marginTop: compact ? 8 : 10
+        }}>
+          {translate("stats.When you come back, your learning workspace will be ready.")}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModuleOrganizationSetup({
+  mode,
+  setMode,
+  manualCategories,
+  setManualCategories,
+  syllabusText,
+  setSyllabusText,
+  disabled
+}: any) {
+  const { t: translate } = useTranslation()
+  const [activeHint, setActiveHint] = useState<string | null>(null)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const categories = Array.isArray(manualCategories)
+    ? manualCategories
+    : [{ name: "", description: "" }]
+  const suggestedManualPrompt = translate("stats.manual_taxonomy_suggested_prompt")
+
+  const options = [
+    {
+      value: "infer",
+      title: "Let DOUNO organize it",
+      description: "Best when you do not have a fixed syllabus or index.",
+      hintTitle: translate("stats.Let DOUNO organize your material."),
+      hintText: translate("stats.DOONO will analyze what you upload and automatically create categories and study topics. Ideal if you don’t already have a clear structure or course outline.")
+    },
+    {
+      value: "manual",
+      title: "Create my taxonomy",
+      description: "Define the categories you want DOUNO to respect.",
+      hintTitle: translate("stats.Decide how you want your material organized."),
+      hintText: translate("stats.Create your categories and briefly describe what each should cover. DOUNO will organize the material and generate topics within them."),
+      hintExtra: translate("stats.Not sure which categories to create? Ask an AI to suggest an organization by uploading the same study material you’ll use here."),
+      hintNote: translate("stats.Upload your study material to ChatGPT or another AI, then paste the suggested categories here."),
+      copyPrompt: true
+    },
+    {
+      value: "syllabus",
+      title: "Paste index / syllabus",
+      description: "Use an existing course organization as the reference.",
+      hintTitle: translate("stats.Already have a course outline or syllabus?"),
+      hintText: translate("stats.Upload or paste it and DOUNO will use its structure as a guide to organize your material and generate study topics. Ideal when your professor provides a reliable syllabus, exam program, or table of contents.")
+    }
+  ]
+
+  const updateCategory = (index: number, field: "name" | "description", value: string) => {
+    setManualCategories?.(
+      categories.map((category: any, categoryIndex: number) =>
+        categoryIndex === index
+          ? { ...category, [field]: value }
+          : category
+      )
+    )
+  }
+
+  const addCategory = () => {
+    setManualCategories?.([
+      ...categories,
+      { name: "", description: "" }
+    ])
+  }
+
+  const removeCategory = (index: number) => {
+    const next = categories.filter((_: any, categoryIndex: number) => categoryIndex !== index)
+    setManualCategories?.(next.length ? next : [{ name: "", description: "" }])
+  }
+
+  const copySuggestedPrompt = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(suggestedManualPrompt)
+      setCopiedPrompt(true)
+      window.setTimeout(() => setCopiedPrompt(false), 1800)
+    } catch (error) {
+      console.warn("Unable to copy suggested taxonomy prompt", error)
+    }
+  }
+
+  return (
+    <div style={{
+      borderRadius: 16,
+      border: "1px solid rgba(148, 163, 184, 0.16)",
+      background: "rgba(8, 13, 26, 0.32)",
+      padding: 18
+    }}>
+      <div style={{ color: "white", fontWeight: 900, marginBottom: 4 }}>
+        Module organization
+      </div>
+      <div style={{ color: "#9ca3af", fontSize: 13, lineHeight: 1.45, marginBottom: 14 }}>
+        Optional setup for the future taxonomy step. It is saved with the module, but it does not change topic generation yet.
+      </div>
+
+      <div className="module-organization-options" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 10
+      }}>
+        {options.map(option => {
+          const selected = mode === option.value
+          const hintOpen = activeHint === option.value
+
+          return (
+            <div
+              key={option.value}
+              role="button"
+              tabIndex={disabled ? -1 : 0}
+              aria-pressed={selected}
+              onClick={() => !disabled && setMode?.(option.value)}
+              onKeyDown={(event) => {
+                if (disabled) return
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault()
+                  setMode?.(option.value)
+                }
+              }}
+              style={{
+                textAlign: "left",
+                borderRadius: 14,
+                border: selected
+                  ? "1px solid rgba(124, 58, 237, 0.82)"
+                  : "1px solid rgba(148, 163, 184, 0.14)",
+                background: selected
+                  ? "linear-gradient(145deg, rgba(124,58,237,0.22), rgba(37,99,235,0.14))"
+                  : "rgba(15, 23, 42, 0.46)",
+                color: disabled ? "#64748b" : "white",
+                padding: "13px 14px",
+                cursor: disabled ? "not-allowed" : "pointer",
+                opacity: disabled ? 0.62 : 1
+              }}
+            >
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                fontWeight: 900,
+                marginBottom: 5,
+                position: "relative"
+              }}>
+                <span>{option.title}</span>
+                <span
+                  role="button"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-label={translate("stats.Upload method hint")}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (disabled) return
+                    setActiveHint(hintOpen ? null : option.value)
+                  }}
+                  onKeyDown={(event) => {
+                    if (disabled) return
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      setActiveHint(hintOpen ? null : option.value)
+                    }
+                  }}
+                  onMouseEnter={() => !disabled && setActiveHint(option.value)}
+                  onFocus={() => !disabled && setActiveHint(option.value)}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 999,
+                    border: "1px solid rgba(148, 163, 184, 0.32)",
+                    background: "rgba(15, 23, 42, 0.78)",
+                    color: "#c4b5fd",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    lineHeight: 1,
+                    cursor: disabled ? "not-allowed" : "help",
+                    flex: "0 0 auto"
+                  }}
+                >
+                  i
+                </span>
+                {hintOpen && (
+                  <div
+                    onMouseEnter={() => !disabled && setActiveHint(option.value)}
+                    onMouseLeave={() => !disabled && setActiveHint(null)}
+                    style={{
+                      position: "absolute",
+                      top: 28,
+                      right: 0,
+                      zIndex: 30,
+                      width: 280,
+                      maxWidth: "min(280px, 72vw)",
+                      borderRadius: 12,
+                      border: "1px solid rgba(124, 58, 237, 0.38)",
+                      background: "rgba(8, 13, 26, 0.98)",
+                      boxShadow: "0 18px 40px rgba(0,0,0,0.36)",
+                      padding: "12px 13px",
+                      color: "#e5e7eb",
+                      fontWeight: 600
+                    }}
+                  >
+                    <div style={{
+                      color: "#ffffff",
+                      fontSize: 13,
+                      fontWeight: 900,
+                      marginBottom: 6
+                    }}>
+                      {option.hintTitle}
+                    </div>
+                    <div style={{
+                      color: "#cbd5e1",
+                      fontSize: 12,
+                      lineHeight: 1.45,
+                      fontWeight: 600
+                    }}>
+                      {option.hintText}
+                    </div>
+                    {option.hintExtra && (
+                      <div style={{
+                        color: "#cbd5e1",
+                        fontSize: 12,
+                        lineHeight: 1.45,
+                        fontWeight: 600,
+                        marginTop: 8
+                      }}>
+                        {option.hintExtra}
+                      </div>
+                    )}
+                    {option.hintNote && (
+                      <div style={{
+                        color: "#9ca3af",
+                        fontSize: 11,
+                        lineHeight: 1.4,
+                        fontWeight: 600,
+                        marginTop: 8
+                      }}>
+                        {option.hintNote}
+                      </div>
+                    )}
+                    {option.copyPrompt && (
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 10,
+                        flexWrap: "wrap"
+                      }}>
+                        <button
+                          type="button"
+                          onClick={copySuggestedPrompt}
+                          style={{
+                            border: "1px solid rgba(124, 58, 237, 0.48)",
+                            borderRadius: 9,
+                            background: "rgba(124, 58, 237, 0.18)",
+                            color: "#ddd6fe",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 850,
+                            padding: "7px 9px"
+                          }}
+                        >
+                          {translate("stats.Copy suggested prompt")}
+                        </button>
+                        {copiedPrompt && (
+                          <span style={{
+                            color: "#34d399",
+                            fontSize: 12,
+                            fontWeight: 850
+                          }}>
+                            {translate("stats.Prompt copied")}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ color: selected ? "#c4b5fd" : "#9ca3af", fontSize: 12, lineHeight: 1.35 }}>
+                {option.description}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {mode === "manual" && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.45, marginBottom: 10 }}>
+            Add only the main categories for this module. Topics will still be generated from the uploaded material.
+          </div>
+
+          <div style={{ display: "grid", gap: 10 }}>
+            {categories.map((category: any, index: number) => (
+              <div
+                key={index}
+                className="module-organization-category-row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(160px, 0.75fr) minmax(220px, 1.25fr) auto",
+                  gap: 10,
+                  alignItems: "center"
+                }}
+              >
+                <input
+                  value={category.name || ""}
+                  onChange={(event) => updateCategory(index, "name", event.target.value)}
+                  disabled={disabled}
+                  placeholder="Category name"
+                  style={moduleOrganizationInput}
+                />
+                <input
+                  value={category.description || ""}
+                  onChange={(event) => updateCategory(index, "description", event.target.value)}
+                  disabled={disabled}
+                  placeholder="Short explanation, optional"
+                  style={moduleOrganizationInput}
+                />
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => removeCategory(index)}
+                  style={{
+                    border: "1px solid rgba(148, 163, 184, 0.18)",
+                    borderRadius: 10,
+                    background: "rgba(15, 23, 42, 0.68)",
+                    color: "#cbd5e1",
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    padding: "10px 12px"
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={addCategory}
+            style={{
+              marginTop: 10,
+              border: "1px solid rgba(124, 58, 237, 0.45)",
+              borderRadius: 10,
+              background: "rgba(124, 58, 237, 0.12)",
+              color: "#c4b5fd",
+              fontWeight: 850,
+              padding: "9px 12px",
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.62 : 1
+            }}
+          >
+            + Add category
+          </button>
+        </div>
+      )}
+
+      {mode === "syllabus" && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.45, marginBottom: 10 }}>
+            Paste the index, syllabus or category list you want DOUNO to preserve for this module.
+          </div>
+          <textarea
+            value={syllabusText || ""}
+            onChange={(event) => setSyllabusText?.(event.target.value)}
+            disabled={disabled}
+            placeholder={"Example:\n1. Cell Biology\n2. Genetics\n3. Metabolism"}
+            rows={5}
+            style={{
+              ...moduleOrganizationInput,
+              resize: "vertical",
+              lineHeight: 1.45
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const moduleOrganizationInput: React.CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  borderRadius: 10,
+  border: "1px solid rgba(148, 163, 184, 0.18)",
+  background: "rgba(15, 23, 42, 0.72)",
+  color: "white",
+  padding: "10px 12px",
+  outline: "none"
 }
 
 const styleSheet = typeof document !== "undefined" && document.createElement("style")

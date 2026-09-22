@@ -1,10 +1,24 @@
 import React from "react"
+import {
+  getTopicDisplayName,
+  getTopicModuleLabel,
+  getTopicScopeKey,
+  TopicScopeItem
+} from "../utils/topics"
+
+type SelectedTopic = string | TopicScopeItem
+
+type SelectedTopicsBannerProps = {
+  selectedTopics?: SelectedTopic[] | null
+  setSelectedTopics: (topics: SelectedTopic[]) => void
+  setSelectedTopic: (topic: SelectedTopic | null) => void
+}
 
 export default function SelectedTopicsBanner({
   selectedTopics,
   setSelectedTopics,
   setSelectedTopic
-}: any) {
+}: SelectedTopicsBannerProps) {
 
   if (!selectedTopics || selectedTopics.length === 0) {
     return null
@@ -30,17 +44,16 @@ export default function SelectedTopicsBanner({
         marginTop: 10
         }}>
 
-        {selectedTopics.map((t:any, i:number) => {
+        {selectedTopics.map((t: SelectedTopic, i: number) => {
 
-            const label =
-            typeof t === "string"
-                ? t
-                : t.topic
+            const label = getTopicDisplayName(t)
+            const moduleLabel = getTopicModuleLabel(t)
+            const chipKey = `${getTopicScopeKey(t)}:${i}`
 
             return (
 
             <div
-                key={i}
+                key={chipKey}
                 style={{
                 display: "flex",
                 alignItems: "center",
@@ -53,22 +66,24 @@ export default function SelectedTopicsBanner({
                 }}
             >
 
-                <span>{label}</span>
+                <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span>{label}</span>
+                  {moduleLabel && (
+                    <span style={{
+                      fontSize: 10,
+                      color: "#9ca3af",
+                      fontWeight: 500
+                    }}>
+                      {moduleLabel}
+                    </span>
+                  )}
+                </span>
 
                 <span
                 onClick={() => {
 
                     setSelectedTopics(
-                    selectedTopics.filter((item:any) => {
-
-                        const itemLabel =
-                        typeof item === "string"
-                            ? item
-                            : item.topic
-
-                        return itemLabel !== label
-
-                    })
+                    selectedTopics.filter((_, index: number) => index !== i)
                     )
 
                 }}

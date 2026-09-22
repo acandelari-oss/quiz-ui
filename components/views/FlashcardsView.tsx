@@ -191,13 +191,14 @@ if(openCard === null){
                   type="button"
                   onClick={onGenerateMore}
                   style={{
-                    padding: "11px 18px",
-                    borderRadius: 10,
-                    border: "1px solid rgba(34, 197, 94, 0.55)",
-                    background: "#22c55e",
-                    color: "#ffffff",
-                    fontWeight: 760,
-                    cursor: "pointer"
+	                    padding: "11px 18px",
+	                    borderRadius: 15,
+	                    border: "1px solid rgba(45, 212, 191, 0.36)",
+	                    background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
+	                    boxShadow: "0 12px 28px rgba(20, 146, 255, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16)",
+	                    color: "#ffffff",
+	                    fontWeight: 800,
+	                    cursor: "pointer"
                   }}
                 >
                   {translate("stats.Generate More Cards")}
@@ -954,7 +955,7 @@ const progressBar = {
 
 const progressFill = {
   height: "100%",
-  background: "#22c55e",
+  background: "linear-gradient(90deg, rgba(54, 242, 237, 0.95), rgba(20, 146, 255, 0.82))",
   borderRadius: 999,
   transition: "width 0.3s ease"
 }

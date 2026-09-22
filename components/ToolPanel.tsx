@@ -3,6 +3,7 @@ import React, { useState } from "react"
 import { useTranslation } from 'react-i18next';
 import { shellHeaderCell } from "./layoutStyles"
 import {
+  getTopicModuleLabel,
   logCategoryScope,
   resolveCategoryTopicObjects,
   TopicScopeItem
@@ -72,6 +73,8 @@ studyMode,
 setStudyMode,
 status,
 uploadStatus,
+uploadModuleName = "",
+setUploadModuleName = () => {},
 toolMode,
 questionStyle,
 setQuestionStyle,
@@ -92,25 +95,60 @@ priorityCategories = [],
     recall: 3,
     quiz: 5
   })
-  const uploadDisabled = Boolean(uploadWorkflowActive)
+  const uploadDisabled = Boolean(uploadWorkflowActive) || !String(uploadModuleName || "").trim()
 
   const categoryGroups = React.useMemo(() => {
-    const groups = new Map<string, TopicScopeItem[]>()
+    const groups = new Map<string, {
+      key: string
+      category: string
+      moduleId: string | null
+      moduleName: string
+      moduleOrderIndex: number | null
+      categoryOrderIndex: number | null
+      topics: TopicScopeItem[]
+    }>()
 
     for (const topic of (topics || []) as TopicScopeItem[]) {
       const category = topic.category || "General"
-      const categoryTopics = groups.get(category) || []
-      categoryTopics.push(topic)
-      groups.set(category, categoryTopics)
+      const moduleId = topic.module_id || null
+      const key = `${moduleId || "legacy"}::${category}`
+      const existing = groups.get(key)
+
+      if (existing) {
+        existing.topics.push(topic)
+        existing.moduleOrderIndex = minNullable(existing.moduleOrderIndex, topic.module_order_index ?? null)
+        existing.categoryOrderIndex = minNullable(existing.categoryOrderIndex, topic.category_order_index ?? null)
+      } else {
+        groups.set(key, {
+          key,
+          category,
+          moduleId,
+          moduleName: getTopicModuleLabel(topic),
+          moduleOrderIndex: topic.module_order_index ?? null,
+          categoryOrderIndex: topic.category_order_index ?? null,
+          topics: [topic]
+        })
+      }
     }
 
-    return Array.from(groups.entries()).map(
-      ([category, categoryTopics]) => ({
-        category,
-        topics: categoryTopics
-      })
-    )
+    return Array.from(groups.values()).sort((a, b) => {
+      const moduleOrder = compareNullable(a.moduleOrderIndex, b.moduleOrderIndex)
+      if (moduleOrder !== 0) return moduleOrder
+
+      const categoryOrder = compareNullable(a.categoryOrderIndex, b.categoryOrderIndex)
+      if (categoryOrder !== 0) return categoryOrder
+
+      const moduleNameOrder = a.moduleName.localeCompare(b.moduleName)
+      if (moduleNameOrder !== 0) return moduleNameOrder
+
+      return a.category.localeCompare(b.category)
+    })
   }, [topics])
+
+  const hasMultipleModuleScopes = React.useMemo(
+    () => new Set(categoryGroups.map(group => group.moduleId || "legacy")).size > 1,
+    [categoryGroups]
+  )
 
   const selectedTopicKeys = new Set(
     (selectedTopics || [])
@@ -132,11 +170,13 @@ priorityCategories = [],
   }
 
   const toggleCategory = (
-    category: string
+    category: string,
+    moduleId?: string | null
   ) => {
     const categoryTopics = resolveCategoryTopicObjects(
       category,
-      topics || []
+      topics || [],
+      moduleId
     )
     const categoryTopicKeys = new Set(
       categoryTopics
@@ -189,12 +229,12 @@ priorityCategories = [],
         overflowY: "auto",
         padding: "10px"
       }}>
-        {categoryGroups.map(({ category, topics: categoryTopics }) => {
+        {categoryGroups.map(({ key, category, moduleId, moduleName, topics: categoryTopics }) => {
           const selected = isCategorySelected(categoryTopics)
 
           return (
             <label
-              key={category}
+              key={key}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -208,14 +248,27 @@ priorityCategories = [],
               <input
                 type="checkbox"
                 checked={selected}
-                onChange={() => toggleCategory(category)}
+                onChange={() => toggleCategory(category, moduleId)}
                 style={{ accentColor }}
               />
 
-              <CategoryLabel
-                category={category}
-                priorityCategories={priorityCategories}
-              />
+              <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <CategoryLabel
+                  category={category}
+                  priorityCategories={priorityCategories}
+                />
+                {hasMultipleModuleScopes && moduleName && (
+                  <span style={{
+                    color: selected ? accentColor : "#8b949e",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    letterSpacing: 0.2,
+                    opacity: 0.8
+                  }}>
+                    {moduleName}
+                  </span>
+                )}
+              </span>
             </label>
           )
         })}
@@ -380,6 +433,18 @@ priorityCategories = [],
                   onChange={(e) => setFiles(e.target.files)}
                   style={input}
                 />
+                <label style={{display:"block", marginTop:10}}>
+                  <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
+                    Study Module name
+                  </span>
+                  <input
+                    value={uploadModuleName || ""}
+                    onChange={(event) => setUploadModuleName(event.target.value)}
+                    disabled={uploadWorkflowActive}
+                    placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
+                    style={input}
+                  />
+                </label>
                 <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>
                   Accepted formats: PDF, Word (.docx), and PowerPoint (.pptx). Text-based documents work best.
                 </div>
@@ -476,6 +541,19 @@ priorityCategories = [],
                 onChange={(e)=>setFiles(e.target.files)}
                 style={input}
               />
+
+              <label style={{display:"block", marginTop:10}}>
+                <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
+                  Study Module name
+                </span>
+                <input
+                  value={uploadModuleName || ""}
+                  onChange={(event)=>setUploadModuleName(event.target.value)}
+                  disabled={uploadWorkflowActive}
+                  placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
+                  style={input}
+                />
+              </label>
 
               <button
                 onClick={uploadFiles}
@@ -975,10 +1053,29 @@ function getTopicScopeComparisonKeys(
 
   const name = topic?.topic || topic?.title
   if (name) {
-    keys.push(`name:${name}`)
+    keys.push(`module:${topic?.module_id || "legacy"}:name:${name}`)
   }
 
   return keys
+}
+
+function minNullable(
+  current: number | null,
+  next: number | null
+) {
+  if (current === null) return next
+  if (next === null) return current
+  return Math.min(current, next)
+}
+
+function compareNullable(
+  a: number | null,
+  b: number | null
+) {
+  if (a === null && b === null) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a - b
 }
 
 
@@ -996,10 +1093,11 @@ const panel: React.CSSProperties = {
 }
 
 const plannerSessionNotice: React.CSSProperties = {
-  background: "#052b2a",
-  border: "1px solid #0e6c69",
-  color: "#36F2ED",
-  borderRadius: 10,
+  background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+  border: "1px solid rgba(47, 164, 255, 0.22)",
+  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+  color: "#e8f7ff",
+  borderRadius: 16,
   padding: "10px 12px",
   fontSize: 13,
   fontWeight: 700,

@@ -105,10 +105,12 @@ export default function LoginPage() {
             width: "100%",
             padding: 12,
             marginTop: 20,
-            background: "#22c55e",
+            background: "linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82))",
             color: "white",
-            border: "none",
-            borderRadius: 6,
+            border: "1px solid rgba(45, 212, 191, 0.36)",
+            borderRadius: 12,
+            fontWeight: 800,
+            boxShadow: "0 12px 28px rgba(20, 146, 255, 0.22)",
             cursor: "pointer"
           }}
         >

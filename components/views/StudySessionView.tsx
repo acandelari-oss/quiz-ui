@@ -78,12 +78,58 @@ const loaderSubtitle = {
 const completionMessage = {
   marginTop: 20,
   padding: "14px 18px",
-  background: "#052b2a",
-  border: "1px solid #0e6c69",
-  borderRadius: 8,
-  color: "#36F2ED",
+  background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+  border: "1px solid rgba(47, 164, 255, 0.22)",
+  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+  borderRadius: 16,
+  color: "#e8f7ff",
   textAlign: "center" as const,
   fontWeight: 600
+}
+
+const summaryGrid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 16,
+  marginTop: 34,
+  textAlign: "left" as const
+}
+
+const summaryCard = {
+  border: "1px solid rgba(54, 242, 237, 0.2)",
+  borderRadius: 18,
+  background: "linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(8, 13, 26, 0.94))",
+  boxShadow: "0 18px 46px rgba(0, 0, 0, 0.22)",
+  padding: 20,
+  minHeight: 132
+}
+
+const summaryCardIcon = {
+  fontSize: 26,
+  marginBottom: 12
+}
+
+const summaryCardLabel = {
+  color: "#9ca3af",
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.08em",
+  textTransform: "uppercase" as const,
+  marginBottom: 8
+}
+
+const summaryCardValue = {
+  color: "white",
+  fontSize: 28,
+  lineHeight: 1,
+  fontWeight: 900,
+  marginBottom: 8
+}
+
+const summaryCardDetail = {
+  color: "#cbd5e1",
+  fontSize: 14,
+  lineHeight: 1.45
 }
 
 export default function StudySessionView({
@@ -113,6 +159,7 @@ export default function StudySessionView({
   });
   const selectedTopicIds = extractTopicIds(selectedTopics || [])
   const selectedTopicNames = extractTopicNames(selectedTopics || [])
+  const selectedTopicLabel = selectedTopicNames.join(", ")
 
 console.log("🧼 NORMALIZED TOPICS:", normalizedSelectedTopics);
   const [step, setStep] = useState(0)
@@ -239,6 +286,41 @@ const [quizFinished, setQuizFinished] = useState(false)
 const [quizStarted, setQuizStarted] = useState(false)
 const [quizId, setQuizId] = useState<string | null>(null)
 
+function isQuizAnswerCorrect(q: any, index: number) {
+  const userAnswer = quizAnswers[index]
+  const correctRaw = (q?.correct_answer ?? q?.correct ?? "").toString().trim()
+
+  if (!userAnswer || !Array.isArray(q?.options)) return false
+
+  return q.options.some((opt: string, optionIndex: number) => {
+    const optLetter = String.fromCharCode(65 + optionIndex)
+
+    const correct =
+      correctRaw.toLowerCase() === String(opt).toLowerCase() ||
+      correctRaw === optLetter ||
+      String(Number(correctRaw)) === String(optionIndex)
+
+    return correct && userAnswer === opt
+  })
+}
+
+const quizCorrectCount = quizData.reduce(
+  (count, question, index) => count + (isQuizAnswerCorrect(question, index) ? 1 : 0),
+  0
+)
+const quizTotalCount = quizData.length
+const quizPercent = quizTotalCount > 0
+  ? Math.round((quizCorrectCount / quizTotalCount) * 100)
+  : 0
+const flashcardRecallPercent = reviewedCount > 0
+  ? Math.round((correctCount / reviewedCount) * 100)
+  : 0
+const quizWeakTopics = quizData
+  .filter((question, index) => !isQuizAnswerCorrect(question, index))
+  .map(question => String(question?.topic || "").trim())
+  .filter(Boolean)
+const topicsToReview = Array.from(new Set([...weakTopics, ...quizWeakTopics])).slice(0, 5)
+
 
 
 async function generateQuiz() {
@@ -347,7 +429,7 @@ async function generateQuiz() {
      <div style={loaderTitle}>
         {step === 0 && (
           selectedTopics && selectedTopics.length > 0
-            ? `${translate('stats.Generating study session for')}: ${selectedTopics.join(", ")}`
+            ? `${translate('stats.Generating study session for')}: ${selectedTopicLabel}`
             : translate('stats.Preparing flashcards')
         )}
         {step === 1 && translate('stats.Analyzing your weak points')}
@@ -380,7 +462,7 @@ async function generateQuiz() {
           <div style={{ background: "rgba(139, 92, 246, 0.1)", border: "1px solid #8b5cf6", padding: "15px", borderRadius: "10px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <div style={{ fontSize: "10px", color: "#8b5cf6", fontWeight: "bold", letterSpacing: "1px" }}>{translate('stats.FOCUS STUDY ACTIVE')}</div>
-              <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{selectedTopics.join(", ")}</div>
+              <div style={{ fontSize: "18px", fontWeight: "bold", color: "white" }}>{selectedTopicLabel}</div>
             </div>
             <span style={{ fontSize: "24px" }}>📚</span>
           </div>
@@ -447,31 +529,11 @@ async function generateQuiz() {
               const { data } = await supabase.auth.getSession()
               const token = data.session?.access_token
 
-              const answersArray = quizData.map((q, index) => {
-                const userAnswer = quizAnswers[index]
-                const correctRaw = (q.correct_answer ?? q.correct ?? "").toString().trim()
-
-                let isCorrect = false
-
-                q.options.forEach((opt: string, j: number) => {
-                  const optLetter = String.fromCharCode(65 + j)
-
-                  const correct =
-                    correctRaw.toLowerCase() === opt.toLowerCase() ||
-                    correctRaw === optLetter ||
-                    String(Number(correctRaw)) === String(j)
-
-                  if (correct && userAnswer === opt) {
-                    isCorrect = true
-                  }
-                })
-
-                return {
-                  question_id: q.id,
-                  is_correct: isCorrect,
-                  topic: (q.topic || "General").trim().toLowerCase()
-                }
-              })
+              const answersArray = quizData.map((q, index) => ({
+                question_id: q.id,
+                is_correct: isQuizAnswerCorrect(q, index),
+                topic: (q.topic || "General").trim().toLowerCase()
+              }))
 
               console.log("📦 STUDY SESSION ANSWERS:", answersArray)
 
@@ -488,18 +550,7 @@ async function generateQuiz() {
               })
             }}
             calculateScore={() => {
-                let score = 0;
-                quizData.forEach((q, i) => {
-                    const correctRaw = q.correct_answer ?? q.correct;
-
-                    if (typeof correctRaw === "number") {
-                        if (q.options?.[correctRaw] === quizAnswers[i]) score++;
-                        return;
-                    }
-
-                    if (quizAnswers[i] === correctRaw) score++;
-                });
-                return score;
+                return quizCorrectCount;
             }}
             // --- AGGIUNGI QUESTE RIGHE PER EVITARE L'ERRORE ---
             formatTime={(s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`}
@@ -520,17 +571,65 @@ async function generateQuiz() {
           <div style={{ textAlign: "center", marginTop: 60, color: "white" }}>
             <h2>🎉 Study Session Completed</h2>
             <p style={{ color: "#9ca3af", marginTop: 10 }}>{translate('stats.Great work. You finished your study session.')}</p>
-            {weakTopics.length > 0 && (
-              <div style={{ marginTop: 30 }}>
-                <h3>{translate('stats.Topics you should review')}</h3>
-                <ul style={{ marginTop: 10, color: "#f87171", listStyle: "none", padding: 0 }}>
-                  {[...new Set(weakTopics)].map((t, i) => <li key={i}>{t}</li>)}
-                </ul>
+
+            <div style={summaryGrid}>
+              <div style={summaryCard}>
+                <div style={summaryCardIcon}>🧠</div>
+                <div style={summaryCardLabel}>{translate("stats.Flashcards completed")}</div>
+                <div style={summaryCardValue}>{reviewedCount}/{flashcards.length}</div>
+                <div style={summaryCardDetail}>
+                  {translate("stats.cards reviewed")}
+                </div>
               </div>
-            )}
+
+              <div style={summaryCard}>
+                <div style={summaryCardIcon}>✅</div>
+                <div style={summaryCardLabel}>{translate("stats.Flashcard recall")}</div>
+                <div style={summaryCardValue}>{flashcardRecallPercent}%</div>
+                <div style={summaryCardDetail}>
+                  {correctCount} {translate("stats.remembered")} · {wrongCount} {translate("stats.difficult or wrong")}
+                </div>
+              </div>
+
+              <div style={summaryCard}>
+                <div style={summaryCardIcon}>🎯</div>
+                <div style={summaryCardLabel}>{translate("stats.Quiz score")}</div>
+                <div style={summaryCardValue}>{quizPercent}%</div>
+                <div style={summaryCardDetail}>
+                  {quizCorrectCount}/{quizTotalCount} {translate("stats.correct answers")}
+                </div>
+              </div>
+
+              <div style={summaryCard}>
+                <div style={summaryCardIcon}>📌</div>
+                <div style={summaryCardLabel}>{translate("stats.Topics to review")}</div>
+                <div style={{ ...summaryCardValue, fontSize: 22 }}>
+                  {topicsToReview.length || "—"}
+                </div>
+                <div style={summaryCardDetail}>
+                  {topicsToReview.length > 0
+                    ? topicsToReview.join(", ")
+                    : translate("stats.No weak topics detected")}
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={() => {
-                setStep(0); setOpenCard(0); setWeakTopics([]); setLoading(true); setSessionVersion(prev => prev + 1);
+                setStep(0);
+                setOpenCard(0);
+                setWeakTopics([]);
+                setCorrectCount(0);
+                setWrongCount(0);
+                setReviewedIds(new Set());
+                setReviewedCount(0);
+                setQuizData([]);
+                setQuizAnswers({});
+                setQuizFinished(false);
+                setQuizStarted(false);
+                hasGeneratedQuiz.current = false;
+                setLoading(true);
+                setSessionVersion(prev => prev + 1);
               }}
               style={{ marginTop: 30, padding: "12px 20px", background: "#2563eb", border: "none", borderRadius: 8, color: "white", cursor: "pointer" }}
             >

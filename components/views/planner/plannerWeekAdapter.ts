@@ -368,7 +368,7 @@ function buildActivity(
         id: topic.id,
         topic: topic.title,
         title: topic.title,
-        category: activity.configuration.category || fallbackCategory,
+        category: topic.category || activity.configuration.category || fallbackCategory,
         order: topic.order
       })),
       count: count || activity.configuration.selected_topics?.length || 0,

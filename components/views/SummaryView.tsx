@@ -18,70 +18,6 @@ import InsightCard from "../summary/InsightCard"
 import TimelineCard from "../summary/TimelineCard"
 import ProgressCard from "../summary/ProgressCard"
 
-const fallbackActivityDistribution = [
-  { labelKey: "Quiz", value: 42, color: "#8b5cf6" },
-  { labelKey: "Flashcards", value: 32, color: "#1687ff" },
-  { labelKey: "Ask", value: 11, color: "#fbbf24" },
-  { labelKey: "Memory Check", value: 7, color: "#22c55e" },
-  { labelKey: "Study Planner", value: 7, color: "#f97316" },
-]
-
-const trendSeries = [
-  { quiz: 11, flashcards: 5, ask: 2 },
-  { quiz: 9, flashcards: 3, ask: 1 },
-  { quiz: 9, flashcards: 4, ask: 1 },
-  { quiz: 12, flashcards: 6, ask: 2 },
-  { quiz: 9, flashcards: 4, ask: 1 },
-  { quiz: 11, flashcards: 5, ask: 2 },
-  { quiz: 15, flashcards: 9, ask: 4 },
-  { quiz: 13, flashcards: 7, ask: 2 },
-  { quiz: 15, flashcards: 9, ask: 3 },
-  { quiz: 16, flashcards: 10, ask: 4 },
-]
-
-const fallbackRecentActivities = [
-  {
-    icon: "◈",
-    titleKey: "Mock quiz activity title",
-    detailKey: "Mock quiz activity detail",
-    metaKey: "Mock activity today first",
-    result: "25 min",
-    tone: "purple" as const,
-  },
-  {
-    icon: "▣",
-    titleKey: "Mock flashcards activity title",
-    detailKey: "Mock flashcards activity detail",
-    metaKey: "Mock activity today second",
-    result: "15 min",
-    tone: "blue" as const,
-  },
-  {
-    icon: "?",
-    titleKey: "Mock ask activity title",
-    detailKey: "Mock ask activity detail",
-    metaKey: "Mock activity yesterday first",
-    result: "5 min",
-    tone: "orange" as const,
-  },
-  {
-    icon: "◎",
-    titleKey: "Mock memory activity title",
-    detailKey: "Mock memory activity detail",
-    metaKey: "Mock activity yesterday second",
-    result: "12 min",
-    tone: "green" as const,
-  },
-]
-
-const fallbackFocusTopics = [
-  { titleKey: "Mock focus topic electron transport", value: 50 },
-  { titleKey: "Mock focus topic Krebs cycle", value: 50 },
-  { titleKey: "Mock focus topic ATP synthesis", value: 50 },
-  { titleKey: "Mock focus topic transporters", value: 50 },
-  { titleKey: "Mock focus topic energy balance", value: 40 },
-]
-
 type LearningSummary = {
   total_sessions: number
   completed_sessions: number
@@ -120,19 +56,25 @@ type LearningPreferences = {
 }
 
 export default function SummaryView({
+  projectId,
+  projectName,
   resultsData,
   onStartFocusSession,
 }: {
   summaryStats?: any
   projectId?: string
+  projectName?: string
   resultsData?: any
   onStartFocusSession?: (topics: string[]) => void
 }) {
   const { t: translate } = useTranslation()
+  const [summaryScope, setSummaryScope] = useState<"project" | "career">("project")
   const [learningSummary, setLearningSummary] = useState<LearningSummary | null>(null)
   const [learningJournal, setLearningJournal] = useState<LearningJournalEntry[]>([])
   const [learningInsights, setLearningInsights] = useState<LearningInsight[]>([])
   const [learningPreferences, setLearningPreferences] = useState<LearningPreferences | null>(null)
+  const effectiveProjectId = summaryScope === "project" ? projectId : undefined
+  const isProjectSummary = summaryScope === "project"
 
   useEffect(() => {
     let cancelled = false
@@ -146,13 +88,24 @@ export default function SummaryView({
       const headers = {
         Authorization: `Bearer ${token}`
       }
+      const scopedQuery = effectiveProjectId
+        ? `?project_id=${encodeURIComponent(effectiveProjectId)}`
+        : ""
+      const scopedJournalQuery = effectiveProjectId
+        ? `?limit=30&project_id=${encodeURIComponent(effectiveProjectId)}`
+        : "?limit=30"
 
       try {
+        setLearningSummary(null)
+        setLearningJournal([])
+        setLearningInsights([])
+        setLearningPreferences(null)
+
         const [summaryRes, journalRes, intelligenceRes, preferencesRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/summary`, { headers }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/journal?limit=30`, { headers }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/intelligence`, { headers }),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/preferences`, { headers }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/summary${scopedQuery}`, { headers }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/journal${scopedJournalQuery}`, { headers }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/intelligence${scopedQuery}`, { headers }),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/learning/preferences${scopedQuery}`, { headers }),
         ])
 
         const [summary, journal, intelligence, preferences] = await Promise.all([
@@ -178,7 +131,7 @@ export default function SummaryView({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [effectiveProjectId])
 
   const realFocusTopics = useMemo(() => {
     const topicRows = Array.isArray(resultsData?.weak_areas)
@@ -203,32 +156,19 @@ export default function SummaryView({
       .slice(0, 5)
   }, [resultsData])
 
-  const displayedFocusTopics = realFocusTopics.length > 0
-    ? realFocusTopics
-    : fallbackFocusTopics.map(topic => ({
-        title: translate(`stats.${topic.titleKey}`),
-        value: topic.value,
-      }))
+  const displayedFocusTopics = realFocusTopics
 
   const activityDistributionData = useMemo(() => {
     const activities = learningSummary?.activities
     if (!activities) {
-      return fallbackActivityDistribution.map(item => ({
-        label: translate(`stats.${item.labelKey}`),
-        value: item.value,
-        color: item.color,
-      }))
+      return []
     }
 
     const total = Object.values(activities)
       .reduce((sum, value) => sum + Number(value || 0), 0)
 
     if (total <= 0) {
-      return fallbackActivityDistribution.map(item => ({
-        label: translate(`stats.${item.labelKey}`),
-        value: item.value,
-        color: item.color,
-      }))
+      return []
     }
 
     return [
@@ -246,9 +186,9 @@ export default function SummaryView({
   }, [learningSummary, translate])
 
   const trendData = useMemo(() => {
-    if (learningJournal.length === 0) return trendSeries
+    if (learningJournal.length === 0) return []
 
-    const buckets = new Map<string, { quiz: number; flashcards: number; ask: number }>()
+    const buckets = new Map<string, { quiz: number; flashcards: number; ask: number; label: string }>()
 
     learningJournal
       .slice()
@@ -258,7 +198,15 @@ export default function SummaryView({
         const date = new Date(entry.started_at)
         if (Number.isNaN(date.getTime())) return
         const key = date.toISOString().slice(0, 10)
-        const bucket = buckets.get(key) || { quiz: 0, flashcards: 0, ask: 0 }
+        const bucket = buckets.get(key) || {
+          quiz: 0,
+          flashcards: 0,
+          ask: 0,
+          label: new Intl.DateTimeFormat(undefined, {
+            day: "2-digit",
+            month: "short",
+          }).format(date)
+        }
 
         if (entry.session_type === "quiz") bucket.quiz += 1
         if (entry.session_type === "flashcards") bucket.flashcards += 1
@@ -268,20 +216,11 @@ export default function SummaryView({
       })
 
     const values = Array.from(buckets.values()).slice(-10)
-    return values.length > 0 ? values : trendSeries
+    return values
   }, [learningJournal])
 
   const recentActivitiesData = useMemo(() => {
-    if (learningJournal.length === 0) {
-      return fallbackRecentActivities.map(activity => ({
-        icon: activity.icon,
-        title: translate(`stats.${activity.titleKey}`),
-        detail: translate(`stats.${activity.detailKey}`),
-        meta: translate(`stats.${activity.metaKey}`),
-        result: activity.result,
-        tone: activity.tone,
-      }))
-    }
+    if (learningJournal.length === 0) return []
 
     return learningJournal.slice(0, 4).map(entry => ({
       icon: activityIcon(entry.session_type),
@@ -307,7 +246,7 @@ export default function SummaryView({
         ? translate("stats.Typical study rhythm insight", {
             profile: translate(`stats.session profile ${learningPreferences.session_duration_profile}`)
           })
-        : translate("stats.Medium sessions insight")
+        : ""
     )
 
   const totalStudySeconds = learningSummary?.total_study_seconds
@@ -333,8 +272,35 @@ export default function SummaryView({
     <div className="summary-v2-root">
       <header className="summary-v2-hero">
         <div>
-          <h1>{translate("stats.Learning Summary")}</h1>
-          <p>{translate("stats.Learning Summary subtitle")}</p>
+          <h1>
+            {isProjectSummary
+              ? translate("stats.Learning summary for project", {
+                  project: projectName || translate("stats.Project"),
+                })
+              : translate("stats.Learning journey summary")}
+          </h1>
+          <p>
+            {isProjectSummary
+              ? translate("stats.Project Summary subtitle")
+              : translate("stats.Career Summary subtitle")}
+          </p>
+        </div>
+        <div className="summary-v2-scope-toggle" role="group" aria-label={translate("stats.Summary scope")}>
+          <button
+            type="button"
+            className={isProjectSummary ? "is-active" : ""}
+            onClick={() => setSummaryScope("project")}
+            disabled={!projectId}
+          >
+            {translate("stats.Project stats")}
+          </button>
+          <button
+            type="button"
+            className={!isProjectSummary ? "is-active" : ""}
+            onClick={() => setSummaryScope("career")}
+          >
+            {translate("stats.Career stats")}
+          </button>
         </div>
       </header>
 
@@ -350,7 +316,7 @@ export default function SummaryView({
         <StatisticCard
           icon={<CalendarDays size={22} />}
           label={translate("stats.Total Sessions")}
-          value={totalSessions != null ? String(totalSessions) : "28"}
+          value={totalSessions != null ? String(totalSessions) : "0"}
           detail={
             learningSummary
               ? translate("stats.completed abandoned count", {
@@ -360,9 +326,7 @@ export default function SummaryView({
               : translate("stats.Learning activities recorded")
           }
           accent="blue"
-        >
-          <MiniBars values={[32, 52, 46, 58, 70, 82]} />
-        </StatisticCard>
+        />
 
         <section className="summary-v2-card summary-v2-streak-card">
           <div className="summary-v2-streak-glow" />
@@ -396,41 +360,57 @@ export default function SummaryView({
         <StatisticCard
           icon={<Target size={22} />}
           label={translate("stats.Completion Rate")}
-          value={completionRate != null ? `${completionRate}%` : "91%"}
+          value={completionRate != null ? `${completionRate}%` : "0%"}
           detail={translate("stats.Completed learning sessions")}
           accent="green"
         >
-          <RadialProgress value={completionRate != null ? Math.round(completionRate) : 91} label="100%" color="#20d69b" />
+          {completionRate != null && (
+            <RadialProgress value={Math.round(completionRate)} label="100%" color="#20d69b" />
+          )}
         </StatisticCard>
       </section>
 
       <section className="summary-v2-main-grid">
         <ChartCard title={translate("stats.Activity Distribution")}>
-          <div className="summary-v2-donut-layout">
-            <DonutChart
-              items={activityDistributionData}
-              total={learningSummary?.total_sessions ?? 28}
-            />
-            <div className="summary-v2-donut-legend">
-              {activityDistributionData.map((item: any, index) => (
-                <div key={item.label}>
-                  <span style={{ background: item.color }} />
-                  <strong>{item.label}</strong>
-                  <em>{item.count ?? [12, 9, 3, 2, 2][index]}</em>
-                  <small>{item.value}%</small>
-                </div>
-              ))}
+          {activityDistributionData.length > 0 ? (
+            <div className="summary-v2-donut-layout">
+              <DonutChart
+                items={activityDistributionData}
+                total={learningSummary?.total_sessions ?? 0}
+              />
+              <div className="summary-v2-donut-legend">
+                {activityDistributionData.map((item: any) => (
+                  <div key={item.label}>
+                    <span style={{ background: item.color }} />
+                    <strong>{item.label}</strong>
+                    <em>{item.count ?? 0}</em>
+                    <small>{item.value}%</small>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="summary-v2-empty-state">
+              {translate("stats.No learning activity data yet")}
+            </div>
+          )}
         </ChartCard>
 
         <ChartCard title={translate("stats.Last Month Trend")}>
-          <Legend items={[
-            { label: translate("stats.Quiz"), color: "#8b5cf6" },
-            { label: translate("stats.Flashcards"), color: "#1687ff" },
-            { label: translate("stats.Ask"), color: "#fbbf24" },
-          ]} />
-          <TrendChart data={trendData} />
+          {trendData.length > 0 ? (
+            <>
+              <Legend items={[
+                { label: translate("stats.Quiz"), color: "#8b5cf6" },
+                { label: translate("stats.Flashcards"), color: "#1687ff" },
+                { label: translate("stats.Ask"), color: "#fbbf24" },
+              ]} />
+              <TrendChart data={trendData} />
+            </>
+          ) : (
+            <div className="summary-v2-empty-state">
+              {translate("stats.No study trend data yet")}
+            </div>
+          )}
         </ChartCard>
 
         <ChartCard
@@ -450,7 +430,7 @@ export default function SummaryView({
         </ChartCard>
       </section>
 
-      <section className="summary-v2-lower-grid">
+      <section className={`summary-v2-lower-grid ${!isProjectSummary ? "is-career" : ""}`}>
         <SummarySection title={translate("stats.Your Strengths")}>
           {insightCards.length > 0 ? (
             insightCards.map((insight, index) => (
@@ -463,66 +443,65 @@ export default function SummaryView({
               />
             ))
           ) : (
-            <>
-              <InsightCard
-                icon={<Trophy size={20} />}
-                title={translate("stats.Flashcard consistency strength")}
-                text={translate("stats.Flashcard consistency strength text")}
-                value="90%"
-              />
-              <InsightCard
-                icon={<Sparkles size={20} />}
-                title={translate("stats.Short term memory strength")}
-                text={translate("stats.Short term memory strength text")}
-                value="43.8%"
-              />
-              <InsightCard
-                icon={<Rocket size={20} />}
-                title={translate("stats.Improving strength")}
-                text={translate("stats.Improving strength text")}
-                value="+18%"
-              />
-            </>
+            <div className="summary-v2-empty-state">
+              {translate("stats.No learning insights yet")}
+            </div>
           )}
         </SummarySection>
 
-        <SummarySection title={translate("stats.Topics to Improve")}>
-          <div className="summary-v2-topic-list">
-            {displayedFocusTopics.map(topic => (
-              <ProgressCard
-                key={topic.title}
-                title={topic.title}
-                value={topic.value}
-                color={topic.value <= 40 ? "#fb7185" : "#ff4d70"}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className={`summary-v2-focus-cta ${realFocusTopics.length === 0 ? "is-disabled" : ""}`}
-            disabled={realFocusTopics.length === 0}
-            onClick={() => onStartFocusSession?.(
-              realFocusTopics.map(topic => topic.title)
+        {isProjectSummary && (
+          <SummarySection title={translate("stats.Topics to Improve")}>
+            {displayedFocusTopics.length > 0 ? (
+              <div className="summary-v2-topic-list">
+                {displayedFocusTopics.map(topic => (
+                  <ProgressCard
+                    key={topic.title}
+                    title={topic.title}
+                    value={topic.value}
+                    color={topic.value <= 40 ? "#fb7185" : "#ff4d70"}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="summary-v2-empty-state">
+                {translate("stats.No topics to improve yet")}
+              </div>
             )}
-          >
-            🎯 {translate("stats.Start Focus Session")}
-          </button>
-        </SummarySection>
+            <button
+              type="button"
+              className={`summary-v2-focus-cta ${realFocusTopics.length === 0 ? "is-disabled" : ""}`}
+              disabled={realFocusTopics.length === 0}
+              onClick={() => onStartFocusSession?.(
+                realFocusTopics.map(topic => topic.title)
+              )}
+            >
+              🎯 {translate("stats.Start Focus Session")}
+            </button>
+          </SummarySection>
+        )}
 
         <SummarySection title={translate("stats.Recent Activity")}>
-          <div className="summary-v2-timeline-list">
-            {recentActivitiesData.map(activity => (
-              <TimelineCard key={activity.title} {...activity} />
-            ))}
-          </div>
+          {recentActivitiesData.length > 0 ? (
+            <div className="summary-v2-timeline-list">
+              {recentActivitiesData.map(activity => (
+                <TimelineCard key={`${activity.title}-${activity.meta}`} {...activity} />
+              ))}
+            </div>
+          ) : (
+            <div className="summary-v2-empty-state">
+              {translate("stats.No recent learning activity yet")}
+            </div>
+          )}
         </SummarySection>
       </section>
 
-      <footer className="summary-v2-advice">
-        <span><Lightbulb size={24} /></span>
-        <strong>{translate("stats.Learning Insight")}</strong>
-        <p>{bottomInsight}</p>
-      </footer>
+      {bottomInsight && (
+        <footer className="summary-v2-advice">
+          <span><Lightbulb size={24} /></span>
+          <strong>{translate("stats.Learning Insight")}</strong>
+          <p>{bottomInsight}</p>
+        </footer>
+      )}
 
       <style jsx global>{summaryV2Styles}</style>
     </div>
@@ -544,16 +523,6 @@ function RadialProgress({
         <strong>{value}</strong>
         <span>{label}</span>
       </div>
-    </div>
-  )
-}
-
-function MiniBars({ values }: { values: number[] }) {
-  return (
-    <div className="summary-v2-mini-bars">
-      {values.map((value, index) => (
-        <span key={index} style={{ height: `${value}%` }} />
-      ))}
     </div>
   )
 }
@@ -602,10 +571,20 @@ function Legend({ items }: { items: Array<{ label: string; color: string }> }) {
 function TrendChart({
   data,
 }: {
-  data: Array<{ quiz: number; flashcards: number; ask: number }>
+  data: Array<{ quiz: number; flashcards: number; ask: number; label?: string }>
 }) {
-  const { t: translate } = useTranslation()
-  const max = 20
+  const max = Math.max(
+    1,
+    ...data.flatMap(point => [point.quiz, point.flashcards, point.ask])
+  )
+  const axisLabels = data.length <= 5
+    ? data.map(point => point.label || "")
+    : data.filter((_point, index) =>
+        index === 0
+        || index === Math.floor((data.length - 1) / 2)
+        || index === data.length - 1
+      ).map(point => point.label || "")
+
   return (
     <div className="summary-v2-trend-chart">
       <div className="summary-v2-chart-grid" />
@@ -614,10 +593,10 @@ function TrendChart({
           <polyline
             points={data
               .map((point, index) => {
-                const value = point[key as keyof typeof point]
+                const value = point[key as "quiz" | "flashcards" | "ask"]
                 const x = data.length > 1
                   ? (index / (data.length - 1)) * 320
-                  : 160
+                : 160
                 const y = 145 - (value / max) * 130
                 return `${x},${y}`
               })
@@ -637,11 +616,9 @@ function TrendChart({
         </svg>
       ))}
       <div className="summary-v2-chart-axis">
-        <span>{translate("stats.Mock chart date 1")}</span>
-        <span>{translate("stats.Mock chart date 2")}</span>
-        <span>{translate("stats.Mock chart date 3")}</span>
-        <span>{translate("stats.Mock chart date 4")}</span>
-        <span>{translate("stats.Mock chart date 5")}</span>
+        {axisLabels.map((label, index) => (
+          <span key={`${label}-${index}`}>{label}</span>
+        ))}
       </div>
     </div>
   )
@@ -814,6 +791,55 @@ const summaryV2Styles = `
     margin: 0;
     color: #c7d2e3;
     font-size: 17px;
+  }
+
+  .summary-v2-scope-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(47, 164, 255, 0.18);
+    background:
+      linear-gradient(135deg, rgba(12, 21, 38, 0.92), rgba(8, 14, 28, 0.88)),
+      rgba(9, 18, 34, 0.74);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .summary-v2-scope-toggle button {
+    min-width: 128px;
+    border: 1px solid rgba(148, 163, 184, 0.10);
+    border-radius: 15px;
+    padding: 11px 18px;
+    color: #b9c6d8;
+    background: rgba(15, 23, 42, 0.56);
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: 0.18s ease;
+    white-space: nowrap;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .summary-v2-scope-toggle button:hover:not(:disabled) {
+    color: #ffffff;
+    border-color: rgba(47, 164, 255, 0.34);
+    background: rgba(47, 164, 255, 0.10);
+    transform: translateY(-1px);
+  }
+
+  .summary-v2-scope-toggle button.is-active {
+    color: #ffffff;
+    border-color: rgba(45, 212, 191, 0.36);
+    background: linear-gradient(135deg, rgba(21, 184, 166, 0.86), rgba(20, 146, 255, 0.82));
+    box-shadow:
+      0 12px 28px rgba(20, 146, 255, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .summary-v2-scope-toggle button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .summary-v2-toolbar {
@@ -1322,6 +1348,10 @@ const summaryV2Styles = `
     margin-bottom: 18px;
   }
 
+  .summary-v2-lower-grid.is-career {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
   .summary-v2-section {
     min-height: 292px;
   }
@@ -1514,6 +1544,7 @@ const summaryV2Styles = `
 
   @media (max-width: 760px) {
     .summary-v2-hero,
+    .summary-v2-scope-toggle,
     .summary-v2-toolbar,
     .summary-v2-stat-body,
     .summary-v2-donut-layout,

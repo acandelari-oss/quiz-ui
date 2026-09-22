@@ -20,8 +20,9 @@ export default function QuizView({
   quizId,
   calculateScore,
   onBackToDashboard,
+  hideCompletionPanel = false,
   loaderText
-  
+
 }: any) {
 
   const { t: translate } = useTranslation()
@@ -624,7 +625,7 @@ ${input}
         </div>
       )}
 
-      {finished && (
+      {finished && !hideCompletionPanel && (
         <section className="quiz-completion-panel">
           <h2>{translate("stats.Quiz Submitted title")}</h2>
           <p>{translate("stats.Quiz Submitted description")}</p>

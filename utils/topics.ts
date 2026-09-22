@@ -3,6 +3,29 @@ export type TopicScopeItem = {
   topic?: string
   title?: string
   category?: string
+  description?: string
+  source_section?: string
+  macrocategory?: string
+  module_id?: string | null
+  module_name?: string | null
+  module_order_index?: number | null
+  organization_mode?: string | null
+  category_order_index?: number | null
+  topic_order_index?: number | null
+}
+
+export function getTopicDisplayName(
+  topic: string | TopicScopeItem | null | undefined
+) {
+  if (typeof topic === "string") return topic
+  return topic?.topic || topic?.title || ""
+}
+
+export function getTopicModuleLabel(
+  topic: string | TopicScopeItem | null | undefined
+) {
+  if (!topic || typeof topic === "string") return ""
+  return topic.module_name || ""
 }
 
 export function getTopicScopeKey(
@@ -10,15 +33,23 @@ export function getTopicScopeKey(
 ) {
   if (typeof topic === "string") return `name:${topic}`
   if (topic?.id) return `id:${topic.id}`
-  return `name:${topic?.topic || topic?.title || ""}`
+  const moduleKey = topic?.module_id || "legacy"
+  return `module:${moduleKey}:name:${topic?.topic || topic?.title || ""}`
 }
 
 export function resolveCategoryTopicObjects(
   category: string,
-  topics: TopicScopeItem[] = []
+  topics: TopicScopeItem[] = [],
+  moduleId?: string | null
 ) {
   const resolved = topics.filter(
-    topic => (topic.category || "General") === category
+    topic => (
+      (topic.category || "General") === category
+      && (
+        moduleId === undefined
+        || (topic.module_id || null) === moduleId
+      )
+    )
   )
 
   const unique = new Map<string, TopicScopeItem>()
@@ -47,9 +78,7 @@ export function extractTopicNames(
 ) {
   return topics
     .map(topic =>
-      typeof topic === "string"
-        ? topic
-        : topic.topic || topic.title || null
+      getTopicDisplayName(topic) || null
     )
     .filter((name): name is string => Boolean(name))
 }

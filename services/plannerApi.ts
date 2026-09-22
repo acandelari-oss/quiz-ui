@@ -2,6 +2,7 @@ export type PlannerSelectedTopicResponse = {
   id: string
   title: string
   order?: number | null
+  category?: string | null
 }
 
 export type PlannerAllocationResponse = {

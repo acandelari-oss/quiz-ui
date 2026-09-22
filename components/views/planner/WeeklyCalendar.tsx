@@ -173,9 +173,9 @@ function StatusPill({
 
 const statusStyles = {
   completed: {
-    border: "#0e6c69",
-    background: "#052b2a",
-    color: "#36F2ED"
+    border: "rgba(47, 164, 255, 0.22)",
+    background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+    color: "#e8f7ff"
   },
   today: {
     border: "#2b7dcb",

@@ -10,6 +10,8 @@ export default function Sidebar({
   loadResults,
   loadSummary,
   projectId,
+  projectName,
+  projectStudyMode,
   loadFlashcards,
   availableFlashcards,
   previousQuizzes,
@@ -18,6 +20,7 @@ export default function Sidebar({
   setAnswers,
   loadPreviousQuizzes,
   loadQuizStats,
+  topics = [],
   setLanguage,
   compactMode = false,
   mobileHome = false
@@ -27,6 +30,12 @@ export default function Sidebar({
         const { t: translate } = useTranslation();
         const { i18n, t } = useTranslation();
         const [numToReview, setNumToReview] = useState(availableFlashcards || 0);
+        const moduleStatusSummary = buildModuleStatusSummary(
+          topics || [],
+          projectName,
+          projectStudyMode,
+          translate
+        )
 
         const changeLanguage = (lng: string) => {
           i18n.changeLanguage(lng)
@@ -85,13 +94,52 @@ export default function Sidebar({
       )}
 
       {/* PROJECT */}
-      {!compactMode && (
-      <div style={sectionTitle}>
-         {translate('stats.Project')}
-      </div>
-      )}
+	      {!compactMode && (
+	      <div style={sectionTitle}>
+	         {translate('stats.Project')}
+	      </div>
+	      )}
 
-      <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => navigate("create_project")} title={translate('stats.Create project')}>
+	      {!compactMode && !mobileHome && projectId && (
+	        <div style={currentProjectCard}>
+	          <div style={currentProjectEyebrow}>
+	            {translate("stats.Current project")}
+	          </div>
+	          <div style={currentProjectName}>
+	            {projectName || translate("stats.Project")}
+	          </div>
+	          <div style={currentProjectStatusRow}>
+	            <span
+	              style={{
+	                ...currentProjectStatusDot,
+	                background: moduleStatusSummary.pendingCount > 0
+	                  ? "#f59e0b"
+	                  : "#22c55e"
+	              }}
+	            />
+	            <span>
+	              {moduleStatusSummary.statusLabel}
+	            </span>
+	          </div>
+	          {moduleStatusSummary.totalModules > 1 && (
+	            <div style={currentProjectMeta}>
+	              {translate("stats.modules in study mode count", {
+	                accepted: moduleStatusSummary.acceptedCount,
+	                total: moduleStatusSummary.totalModules
+	              })}
+	            </div>
+	          )}
+	          {moduleStatusSummary.pendingCount > 0 && (
+	            <div style={currentProjectWarning}>
+	              {translate("stats.modules still in review count", {
+	                count: moduleStatusSummary.pendingCount
+	              })}
+	            </div>
+	          )}
+	        </div>
+	      )}
+
+	      <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => navigate("create_project")} title={translate('stats.Create project')}>
         <img
           src="/icons/new-project.svg"
           alt=""
@@ -464,6 +512,60 @@ export default function Sidebar({
   );
 }
 
+function buildModuleStatusSummary(
+  topics: any[],
+  projectName: string,
+  projectStudyMode: string,
+  translate: (key: string, options?: any) => string
+) {
+  const normalizedStudyMode = String(projectStudyMode || "").toLowerCase()
+  const modulesById = new Map<string, {
+    name: string
+    topics: any[]
+  }>()
+
+  ;(Array.isArray(topics) ? topics : []).forEach((topic: any) => {
+    const moduleId = String(topic?.module_id || "project")
+    const moduleName = String(topic?.module_name || projectName || translate("stats.Project"))
+
+    if (!modulesById.has(moduleId)) {
+      modulesById.set(moduleId, {
+        name: moduleName,
+        topics: []
+      })
+    }
+
+    modulesById.get(moduleId)?.topics.push(topic)
+  })
+
+  const modules = Array.from(modulesById.values())
+  const acceptedCount = modules.length > 0
+    ? modules.filter(module =>
+        module.topics.length > 0
+        && module.topics.every(topic =>
+          Boolean(topic?.accepted_for_study || topic?.taxonomy_locked)
+        )
+      ).length
+    : (normalizedStudyMode === "learning" ? 1 : 0)
+  const totalModules = modules.length > 0 ? modules.length : (projectName ? 1 : 0)
+  const pendingCount = Math.max(totalModules - acceptedCount, 0)
+
+  let statusLabel = translate("stats.Review mode")
+
+  if (totalModules > 0 && pendingCount === 0) {
+    statusLabel = translate("stats.Study mode")
+  } else if (normalizedStudyMode === "learning") {
+    statusLabel = translate("stats.Partially in study mode")
+  }
+
+  return {
+    acceptedCount,
+    totalModules,
+    pendingCount,
+    statusLabel
+  }
+}
+
 const sidebar = {
   width: 260,
   height: "100%",
@@ -517,6 +619,69 @@ const sectionTitle = {
   color: "#36f2ed",
   fontSize: 18
 };
+
+const currentProjectCard: React.CSSProperties = {
+  border: "1px solid rgba(54, 242, 237, 0.18)",
+  borderRadius: 14,
+  background:
+    "linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.82))",
+  padding: "12px 12px",
+  margin: "0 0 12px",
+  boxShadow: "0 12px 28px rgba(0, 0, 0, 0.18)"
+}
+
+const currentProjectEyebrow: React.CSSProperties = {
+  color: "#36f2ed",
+  fontSize: 11,
+  fontWeight: 900,
+  letterSpacing: 0.5,
+  textTransform: "uppercase",
+  marginBottom: 6
+}
+
+const currentProjectName: React.CSSProperties = {
+  color: "#f8fafc",
+  fontSize: 14,
+  fontWeight: 900,
+  lineHeight: 1.25,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  display: "-webkit-box",
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: "vertical"
+}
+
+const currentProjectStatusRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  color: "#cbd5e1",
+  fontSize: 12,
+  fontWeight: 800,
+  marginTop: 8
+}
+
+const currentProjectStatusDot: React.CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: 999,
+  boxShadow: "0 0 12px currentColor"
+}
+
+const currentProjectMeta: React.CSSProperties = {
+  color: "#94a3b8",
+  fontSize: 11,
+  lineHeight: 1.35,
+  marginTop: 7
+}
+
+const currentProjectWarning: React.CSSProperties = {
+  color: "#fbbf24",
+  fontSize: 11,
+  fontWeight: 800,
+  lineHeight: 1.35,
+  marginTop: 6
+}
 
 const menuItem = {
   display: "flex",

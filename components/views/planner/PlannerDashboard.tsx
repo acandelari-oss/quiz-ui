@@ -479,8 +479,9 @@ const secondaryButton = {
 }
 
 const assessmentIntroCard = {
-  background: "#0b111d",
-  border: "1px solid #0e6c69",
+  background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+  border: "1px solid rgba(47, 164, 255, 0.22)",
+  boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
   borderRadius: 18,
   padding: 22,
   marginBottom: 22

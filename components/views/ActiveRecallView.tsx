@@ -17,14 +17,18 @@ export default function ActiveRecallView({
   projectId,
   selectedTopics,
   selectedTopic,
-  useGlobalKnowledge,
-  setUseGlobalKnowledge
+  useGlobalKnowledge = false,
+  setUseGlobalKnowledge = () => {},
+  maxQuestions: maxQuestionsProp = 5,
+  onComplete
 }: {
   projectId: string,
   selectedTopics: any[],
   selectedTopic?: any,
-  useGlobalKnowledge: boolean,
-  setUseGlobalKnowledge: any
+  useGlobalKnowledge?: boolean,
+  setUseGlobalKnowledge?: any,
+  maxQuestions?: number,
+  onComplete?: () => void
 }) {
   const [messages, setMessages] = useState<any[]>([])
   const [sessionStarted, setSessionStarted] = useState(false)
@@ -35,7 +39,7 @@ export default function ActiveRecallView({
   const [input, setInput] = useState("")
   const [currentQuestion, setCurrentQuestion] = useState("")
   const [answerHistory, setAnswerHistory] = useState<string[]>([])
-  const maxQuestions = 5
+  const maxQuestions = Math.max(1, Number(maxQuestionsProp || 5))
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
   const [topicIndex, setTopicIndex] = useState(0)
@@ -323,7 +327,7 @@ export default function ActiveRecallView({
 
   // --- EFFECTS ---
   useEffect(() => {
-    if (!projectId || normalizedTopics.length === 0) return;
+    if (!projectId) return;
     if (hasFetchedRef.current) return;
 
     hasFetchedRef.current = true;
@@ -515,10 +519,11 @@ export default function ActiveRecallView({
         {questionCount >= maxQuestions && (
           <div style={{
             padding: "14px 18px",
-            background: "#052b2a",
-            border: "1px solid #0e6c69",
-            borderRadius: 8,
-            color: "#36F2ED",
+            background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
+            border: "1px solid rgba(47, 164, 255, 0.22)",
+            boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.04)",
+            borderRadius: 16,
+            color: "#e8f7ff",
             textAlign: "center",
             fontWeight: 600
           }}>
