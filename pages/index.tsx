@@ -1946,6 +1946,9 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
         ? `The latest upload failed: ${failureMessage}. Please try again.`
         : "The latest upload failed. Please try again."
       setUploadStatus(nextMessage);
+      setUploadLog("")
+      setProjectReadyVisible(false)
+      setActiveView("upload_error")
       uploadFlightLog(uploadSessionId, "setUploadStatus(upload failed)", {
         message: nextMessage
       })
@@ -1970,6 +1973,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
         projectId: uploadProjectId
       })
       setUploadStatus(nextMessage)
+      setActiveView("upload_error")
       uploadFlightLog(uploadSessionId, "setUploadStatus(upload stream failed)", {
         message: nextMessage
       })
@@ -2049,6 +2053,8 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     const failureMessage = e instanceof Error ? e.message : "The server stopped responding"
     const nextMessage = `The latest upload failed: ${failureMessage}. Please try again.`
     setUploadStatus(nextMessage);
+    setUploadLog("")
+    setActiveView("upload_error")
     uploadFlightLog(uploadSessionId, "setUploadStatus(upload exception)", {
       message: nextMessage
     })
