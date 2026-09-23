@@ -99,6 +99,7 @@ uploadStatus,
 uploadWorkflowActive,
 uploadModuleName,
 setUploadModuleName,
+currentEditableUploadModule,
 moduleOrganizationMode,
 setModuleOrganizationMode,
 moduleManualCategories,
@@ -718,6 +719,7 @@ return (
         uploadWorkflowActive={uploadWorkflowActive}
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
+        currentEditableUploadModule={currentEditableUploadModule}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
@@ -764,6 +766,7 @@ return (
         uploadWorkflowActive={uploadWorkflowActive}
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
+        currentEditableUploadModule={currentEditableUploadModule}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
@@ -2275,6 +2278,7 @@ function LoadProjectWorkspace({
   uploadWorkflowActive,
   uploadModuleName,
   setUploadModuleName,
+  currentEditableUploadModule,
   moduleOrganizationMode,
   setModuleOrganizationMode,
   moduleManualCategories,
@@ -2291,7 +2295,8 @@ function LoadProjectWorkspace({
   const loadFileInputRef = useRef<HTMLInputElement | null>(null)
   const selectedFileCount = files?.length || 0
   const hasProject = Boolean(projectId)
-  const moduleNameReady = Boolean(String(uploadModuleName || "").trim())
+  const continuingExistingModule = Boolean(currentEditableUploadModule?.id)
+  const moduleNameReady = continuingExistingModule || Boolean(String(uploadModuleName || "").trim())
   const uploadDisabled = !hasProject || !selectedFileCount || !moduleNameReady || Boolean(uploadWorkflowActive)
 
   const orderedProjects = useMemo(() => {
@@ -2712,11 +2717,13 @@ function LoadProjectWorkspace({
                 color: "#e5e7eb",
                 fontWeight: 800
               }}>
-                Study Module name
+                {continuingExistingModule ? "Current Study Module" : "Study Module name"}
                 <input
-                  value={uploadModuleName || ""}
+                  value={continuingExistingModule
+                    ? currentEditableUploadModule?.name || "Current module"
+                    : uploadModuleName || ""}
                   onChange={(event) => setUploadModuleName?.(event.target.value)}
-                  disabled={!hasProject || uploadWorkflowActive}
+                  disabled={!hasProject || uploadWorkflowActive || continuingExistingModule}
                   placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
                   style={{
                     width: "100%",
@@ -2731,6 +2738,16 @@ function LoadProjectWorkspace({
                   }}
                 />
               </label>
+              {continuingExistingModule && (
+                <div style={{
+                  marginTop: 8,
+                  color: "#8ddfff",
+                  fontSize: 13,
+                  fontWeight: 800
+                }}>
+                  New files will be added to this module until you enter Study Mode.
+                </div>
+              )}
               <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
                 <ModuleOrganizationSetup
                   mode={moduleOrganizationMode}
@@ -2739,7 +2756,7 @@ function LoadProjectWorkspace({
                   setManualCategories={setModuleManualCategories}
                   syllabusText={moduleSyllabusText}
                   setSyllabusText={setModuleSyllabusText}
-                  disabled={!hasProject || uploadWorkflowActive}
+                  disabled={!hasProject || uploadWorkflowActive || continuingExistingModule}
                 />
               </div>
             </div>
@@ -2927,6 +2944,7 @@ function ProjectSetupWorkspace({
   uploadWorkflowActive,
   uploadModuleName,
   setUploadModuleName,
+  currentEditableUploadModule,
   moduleOrganizationMode,
   setModuleOrganizationMode,
   moduleManualCategories,
@@ -2937,7 +2955,8 @@ function ProjectSetupWorkspace({
   const setupFileInputRef = useRef<HTMLInputElement | null>(null)
   const projectCreated = Boolean(projectId)
   const selectedFileCount = files?.length || 0
-  const moduleNameReady = Boolean(String(uploadModuleName || "").trim())
+  const continuingExistingModule = Boolean(currentEditableUploadModule?.id)
+  const moduleNameReady = continuingExistingModule || Boolean(String(uploadModuleName || "").trim())
   const uploadDisabled = !projectCreated || !selectedFileCount || !moduleNameReady || Boolean(uploadWorkflowActive)
 
   const browseFiles = () => {
@@ -3278,11 +3297,13 @@ function ProjectSetupWorkspace({
 
         <div className="setup-action-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end", marginBottom: 18 }}>
           <label style={{ display: "block", color: "#e5e7eb", fontWeight: 800 }}>
-            Study Module name
+            {continuingExistingModule ? "Current Study Module" : "Study Module name"}
             <input
-              value={uploadModuleName || ""}
+              value={continuingExistingModule
+                ? currentEditableUploadModule?.name || "Current module"
+                : uploadModuleName || ""}
               onChange={(event) => setUploadModuleName?.(event.target.value)}
-              disabled={!projectCreated || uploadWorkflowActive}
+              disabled={!projectCreated || uploadWorkflowActive || continuingExistingModule}
               placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
               style={{
                 width: "100%",
@@ -3296,6 +3317,16 @@ function ProjectSetupWorkspace({
                 outline: "none"
               }}
             />
+            {continuingExistingModule && (
+              <div style={{
+                marginTop: 8,
+                color: "#8ddfff",
+                fontSize: 13,
+                fontWeight: 800
+              }}>
+                New files will be added to this module until you enter Study Mode.
+              </div>
+            )}
           </label>
           <div style={{ gridColumn: "1 / -1" }}>
             <ModuleOrganizationSetup
@@ -3305,7 +3336,7 @@ function ProjectSetupWorkspace({
               setManualCategories={setModuleManualCategories}
               syllabusText={moduleSyllabusText}
               setSyllabusText={setModuleSyllabusText}
-              disabled={!projectCreated || uploadWorkflowActive}
+              disabled={!projectCreated || uploadWorkflowActive || continuingExistingModule}
             />
           </div>
           <button

@@ -75,6 +75,7 @@ status,
 uploadStatus,
 uploadModuleName = "",
 setUploadModuleName = () => {},
+currentEditableUploadModule,
 toolMode,
 questionStyle,
 setQuestionStyle,
@@ -95,7 +96,8 @@ priorityCategories = [],
     recall: 3,
     quiz: 5
   })
-  const uploadDisabled = Boolean(uploadWorkflowActive) || !String(uploadModuleName || "").trim()
+  const continuingExistingModule = Boolean(currentEditableUploadModule?.id)
+  const uploadDisabled = Boolean(uploadWorkflowActive) || (!continuingExistingModule && !String(uploadModuleName || "").trim())
 
   const categoryGroups = React.useMemo(() => {
     const groups = new Map<string, {
@@ -435,16 +437,23 @@ priorityCategories = [],
                 />
                 <label style={{display:"block", marginTop:10}}>
                   <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
-                    Study Module name
+                    {continuingExistingModule ? "Current Study Module" : "Study Module name"}
                   </span>
                   <input
-                    value={uploadModuleName || ""}
+                    value={continuingExistingModule
+                      ? currentEditableUploadModule?.name || "Current module"
+                      : uploadModuleName || ""}
                     onChange={(event) => setUploadModuleName(event.target.value)}
-                    disabled={uploadWorkflowActive}
+                    disabled={uploadWorkflowActive || continuingExistingModule}
                     placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
                     style={input}
                   />
                 </label>
+                {continuingExistingModule && (
+                  <div style={{ fontSize: 12, color: "#8ddfff", marginTop: 6, fontWeight: 700 }}>
+                    New files will be added to this module until you enter Study Mode.
+                  </div>
+                )}
                 <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "6px" }}>
                   Accepted formats: PDF, Word (.docx), and PowerPoint (.pptx). Text-based documents work best.
                 </div>
@@ -544,16 +553,23 @@ priorityCategories = [],
 
               <label style={{display:"block", marginTop:10}}>
                 <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
-                  Study Module name
+                  {continuingExistingModule ? "Current Study Module" : "Study Module name"}
                 </span>
                 <input
-                  value={uploadModuleName || ""}
+                  value={continuingExistingModule
+                    ? currentEditableUploadModule?.name || "Current module"
+                    : uploadModuleName || ""}
                   onChange={(event)=>setUploadModuleName(event.target.value)}
-                  disabled={uploadWorkflowActive}
+                  disabled={uploadWorkflowActive || continuingExistingModule}
                   placeholder="e.g. Lecture 1, Chapter 3, Slides 1–20"
                   style={input}
                 />
               </label>
+              {continuingExistingModule && (
+                <div style={{ fontSize: 12, color: "#8ddfff", marginTop: 6, fontWeight: 700 }}>
+                  New files will be added to this module until you enter Study Mode.
+                </div>
+              )}
 
               <button
                 onClick={uploadFiles}

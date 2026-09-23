@@ -124,6 +124,110 @@ function uploadFlightLog(sessionId: string | null | undefined, message: string, 
   console.log(`${prefix} ${message}`)
 }
 
+function resolveCurrentEditableModule(topics: any[] = [], studyModules: any[] = []) {
+  const explicitModules = (studyModules || [])
+    .map(module => ({
+      id: String(module?.id || "").trim(),
+      name: String(module?.name || "").trim(),
+      orderIndex: Number.isFinite(Number(module?.order_index ?? module?.orderIndex))
+        ? Number(module?.order_index ?? module?.orderIndex)
+        : 0,
+      acceptedForStudy: Boolean(module?.accepted_for_study ?? module?.acceptedForStudy)
+    }))
+    .filter(module => module.id && !module.acceptedForStudy)
+    .sort((a, b) => {
+      if (b.orderIndex !== a.orderIndex) return b.orderIndex - a.orderIndex
+      return a.name.localeCompare(b.name)
+    })
+
+  if (explicitModules.length > 0) {
+    return explicitModules[0]
+  }
+
+  const modules = new Map<string, {
+    id: string
+    name: string
+    orderIndex: number
+    acceptedForStudy: boolean
+  }>()
+
+  for (const topic of topics || []) {
+    const moduleId = String(topic?.module_id || "").trim()
+    if (!moduleId) continue
+
+    const acceptedForStudy = Boolean(topic?.accepted_for_study || topic?.taxonomy_locked)
+    const orderIndex = Number.isFinite(Number(topic?.module_order_index))
+      ? Number(topic?.module_order_index)
+      : 0
+    const name = String(topic?.module_name || "").trim()
+
+    const existing = modules.get(moduleId)
+    if (!existing) {
+      modules.set(moduleId, {
+        id: moduleId,
+        name,
+        orderIndex,
+        acceptedForStudy
+      })
+      continue
+    }
+
+    existing.acceptedForStudy = existing.acceptedForStudy && acceptedForStudy
+    existing.orderIndex = Math.max(existing.orderIndex, orderIndex)
+    if (!existing.name && name) {
+      existing.name = name
+    }
+  }
+
+  const editableModules = Array.from(modules.values())
+    .filter(module => !module.acceptedForStudy)
+    .sort((a, b) => {
+      if (b.orderIndex !== a.orderIndex) return b.orderIndex - a.orderIndex
+      return a.name.localeCompare(b.name)
+    })
+
+  return editableModules[0] || null
+}
+
+function modulesFromDocuments(documents: any[] = []) {
+  const modules = new Map<string, {
+    id: string
+    name: string
+    order_index: number
+    accepted_for_study: boolean
+  }>()
+
+  for (const document of documents || []) {
+    const moduleId = String(document?.module_id || "").trim()
+    if (!moduleId) continue
+
+    const orderIndex = Number.isFinite(Number(document?.module_order_index))
+      ? Number(document?.module_order_index)
+      : 0
+    const acceptedForStudy = Boolean(document?.accepted_for_study)
+    const name = String(document?.module_name || "").trim()
+
+    const existing = modules.get(moduleId)
+    if (!existing) {
+      modules.set(moduleId, {
+        id: moduleId,
+        name,
+        order_index: orderIndex,
+        accepted_for_study: acceptedForStudy
+      })
+      continue
+    }
+
+    existing.accepted_for_study = existing.accepted_for_study && acceptedForStudy
+    existing.order_index = Math.max(existing.order_index, orderIndex)
+    if (!existing.name && name) {
+      existing.name = name
+    }
+  }
+
+  return Array.from(modules.values())
+}
+
 function uploadFlightError(sessionId: string | null | undefined, message: string, error: any) {
   const prefix = `[${sessionId || "NOSESSION"}]`
   console.error(`${prefix} ${message}`, {
@@ -261,7 +365,9 @@ useEffect(() => {
 const [files,setFiles]=useState<FileList|null>(null)
 const [documents,setDocuments]=useState<any[]>([])
 const [topics,setTopics]=useState<any[]>([])
+const [studyModules,setStudyModules]=useState<any[]>([])
 const [loadingTopics,setLoadingTopics]=useState(false)
+const currentEditableUploadModule = resolveCurrentEditableModule(topics, studyModules)
 
 const [quiz,setQuiz]=useState<any[]>([])
 const [previousQuizzes,setPreviousQuizzes]=useState<any[]>([])
@@ -316,6 +422,17 @@ const [finished,setFinished]=useState(false)
 
 const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
 const [activeView,setActiveView]=useState("project")
+
+useEffect(() => {
+  if (!projectId) {
+    setStudyModules([])
+    return
+  }
+
+  if (activeView === "load_project" || activeView === "project" || activeView === "topics") {
+    void loadStudyModules(projectId)
+  }
+}, [projectId, activeView])
 
 	const [topicsOpen,setTopicsOpen]=useState(true)
 	const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
@@ -1498,9 +1615,46 @@ if(!res.ok) return
 
 const data=await res.json()
 
-setDocuments(data.documents||[])
+const loadedDocuments = data.documents || []
+setDocuments(loadedDocuments)
+
+const documentModules = modulesFromDocuments(loadedDocuments)
+if (documentModules.length > 0) {
+  setStudyModules(previousModules => {
+    const merged = new Map<string, any>()
+    for (const module of previousModules || []) {
+      if (module?.id) merged.set(String(module.id), module)
+    }
+    for (const module of documentModules) {
+      merged.set(module.id, {
+        ...merged.get(module.id),
+        ...module
+      })
+    }
+    return Array.from(merged.values())
+  })
+}
 
 }
+
+async function loadStudyModules(projectId:string){
+  const { data:sessionData }=await supabase.auth.getSession()
+  const token=sessionData.session?.access_token
+  if(!token) return []
+
+  const res=await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/modules`,
+    {headers:{Authorization:`Bearer ${token}`}}
+  )
+
+  if(!res.ok) return []
+
+  const data=await res.json()
+  const modules = data.modules || []
+  setStudyModules(modules)
+  return modules
+}
+
 async function uploadFiles(){
   uploadLifecycleTrace("uploadFiles invoked", {
     projectId,
@@ -1545,7 +1699,20 @@ async function uploadFiles(){
     setUploadFlightSessionId(null)
     return
   }
-  if(!uploadModuleName.trim()) {
+
+  const continuationModule = resolveCurrentEditableModule(topics, studyModules)
+  const continuationModuleId = continuationModule?.id || null
+  const continuationModuleName = continuationModule?.name || ""
+  const effectiveModuleName = continuationModuleName || uploadModuleName.trim()
+
+  uploadFlightLog(uploadSessionId, "Resolved upload module target", {
+    continuationModuleId,
+    continuationModuleName,
+    typedModuleName: uploadModuleName.trim(),
+    effectiveModuleName
+  })
+
+  if(!continuationModuleId && !effectiveModuleName) {
     uploadFlightLog(uploadSessionId, "Upload stopped before request because module name is missing")
     setUploadStatus("Please enter a Study Module name before uploading")
     uploadSessionRef.current = null
@@ -1578,7 +1745,7 @@ async function uploadFiles(){
 
   const organizationBlueprint = buildOrganizationBlueprint()
 
-  if(moduleOrganizationMode === "manual" && !organizationBlueprint?.categories?.length) {
+  if(!continuationModuleId && moduleOrganizationMode === "manual" && !organizationBlueprint?.categories?.length) {
     uploadFlightLog(uploadSessionId, "Upload stopped before request because manual organization has no categories")
     setUploadStatus("Please add at least one category or choose automatic organization")
     uploadSessionRef.current = null
@@ -1586,7 +1753,7 @@ async function uploadFiles(){
     return
   }
 
-  if(moduleOrganizationMode === "syllabus" && !moduleSyllabusText.trim()) {
+  if(!continuationModuleId && moduleOrganizationMode === "syllabus" && !moduleSyllabusText.trim()) {
     uploadFlightLog(uploadSessionId, "Upload stopped before request because syllabus organization text is missing")
     setUploadStatus("Please paste your index/syllabus text or choose automatic organization")
     uploadSessionRef.current = null
@@ -1687,8 +1854,9 @@ if(!token) {
 uploadFlightLog(uploadSessionId, "Upload request started", {
   url: `${process.env.NEXT_PUBLIC_API_URL}/projects/${uploadProjectId}/ingest_stream`,
   projectId: uploadProjectId,
-  moduleName: uploadModuleName.trim(),
-  organizationMode: moduleOrganizationMode,
+  moduleId: continuationModuleId,
+  moduleName: effectiveModuleName,
+  organizationMode: continuationModuleId ? "existing_module" : moduleOrganizationMode,
   documentCount: docs.length
 })
 const res = await fetch(
@@ -1700,10 +1868,11 @@ const res = await fetch(
       "Authorization": `Bearer ${token}`
     },
     body: JSON.stringify({
-        module_name: uploadModuleName.trim(),
-        organization_mode: moduleOrganizationMode,
-        organization_blueprint: organizationBlueprint,
-        organization_source_title: moduleOrganizationMode === "syllabus"
+        module_id: continuationModuleId,
+        module_name: effectiveModuleName,
+        organization_mode: continuationModuleId ? null : moduleOrganizationMode,
+        organization_blueprint: continuationModuleId ? null : organizationBlueprint,
+        organization_source_title: !continuationModuleId && moduleOrganizationMode === "syllabus"
           ? "Student-provided index/syllabus"
           : null,
         documents: docs
@@ -1795,6 +1964,13 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     })
     await loadDocuments(uploadProjectId);
     uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() completed", {
+      projectId: uploadProjectId
+    })
+    uploadFlightLog(uploadSessionId, "Post-poll loadStudyModules() started", {
+      projectId: uploadProjectId
+    })
+    await loadStudyModules(uploadProjectId);
+    uploadFlightLog(uploadSessionId, "Post-poll loadStudyModules() completed", {
       projectId: uploadProjectId
     })
     uploadWorkflowActiveRef.current = false;
@@ -2069,6 +2245,9 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         uploadFlightLog(flightSessionId, "loadTopics() started")
         await loadTopics(projectId)
         uploadFlightLog(flightSessionId, "loadTopics() completed")
+        uploadFlightLog(flightSessionId, "loadStudyModules() started")
+        await loadStudyModules(projectId)
+        uploadFlightLog(flightSessionId, "loadStudyModules() completed")
 
         console.log("🧪 loadTopics FINISHED")
         console.log("✅ TOPICS LOADED")
@@ -2552,7 +2731,8 @@ async function selectProject(
   
   // Rimosso il setSelectedTopic(null) che era qui sotto fisso
   setDocuments([]);
-    setTopics([]);
+  setTopics([]);
+  setStudyModules([]);
   setQuiz([])
   setAnswers({})
   setPreviousQuizzes([])
@@ -2560,6 +2740,7 @@ async function selectProject(
   setPriorityCategories(persistedPriorityCategories)
 
   try {
+    await loadStudyModules(id);
     await loadDocuments(id);
     const loadedTopics = await loadTopics(id);
     const loadedCategorySet = new Set(
@@ -3842,6 +4023,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               uploadWorkflowActive={uploadWorkflowActive}
               uploadModuleName={uploadModuleName}
               setUploadModuleName={setUploadModuleName}
+              currentEditableUploadModule={currentEditableUploadModule}
               moduleOrganizationMode={moduleOrganizationMode}
               setModuleOrganizationMode={setModuleOrganizationMode}
               moduleManualCategories={moduleManualCategories}
@@ -3956,6 +4138,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         uploadWorkflowActive={uploadWorkflowActive}
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
+        currentEditableUploadModule={currentEditableUploadModule}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
