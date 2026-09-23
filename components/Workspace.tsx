@@ -1116,7 +1116,7 @@ return (
         </div>
 
         <HintBox
-          text="The uploaded file could not be fully processed. Large scanned PDFs, unsupported formatting, or extremely large documents may cause ingestion failures."
+          text={uploadStatus || "The uploaded file could not be fully processed. Large scanned PDFs, unsupported formatting, or extremely large documents may cause ingestion failures."}
         />
 
         <div style={{

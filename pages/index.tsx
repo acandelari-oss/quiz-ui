@@ -124,6 +124,20 @@ function uploadFlightLog(sessionId: string | null | undefined, message: string, 
   console.log(`${prefix} ${message}`)
 }
 
+function extractUploadFailureMessage(streamText: string): string | null {
+  const marker = streamText.match(/^UPLOAD_FAILED\|message=([^\n\r]*)/m)
+  if (marker?.[1]) {
+    try {
+      return decodeURIComponent(marker[1]).trim() || "Upload failed"
+    } catch {
+      return marker[1].trim() || "Upload failed"
+    }
+  }
+
+  const legacy = streamText.match(/Upload failed:\s*([^\n\r]+)/i)
+  return legacy?.[1]?.trim() || null
+}
+
 function resolveCurrentEditableModule(topics: any[] = [], studyModules: any[] = []) {
   const explicitModules = (studyModules || [])
     .map(module => ({
@@ -1884,6 +1898,10 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
   ok: res.ok
 })
 
+    if (!res.body) {
+      throw new Error("Upload response did not include a readable stream")
+    }
+
     const reader = res.body.getReader()
     uploadFlightLog(uploadSessionId, "Stream opened")
 
@@ -1902,14 +1920,6 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
           receivedCharacters: fullText.length
         })
         uploadFlightLog(uploadSessionId, "Stream closed")
-        traceSetterCall(
-          "setStatus",
-          status,
-          "Processing topics...",
-          "upload stream completed"
-        )
-        setStatus("Processing topics..."); 
-        uploadFlightLog(uploadSessionId, "setStatus(Processing topics...)")
         traceSetterCall("setUploading", uploading, false, "upload stream completed")
         setUploading(false);
         uploadFlightLog(uploadSessionId, "setUploading(false)")
@@ -1931,20 +1941,65 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       uploadFlightLog(uploadSessionId, "Upload response not OK; entering error block", {
         httpStatus: res.status
       })
-      setUploadStatus("Upload failed");
-      uploadFlightLog(uploadSessionId, "setUploadStatus(Upload failed)")
+      const failureMessage = extractUploadFailureMessage(fullText)
+      const nextMessage = failureMessage
+        ? `The latest upload failed: ${failureMessage}. Please try again.`
+        : "The latest upload failed. Please try again."
+      setUploadStatus(nextMessage);
+      uploadFlightLog(uploadSessionId, "setUploadStatus(upload failed)", {
+        message: nextMessage
+      })
       setUploading(false);
       uploadFlightLog(uploadSessionId, "setUploading(false)")
+      setStatus("Upload failed")
+      uploadFlightLog(uploadSessionId, "setStatus(Upload failed)")
       uploadWorkflowActiveRef.current = false;
       setUploadWorkflowActive(false);
       uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
       uploadSessionRef.current = null
+      await loadDocuments(uploadProjectId)
+      await loadStudyModules(uploadProjectId)
       return;
+    }
+
+    const streamedFailureMessage = extractUploadFailureMessage(fullText)
+    if (streamedFailureMessage) {
+      const nextMessage = `The latest upload failed: ${streamedFailureMessage}. Please try again.`
+      uploadFlightLog(uploadSessionId, "Upload stream contained failure marker; polling will not start", {
+        message: streamedFailureMessage,
+        projectId: uploadProjectId
+      })
+      setUploadStatus(nextMessage)
+      uploadFlightLog(uploadSessionId, "setUploadStatus(upload stream failed)", {
+        message: nextMessage
+      })
+      setStatus("Upload failed")
+      uploadFlightLog(uploadSessionId, "setStatus(Upload failed)")
+      setUploadLog("")
+      uploadFlightLog(uploadSessionId, "setUploadLog(empty)")
+      setUploading(false)
+      uploadFlightLog(uploadSessionId, "setUploading(false)")
+      setProjectReadyVisible(false)
+      uploadWorkflowActiveRef.current = false
+      setUploadWorkflowActive(false)
+      uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
+      uploadSessionRef.current = null
+      await loadDocuments(uploadProjectId)
+      await loadStudyModules(uploadProjectId)
+      return
     }
 
     // 3. Successo! Aggiorniamo la UI e facciamo partire i processi post-upload
     setUploading(false);
     uploadFlightLog(uploadSessionId, "setUploading(false)")
+    traceSetterCall(
+      "setStatus",
+      status,
+      "Processing topics...",
+      "upload response ok"
+    )
+    setStatus("Processing topics...");
+    uploadFlightLog(uploadSessionId, "setStatus(Processing topics...)")
     traceSetterCall(
       "setUploadStatus",
       uploadStatus,
@@ -1991,8 +2046,15 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
   } catch (e) {
     console.error("UPLOAD ERROR:", e);
     uploadFlightError(uploadSessionId, "UPLOAD ERROR", e)
-    setUploadStatus("Upload error");
-    uploadFlightLog(uploadSessionId, "setUploadStatus(Upload error)")
+    const failureMessage = e instanceof Error ? e.message : "The server stopped responding"
+    const nextMessage = `The latest upload failed: ${failureMessage}. Please try again.`
+    setUploadStatus(nextMessage);
+    uploadFlightLog(uploadSessionId, "setUploadStatus(upload exception)", {
+      message: nextMessage
+    })
+    setStatus("Upload failed")
+    uploadFlightLog(uploadSessionId, "setStatus(Upload failed)")
+    setProjectReadyVisible(false)
     setUploading(false);
     uploadFlightLog(uploadSessionId, "setUploading(false)")
     uploadWorkflowActiveRef.current = false;
@@ -2099,6 +2161,8 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
   let attempts = 0
   const maxPollingMs = 60 * 60 * 1000
   const pollingStartedAt = Date.now()
+  let consecutiveServerFailures = 0
+  const maxConsecutiveServerFailures = 10
 
   let isPolling = false
 
@@ -2126,6 +2190,49 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
       reason: reason || "unspecified",
       attempts
     })
+  }
+
+  const failForServerInterruption = async (reason: string, details?: any) => {
+    stopPolling(reason)
+    pollingRunRef.current = pollRunId + 1
+    const nextMessage = "The latest upload was interrupted because the server stopped responding. Please try again with fewer files or smaller files."
+    uploadFlightLog(flightSessionId, "Upload interrupted by server/network failure", {
+      reason,
+      ...(details || {})
+    })
+    setUploadStatus(nextMessage)
+    uploadFlightLog(flightSessionId, "setUploadStatus(server interruption)", {
+      message: nextMessage
+    })
+    traceSetterCall(
+      "setStatus",
+      status,
+      "Upload interrupted",
+      "server interruption"
+    )
+    setStatus("Upload interrupted")
+    uploadFlightLog(flightSessionId, "setStatus(Upload interrupted)")
+    setUploading(false)
+    uploadFlightLog(flightSessionId, "setUploading(false)")
+    setUploadLog("")
+    uploadFlightLog(flightSessionId, "setUploadLog(empty)")
+    setProjectReadyVisible(false)
+    uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
+    setActiveView("upload_error")
+    uploadFlightLog(flightSessionId, "setActiveView(upload_error)")
+    uploadWorkflowActiveRef.current = false
+    setUploadWorkflowActive(false)
+    uploadFlightLog(flightSessionId, "setUploadWorkflowActive(false)")
+    uploadSessionRef.current = null
+
+    try {
+      await loadDocuments(projectId)
+      await loadStudyModules(projectId)
+    } catch (reloadError) {
+      uploadFlightError(flightSessionId, "Failed to reload project after upload interruption", reloadError)
+    }
+
+    resolvePolling(reason)
   }
 
   const checkTopicStatus = async () => {
@@ -2192,11 +2299,22 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
       uploadFlightLog(flightSessionId, "Poll request failed with non-OK status; polling will continue", {
         pollNumber: attempts,
         httpStatus: res.status,
-        reason: retryReason
+        reason: retryReason,
+        consecutiveServerFailures
       })
+      if (res.status >= 500 || res.status === 0) {
+        consecutiveServerFailures += 1
+        if (consecutiveServerFailures >= maxConsecutiveServerFailures) {
+          await failForServerInterruption("server-unavailable", {
+            httpStatus: res.status,
+            consecutiveServerFailures
+          })
+        }
+      }
       return
     }
 
+    consecutiveServerFailures = 0
     const data = await res.json()
     uploadFlightLog(flightSessionId, "Poll response body", data)
 
@@ -2321,6 +2439,23 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
       pollingRunRef.current = pollRunId + 1
 
       uploadFlightLog(flightSessionId, "Entering topic-status error block")
+      const nextMessage = "The latest upload failed during topic generation. Please try again. If the file is very large, try uploading fewer files at once."
+      uploadFlightLog(flightSessionId, "setUploadStatus(topic generation failed)", {
+        message: nextMessage
+      })
+      setUploadStatus(nextMessage)
+      uploadFlightLog(flightSessionId, "setStatus(Upload failed)")
+      traceSetterCall(
+        "setStatus",
+        status,
+        "Upload failed",
+        "topic-status error block"
+      )
+      setStatus("Upload failed")
+      uploadFlightLog(flightSessionId, "setUploading(false)")
+      setUploading(false)
+      uploadFlightLog(flightSessionId, "setUploadLog(empty)")
+      setUploadLog("")
       uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
       setProjectReadyVisible(false)
       uploadFlightLog(flightSessionId, "setActiveView(upload_error)")
@@ -2370,6 +2505,13 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
 
       console.error("❌ POLLING LOOP ERROR:", err)
       uploadFlightError(flightSessionId, "Polling request exception", err)
+      consecutiveServerFailures += 1
+      if (consecutiveServerFailures >= maxConsecutiveServerFailures) {
+        await failForServerInterruption("network-error", {
+          consecutiveServerFailures,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
 
     } finally {
       isPolling = false
