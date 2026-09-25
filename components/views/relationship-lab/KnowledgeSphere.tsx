@@ -409,6 +409,7 @@ export default function KnowledgeSphere({
     : {}
   const mobileCanvasWrap: CSSProperties = isMobileLayout
     ? {
+      order: -1,
       height: "min(70vh, 620px)",
       minHeight: 460,
       borderRadius: 22
@@ -518,7 +519,14 @@ export default function KnowledgeSphere({
 
   function renderOrientationPanel() {
     const stage = currentStageInfo()
-    const navigationItems = [
+    const navigationItems = isMobileLayout ? [
+      { label: "Drag with one finger to rotate", icon: <RotateCw size={14} /> },
+      { label: "Pinch with two fingers to zoom", icon: <Search size={14} /> },
+      { label: "Drag with two fingers to move", icon: <Move size={14} /> },
+      { label: "Tap a category or topic to explore", icon: <Hand size={14} /> },
+      { label: "Tap a connection to explain it", icon: <GitBranch size={14} /> },
+      { label: "Swipe outside the map to scroll the page", icon: <Hand size={14} /> }
+    ] : [
       { label: ts("Drag to rotate"), icon: <RotateCw size={14} /> },
       { label: ts("Scroll to zoom"), icon: <Search size={14} /> },
       { label: ts("Right drag to move"), icon: <Move size={14} /> },
@@ -801,14 +809,18 @@ export default function KnowledgeSphere({
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.max(1, Math.floor(rect.width * dpr))
       canvas.height = Math.max(1, Math.floor(rect.height * dpr))
-      canvas.style.width = `${rect.width}px`
-      canvas.style.height = `${rect.height}px`
-      drawUniverse()
+      // Redraw with the current graph and selection, not the mount-time closure.
+      setViewVersion(version => version + 1)
     }
 
     resize()
+    const observer = new ResizeObserver(resize)
+    observer.observe(wrapper)
     window.addEventListener("resize", resize)
-    return () => window.removeEventListener("resize", resize)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", resize)
+    }
   }, [])
 
   useEffect(() => {
@@ -4657,6 +4669,7 @@ const grammarList: CSSProperties = {
 
 const canvasWrap: CSSProperties = {
   position: "relative",
+  minWidth: 0,
   height: "100%",
   minHeight: 0,
   borderRadius: 28,
@@ -4667,6 +4680,8 @@ const canvasWrap: CSSProperties = {
 }
 
 const canvasStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
   display: "block",
   width: "100%",
   height: "100%",

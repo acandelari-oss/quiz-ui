@@ -76,6 +76,7 @@ uploadStatus,
 uploadModuleName = "",
 setUploadModuleName = () => {},
 currentEditableUploadModule,
+uploadDestinationControl,
 toolMode,
 questionStyle,
 setQuestionStyle,
@@ -435,7 +436,8 @@ priorityCategories = [],
                   onChange={(e) => setFiles(e.target.files)}
                   style={input}
                 />
-                <label style={{display:"block", marginTop:10}}>
+                {uploadDestinationControl}
+              <label style={{display:"block", marginTop:10}}>
                   <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
                     {continuingExistingModule ? "Current Study Module" : "Study Module name"}
                   </span>
@@ -551,6 +553,7 @@ priorityCategories = [],
                 style={input}
               />
 
+              {uploadDestinationControl}
               <label style={{display:"block", marginTop:10}}>
                 <span style={{display:"block", color:"#cbd5e1", fontSize:13, fontWeight:600, marginBottom:6}}>
                   {continuingExistingModule ? "Current Study Module" : "Study Module name"}

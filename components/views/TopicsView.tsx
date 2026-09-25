@@ -125,6 +125,7 @@ export default function TopicsView({
 	  const [mergeTopicName, setMergeTopicName] = React.useState("")
 	  const [taxonomyEditBusy, setTaxonomyEditBusy] = React.useState<string | null>(null)
 	  const taxonomyReviewEditable = String(projectStudyMode || "").toLowerCase() !== "learning"
+      || topics.some((topic: any) => topic.module_id && !topic.accepted_for_study && !topic.taxonomy_locked)
 	  const topicCounts: { [key: string]: number } = {};
   function normalizeTopic(t) {
   return (t || "")

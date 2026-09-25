@@ -55,7 +55,7 @@ export default function RelationshipLabView({
     useState<TopicRelationshipGraph | null>(null)
   const [selectedTopicId, setSelectedTopicId] = useState<string>("")
   const [topicSearch, setTopicSearch] = useState("")
-  const [activeMode, setActiveMode] = useState<RelationshipLabMode>("list")
+  const [activeMode, setActiveMode] = useState<RelationshipLabMode>("sphere")
   const [loadingOverview, setLoadingOverview] = useState(false)
   const [loadingFocus, setLoadingFocus] = useState(false)
   const [loadingSphere, setLoadingSphere] = useState(false)
@@ -901,6 +901,7 @@ const modeSwitchCard: CSSProperties = {
   flexWrap: "wrap",
   padding: 8,
   marginTop: 18,
+  marginBottom: 30,
   borderRadius: 18,
   background: "rgba(15, 23, 42, 0.82)",
   border: "1px solid rgba(148, 163, 184, 0.16)"

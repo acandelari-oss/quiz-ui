@@ -6,6 +6,8 @@ import { useRouter } from "next/router";
 import Sidebar from "../components/Sidebar";
 import ToolPanel from "../components/ToolPanel";
 import Workspace from "../components/Workspace";
+import StudyModeGate from "../components/StudyModeGate";
+import { studyActivityLabel } from "../utils/studyModeGate";
 import PlannerView from "@/components/views/PlannerView";
 import { useTranslation } from "react-i18next";
 
@@ -308,6 +310,10 @@ const [projectReadyDismissed,setProjectReadyDismissed]=useState(false)
 const [createProjectName,setCreateProjectName]=useState("")
 const [projects,setProjects]=useState<any[]>([])
 const [studentFirstName,setStudentFirstName]=useState("")
+const [approvalModuleId, setApprovalModuleId] = useState("")
+const [pendingStudyView, setPendingStudyView] = useState<string | null>(null)
+const [enteringStudyMode, setEnteringStudyMode] = useState(false)
+const [studyGateError, setStudyGateError] = useState("")
 const projectRestoreAttemptedRef = useRef(false)
 const [loadProjectSelectionExpanded,setLoadProjectSelectionExpanded]=useState(true)
 const relationshipLabQueryClearedAfterUploadRef = useRef(false)
@@ -382,6 +388,18 @@ const [topics,setTopics]=useState<any[]>([])
 const [studyModules,setStudyModules]=useState<any[]>([])
 const [loadingTopics,setLoadingTopics]=useState(false)
 const currentEditableUploadModule = resolveCurrentEditableModule(topics, studyModules)
+const [uploadDestination, setUploadDestination] = useState<{ projectId: string; moduleId: string } | null>(null)
+const editableUploadModules = studyModules.filter((module: any) => !module.accepted_for_study)
+const selectedUploadModuleId = uploadDestination?.projectId === projectId
+  ? uploadDestination.moduleId
+  : currentEditableUploadModule?.id || "new"
+const selectedUploadModule = selectedUploadModuleId === "new" ? null
+  : editableUploadModules.find((module: any) => module.id === selectedUploadModuleId)
+    || (currentEditableUploadModule?.id === selectedUploadModuleId ? currentEditableUploadModule : null)
+
+const reviewModules = studyModules.filter((module: any) => !module.accepted_for_study)
+const studyTopics = topics.filter((topic: any) => !topic.module_id || topic.accepted_for_study || topic.taxonomy_locked)
+
 
 const [quiz,setQuiz]=useState<any[]>([])
 const [previousQuizzes,setPreviousQuizzes]=useState<any[]>([])
@@ -853,7 +871,39 @@ useEffect(() => {
   }
 }, [])
 
-function handleSidebarNavigation(nextView: string) {
+function requiresStudyMode(nextView: string) {
+  if (!projectId || !studyActivityLabel(nextView)) return false
+  if (projectStudyMode === "learning") return false
+  setStudyGateError("")
+  setApprovalModuleId(currentEditableUploadModule?.id || "")
+  setPendingStudyView(nextView)
+  return true
+}
+
+function navigateWorkspace(nextView: string) {
+  if (!requiresStudyMode(nextView)) {
+    if (studyActivityLabel(nextView)) keepApprovedTopicSelection()
+    setActiveView(nextView)
+  }
+}
+
+function keepApprovedTopicSelection() {
+  const allowedIds = new Set(extractTopicIds(studyTopics))
+  const allowedNames = new Set(extractTopicNames(studyTopics).map(normalizeTopic))
+  const allowed = (topic: any) => {
+    const ids = extractTopicIds([topic])
+    return ids.length
+      ? ids.every(id => allowedIds.has(id))
+      : extractTopicNames([topic]).some(name => allowedNames.has(normalizeTopic(name)))
+  }
+  setSelectedTopics(current => current.filter(allowed))
+  setSelectedTopic(current => current && allowed(current) ? current : null)
+}
+
+function handleSidebarNavigation(nextView: string, studyApproved = false) {
+  if (!studyApproved && requiresStudyMode(nextView)) return
+  if (studyActivityLabel(nextView)) keepApprovedTopicSelection()
+
   uploadLifecycleTrace("handleSidebarNavigation called", {
     previousValue: activeView,
     nextValue: nextView,
@@ -941,6 +991,7 @@ function handleSidebarNavigation(nextView: string) {
 }
 
 function openProjectUploadWorkspace() {
+  setUploadDestination(null)
   uploadLifecycleTrace("openProjectUploadWorkspace called", {
     previousValue: activeView,
     nextValue: "load_project",
@@ -960,6 +1011,21 @@ function openProjectUploadWorkspace() {
   )
   setActiveView("load_project")
   setToolPanelCollapsed(false)
+}
+
+async function openProjectFiles(id: string) {
+  if (uploadWorkflowActiveRef.current) return
+  if (id !== projectId) {
+    setFiles(null)
+    setUploadModuleName("")
+    setUploadDestination(null)
+    setModuleOrganizationMode("infer")
+    setModuleManualCategories([{ name: "", description: "" }])
+    setModuleSyllabusText("")
+    const loaded = await selectProject(id, projects, { previewOnly: true })
+    if (!loaded) return
+  }
+  openProjectUploadWorkspace()
 }
 
 function openLearningFeature(view: string) {
@@ -1103,6 +1169,7 @@ function enterLoadedProjectWorkspace(
 }
 
 function startFocusedStudySession(focusTopics: string[]) {
+  if (requiresStudyMode("study_session_setup")) return
   const normalizedFocusTopics = Array.from(
     new Set(
       (focusTopics || [])
@@ -1144,15 +1211,15 @@ function updateProjectPriorityCategories(projectId: string, nextPriorityCategori
   )
 }
 
-async function beginStudy() {
-  if (!projectId) return
+async function beginStudy(nextView = "learning_home") {
+  if (!projectId) throw new Error("Select a project first.")
 
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
-  if (!token) return
+  if (!token) throw new Error("Please sign in again to enter Study Mode.")
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/begin_study`,
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}${approvalModuleId ? `/modules/${encodeURIComponent(approvalModuleId)}` : ""}/begin_study`,
     {
       method: "POST",
       headers: {
@@ -1161,7 +1228,10 @@ async function beginStudy() {
     }
   )
 
-  if (!res.ok) return
+  if (!res.ok) {
+    const failure = await res.json().catch(() => ({}))
+    throw new Error(typeof failure.detail === "string" ? failure.detail : "Could not enter Study Mode. Please try again.")
+  }
 
   const data = await res.json()
   const nextStudyMode = data.study_mode || "learning"
@@ -1181,6 +1251,9 @@ async function beginStudy() {
       )
   )
   await loadTopics(projectId)
+  await loadStudyModules(projectId)
+  setSelectedTopic(null)
+  setSelectedTopics([])
   setProjectReadyVisible(false)
   setProjectReadyDismissed(true)
   setStatus("")
@@ -1193,7 +1266,7 @@ async function beginStudy() {
     "learning_home",
     "beginStudy completed"
   )
-  setActiveView("learning_home")
+  handleSidebarNavigation(nextView, true)
 }
 
 const loaderMessages = {
@@ -1714,7 +1787,12 @@ async function uploadFiles(){
     return
   }
 
-  const continuationModule = resolveCurrentEditableModule(topics, studyModules)
+  const continuationModule = selectedUploadModule
+  if (selectedUploadModuleId !== "new" && !continuationModule) {
+    setUploadStatus("This module is no longer editable. Choose a new module.")
+    uploadSessionRef.current = null
+    return
+  }
   const continuationModuleId = continuationModule?.id || null
   const continuationModuleName = continuationModule?.name || ""
   const effectiveModuleName = continuationModuleName || uploadModuleName.trim()
@@ -2038,6 +2116,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     uploadFlightLog(uploadSessionId, "Upload workflow completed")
     uploadSessionRef.current = null
     setUploadModuleName("")
+    setUploadDestination(null)
     setModuleOrganizationMode("infer")
     setModuleManualCategories([{ name: "", description: "" }])
     setModuleSyllabusText("")
@@ -2731,6 +2810,7 @@ async function loadQuizStatsByQuiz(projectId: string) {
 
 
 async function loadStudyFlashcards() {
+  if (requiresStudyMode("flashcards")) return
 
   console.log("📚 LOAD STUDY FLASHCARDS")
 
@@ -2786,6 +2866,7 @@ async function loadStudyFlashcards() {
 
 
 async function loadQuiz(id: string) {
+  if (requiresStudyMode("quiz")) return
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
 
@@ -2942,7 +3023,7 @@ async function selectProject(
         "selectProject preview only"
       )
       setActiveView("load_project")
-      return
+      return true
     }
 
     enterLoadedProjectWorkspace(
@@ -2954,10 +3035,12 @@ async function selectProject(
   } catch(e) {
     console.error("PROJECT LOAD ERROR:", e);
     setStatus("Error loading project");
+    return false
   }
 }
 
 async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
+    if (requiresStudyMode("quiz")) return
 
     console.log("🚨 GENERATE QUIZ CLICKED");
     console.log("GENERATE QUIZ FUNCTION RUNNING")
@@ -3124,6 +3207,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
   // --- ORA GENERATE FLASHCARDS È UNA FUNZIONE INDIPENDENTE ---
   async function generateFlashcards(overrides: LearningGenerationOverrides = {}) {
+    if (requiresStudyMode("generate_flashcards")) return
     console.log("GENERATE FLASHCARDS FUNCTION RUNNING");
     if (!projectId) return;
 
@@ -3273,6 +3357,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
   }
 
   function openPlannerDailySession(dailyPlan: PlannerDailyPlan) {
+    if (requiresStudyMode("planner_view")) return
     plannerReviewedFlashcardsRef.current = new Set()
     plannerCompletedActivityIdsRef.current = new Set()
     setPlannerRuntime(prev => ({
@@ -3291,6 +3376,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     dailyPlan: PlannerDailyPlan,
     activityIndex: number
   ) {
+    if (requiresStudyMode("planner_view")) return
     const activity = dailyPlan.activities[activityIndex]
 
     if (!activity) {
@@ -3659,6 +3745,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
   }
 
   async function askDocuments(imageFile?: File | null) {
+    if (requiresStudyMode("ask_setup")) return
     if (!projectId) return
     const questionText = askQuestion.trim()
     if (!questionText) return
@@ -4056,12 +4143,55 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       }
     : {}
 
+  const uploadDestinationControl = (
+    <label style={{ display: "block", color: "#e5e7eb", margin: "16px 0", minWidth: 0 }}>
+      Upload destination
+      <select
+        value={selectedUploadModuleId}
+        disabled={!projectId || uploadWorkflowActive}
+        onChange={event => setUploadDestination({ projectId, moduleId: event.target.value })}
+        style={{ display: "block", width: "100%", minWidth: 0, boxSizing: "border-box", marginTop: 8, padding: 12, borderRadius: 10, background: "#111827", color: "white", border: "1px solid #475569" }}
+      >
+        {editableUploadModules.map((module: any) => <option key={module.id} value={module.id}>Add to {module.name} — Review Mode</option>)}
+        <option value="new">Create a new module</option>
+      </select>
+      <span style={{ display: "block", color: "#94a3b8", fontSize: 13, marginTop: 8 }}>
+        {selectedUploadModule ? "These files will be added to the selected module." : "Give the new module a name and choose its own topic organization below."}
+      </span>
+    </label>
+  )
+
   return (
     <div style={{
       ...appShell,
       height: isMobileLayout ? "100dvh" : "100vh",
       flexDirection: mobileNavigationSelected ? "column" : "row"
     }}>
+      <StudyModeGate
+        open={Boolean(pendingStudyView)}
+        activity={studyActivityLabel(pendingStudyView || "") || "studying"}
+        modules={reviewModules}
+        moduleId={approvalModuleId}
+        onModuleChange={setApprovalModuleId}
+        busy={enteringStudyMode}
+        error={studyGateError}
+        onClose={() => { if (!enteringStudyMode) setPendingStudyView(null) }}
+        onUpload={() => { setPendingStudyView(null); openProjectUploadWorkspace() }}
+        onReview={() => { setPendingStudyView(null); handleSidebarNavigation("topics") }}
+        onEnter={async () => {
+          if (!pendingStudyView || enteringStudyMode) return
+          setEnteringStudyMode(true)
+          setStudyGateError("")
+          try {
+            await beginStudy(pendingStudyView)
+            setPendingStudyView(null)
+          } catch (error) {
+            setStudyGateError(error instanceof Error ? error.message : "Could not enter Study Mode. Please try again.")
+          } finally {
+            setEnteringStudyMode(false)
+          }
+        }}
+      />
       {mobileNavigationSelected && (
         <div style={mobileTopBar}>
           <div style={mobileTopBarLogo}>DO•U•NO</div>
@@ -4087,6 +4217,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       )}
       <div style={mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
       <Sidebar
+        onUploadNewFiles={() => openProjectFiles(projectId)}
+        uploadBusy={uploadWorkflowActive}
         activeView={plannerGuidedSessionActive ? "planner_view" : activeView}
         compactMode={mobileNavigationSelected}
         mobileHome={mobileHome}
@@ -4129,7 +4261,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           {!toolPanelCollapsed && (
             <ToolPanel
               activeView={activeView}
-              setActiveView={setActiveView}
+              setActiveView={navigateWorkspace}
               projectName={activeView === "create_project" ? createProjectName : projectName}
               projects={projects}
               createProject={createProject}
@@ -4154,7 +4286,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               files={files}
               setFiles={setFiles}
               documents={documents}
-              topics={topics}
+              topics={studyActivityLabel(activeView) ? studyTopics : topics}
               loadingTopics={loadingTopics}
               previousFlashcards={previousFlashcards}
               topicsOpen={topicsOpen}
@@ -4171,7 +4303,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
               uploadWorkflowActive={uploadWorkflowActive}
               uploadModuleName={uploadModuleName}
               setUploadModuleName={setUploadModuleName}
-              currentEditableUploadModule={currentEditableUploadModule}
+              currentEditableUploadModule={selectedUploadModule}
+        uploadDestinationControl={uploadDestinationControl}
               moduleOrganizationMode={moduleOrganizationMode}
               setModuleOrganizationMode={setModuleOrganizationMode}
               moduleManualCategories={moduleManualCategories}
@@ -4230,7 +4363,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       <Workspace
         key={quizId}
         activeView={activeView}
-        setActiveView={setActiveView}
+        setActiveView={navigateWorkspace}
         handleSidebarNavigation={handleSidebarNavigation}
         summaryStats={summaryStats}
         quiz={quiz}
@@ -4286,7 +4419,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         uploadWorkflowActive={uploadWorkflowActive}
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
-        currentEditableUploadModule={currentEditableUploadModule}
+        currentEditableUploadModule={selectedUploadModule}
+        uploadDestinationControl={uploadDestinationControl}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
@@ -4308,7 +4442,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         documents={documents}
         selectedTopics={selectedTopics}
         setSelectedTopics={setSelectedTopics}
-        topics={topics}
+        topics={studyActivityLabel(activeView) ? studyTopics : topics}
         loadTopics={loadTopics}
         loadingTopics={loadingTopics}
         isGenerating={isGenerating}      // Aggiungi questa
@@ -4330,8 +4464,13 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 	        resetPlannerRuntimeForNewStudyPlan={resetPlannerRuntimeForNewStudyPlan}
 	        plannerActivityProgress={plannerActivityProgress}
 	        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
+        onUploadNewFiles={openProjectFiles}
         onUploadAnotherFile={openProjectUploadWorkspace}
-        onBeginStudy={beginStudy}
+        onBeginStudy={() => {
+          setStudyGateError("")
+          setApprovalModuleId(currentEditableUploadModule?.id || "")
+          setPendingStudyView("learning_home")
+        }}
         onLearningHomeLaunch={openLearningFeature}
         onStartFocusStudySession={startFocusedStudySession}
         onUseProject={() => enterLoadedProjectWorkspace(projectStudyMode, "Use This Project clicked")}

@@ -100,6 +100,7 @@ uploadWorkflowActive,
 uploadModuleName,
 setUploadModuleName,
 currentEditableUploadModule,
+uploadDestinationControl,
 moduleOrganizationMode,
 setModuleOrganizationMode,
 moduleManualCategories,
@@ -152,6 +153,7 @@ resetPlannerRuntimeForNewStudyPlan,
 plannerActivityProgress = [],
 plannerActivityDebriefs,
 onUploadAnotherFile,
+onUploadNewFiles,
 onBeginStudy,
 onLearningHomeLaunch,
 onStartFocusStudySession,
@@ -226,6 +228,8 @@ const handleWorkspaceDrop = (event: React.DragEvent<HTMLDivElement>) => {
 }
 
 
+const [modulesByProject, setModulesByProject] = useState<Record<string, any[]>>({})
+const [moduleLoadErrors, setModuleLoadErrors] = useState<Record<string, boolean>>({})
 const [docsByProject, setDocsByProject] = useState<{[key:string]: any[]}>({})
 const [openProjects, setOpenProjects] = useState<{[key:string]: boolean}>({})
 const [quizStats, setQuizStats] = useState<{[key:string]: any}>({})
@@ -264,9 +268,18 @@ useEffect(()=>{
     if(!token) return
 
     const result: {[key:string]: any[]} = {}
+    const moduleResult: Record<string, any[]> = {}
+    const moduleErrors: Record<string, boolean> = {}
 
     for(const p of projects){
-
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/modules`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!response.ok) throw new Error("Module list unavailable")
+        const body = await response.json()
+        moduleResult[p.id] = body.modules || []
+      } catch {
+        moduleErrors[p.id] = true
+      }
       try{
 
         const res = await fetch(
@@ -296,6 +309,8 @@ useEffect(()=>{
     }
 
     setDocsByProject(result)
+    setModulesByProject(moduleResult)
+    setModuleLoadErrors(moduleErrors)
   }
 
   loadAllDocs()
@@ -369,7 +384,7 @@ const showProjectReadyScreen =
   )
 const showTaxonomyReviewCompletionBar =
   activeView === "topics"
-  && projectStudyMode === "building"
+  && (projectStudyMode === "building" || topics?.some((topic: any) => topic.module_id && !topic.accepted_for_study))
   && Boolean(projectId)
   && Boolean((documents?.length || 0) > 0 || (topics?.length || 0) > 0)
 const plannerGuidedSessionActive =
@@ -519,6 +534,13 @@ return (
       }
 
       @media (max-width: 620px) {
+        .coffee-break-card {
+          flex-direction: column;
+          align-items: flex-start !important;
+          padding: 22px 20px !important;
+          gap: 16px !important;
+        }
+
         .upload-workspace-shell {
           padding: 4px 0 28px;
         }
@@ -549,6 +571,10 @@ return (
 
         .setup-action-grid {
           align-items: stretch !important;
+        }
+
+        .module-name-and-note {
+          grid-column: 1 / -1 !important;
         }
 
         .setup-action-grid button,
@@ -720,6 +746,7 @@ return (
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
         currentEditableUploadModule={currentEditableUploadModule}
+        uploadDestinationControl={uploadDestinationControl}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
@@ -732,6 +759,7 @@ return (
         setSelectionExpanded={setLoadProjectSelectionExpanded}
         onShowTopics={() => handleSidebarNavigation ? handleSidebarNavigation("topics") : setActiveView("topics")}
         onUseProject={onUseProject}
+        onLaunch={onLearningHomeLaunch}
       />
     ) :
 
@@ -767,6 +795,7 @@ return (
         uploadModuleName={uploadModuleName}
         setUploadModuleName={setUploadModuleName}
         currentEditableUploadModule={currentEditableUploadModule}
+        uploadDestinationControl={uploadDestinationControl}
         moduleOrganizationMode={moduleOrganizationMode}
         setModuleOrganizationMode={setModuleOrganizationMode}
         moduleManualCategories={moduleManualCategories}
@@ -1169,13 +1198,33 @@ return (
                 display:"flex",
                 justifyContent:"space-between",
                 alignItems:"center",
+                flexWrap:"wrap",
+                gap:12,
                 marginBottom:8
               }}>
 
-                <span style={{fontWeight:600}}>
+                <span style={{fontWeight:600, minWidth:0, overflowWrap:"anywhere"}}>
                   {p.name}
                 </span>
 
+                <div style={{display:"flex", flexWrap:"wrap", gap:8, alignItems:"center"}}>
+                <button
+                  type="button"
+                  disabled={uploadWorkflowActive}
+                  onClick={() => onUploadNewFiles?.(p.id)}
+                  style={{
+                    background:"linear-gradient(135deg, #7c3aed, #2563eb)",
+                    color:"white",
+                    border:"1px solid rgba(167, 139, 250, 0.35)",
+                    borderRadius:6,
+                    padding:"6px 8px",
+                    whiteSpace:"normal",
+                    cursor:uploadWorkflowActive ? "not-allowed" : "pointer",
+                    opacity:uploadWorkflowActive ? 0.55 : 1
+                  }}
+                >
+                  Upload new files
+                </button>
                 <button
                   onClick={()=>deleteProject(p.id)}
                   style={{
@@ -1189,9 +1238,24 @@ return (
                 >
                   {translate('stats.Delete project')}
                 </button>
+                </div>
 
               </div>
 
+              <div style={{ marginBottom: 16 }}>
+                <strong>Available modules</strong>
+                {moduleLoadErrors[p.id] ? <p>Could not load module statuses. Reopen Project Manager to retry.</p> : (
+                  (modulesByProject[p.id] || []).length ? (modulesByProject[p.id] || []).map((module: any) => (
+                    <div key={module.id} style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                      <span style={{ overflowWrap: "anywhere", minWidth: 0 }}>{module.name}</span>
+                      <span style={{ color: module.accepted_for_study ? "#86efac" : "#fcd34d", fontSize: 13, position: "relative", top: 3 }}>
+                        {module.accepted_for_study ? "Study Mode · Locked" : module.taxonomy_status === "building" ? "Processing" : module.taxonomy_status === "failed" ? "Processing failed" : "Review Mode · Editable"}
+                      </span>
+                    </div>
+                  )) : <p style={{ color: "#94a3b8" }}>No modules yet.</p>
+                )}
+              </div>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Files uploaded</div>
               {/* DOCUMENT LIST */}
               {docs.length === 0 && (
                 <div style={{color:"#9ca3af", fontSize:13}}>
@@ -1207,10 +1271,14 @@ return (
                     justifyContent:"space-between",
                     alignItems:"center",
                     fontSize:13,
+                    gap:10,
+                    minWidth:0,
                     marginBottom:6
                   }}
                 >
-                  <span>📄 {d.title}</span>
+                  <span style={{flex:1, minWidth:0, whiteSpace:"normal", overflowWrap:"anywhere", lineHeight:1.5}}>
+                    📄 {d.title}
+                  </span>
 
                   <button
                     onClick={async ()=>{
@@ -1238,6 +1306,7 @@ return (
                       color:"white",
                       borderRadius:4,
                       padding:"2px 6px",
+                      flexShrink:0,
                       cursor:"pointer"
                     }}
                   >
@@ -1302,7 +1371,7 @@ return (
 	          onPriorityCategoriesSaved={onPriorityCategoriesSaved}
 	        />
         {showTaxonomyReviewCompletionBar && (
-          <div style={taxonomyReviewCompletionBar}>
+          <div className="taxonomy-review-completion" style={taxonomyReviewCompletionBar}>
             <div>
               <div style={taxonomyReviewCompletionTitle}>
                 {translate("stats.Finished reviewing your taxonomy?")}
@@ -1311,7 +1380,7 @@ return (
                 {translate("stats.You can still upload more material, or approve this organization and enter Study Mode.")}
               </div>
             </div>
-            <div style={taxonomyReviewCompletionActions}>
+            <div className="taxonomy-review-completion-actions" style={taxonomyReviewCompletionActions}>
               <button
                 type="button"
                 style={projectReadySecondaryButton}
@@ -1335,6 +1404,30 @@ return (
         )}
         <style jsx global>{`
           @media (max-width: 900px) {
+            .taxonomy-review-completion {
+              flex-direction: column;
+              align-items: stretch !important;
+              box-sizing: border-box;
+              min-width: 0;
+            }
+
+            .taxonomy-review-completion-actions {
+              grid-template-columns: minmax(0, 1fr) !important;
+              min-width: 0 !important;
+              max-width: none !important;
+              width: 100%;
+            }
+
+            .taxonomy-review-completion-actions button {
+              box-sizing: border-box;
+              min-width: 0;
+              min-height: 48px;
+              margin-top: 0 !important;
+              white-space: normal;
+              overflow-wrap: anywhere;
+              line-height: 1.4;
+            }
+
             .topics-dashboard-mobile-shell {
               padding: 18px 12px 20px !important;
               max-width: none !important;
@@ -2279,6 +2372,7 @@ function LoadProjectWorkspace({
   uploadModuleName,
   setUploadModuleName,
   currentEditableUploadModule,
+  uploadDestinationControl,
   moduleOrganizationMode,
   setModuleOrganizationMode,
   moduleManualCategories,
@@ -2290,7 +2384,8 @@ function LoadProjectWorkspace({
   selectionExpanded,
   setSelectionExpanded,
   onShowTopics,
-  onUseProject
+  onUseProject,
+  onLaunch
 }: any) {
   const loadFileInputRef = useRef<HTMLInputElement | null>(null)
   const selectedFileCount = files?.length || 0
@@ -2422,6 +2517,26 @@ function LoadProjectWorkspace({
         ))}
       </div>
 
+      {recentMode ? (
+        <section style={{
+          borderRadius: 20,
+          border: "1px solid rgba(34, 197, 94, 0.35)",
+          background: "rgba(34, 197, 94, 0.09)",
+          padding: 24,
+          marginBottom: 18,
+          overflowWrap: "anywhere"
+        }}>
+          <h2 style={{ color: "white", fontSize: 26, margin: "0 0 10px" }}>
+            Project “{projectName}” loaded successfully
+          </h2>
+          <p style={{ color: "#cbd5e1", lineHeight: 1.6, margin: 0 }}>
+            Review your study material and topics below, then choose an activity.
+          </p>
+          <button type="button" onClick={() => setSelectionExpanded(true)} style={{ marginTop: 16 }}>
+            Change project
+          </button>
+        </section>
+      ) : (
       <section style={{
         borderRadius: 20,
         border: "1px solid rgba(148, 163, 184, 0.18)",
@@ -2559,10 +2674,11 @@ function LoadProjectWorkspace({
           </div>
         </div>
       </section>
+      )}
 
       {recentMode && (
         <>
-          <section className="mobile-hide-topics-preview" style={{
+          <section className="mobile-card-compact" style={{
             borderRadius: 20,
             border: "1px solid rgba(148, 163, 184, 0.18)",
             background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
@@ -2711,6 +2827,15 @@ function LoadProjectWorkspace({
                     : "Supported formats: PDF, DOCX, PPTX"}
                 </div>
               </div>
+              {uploadDestinationControl}
+              <div className="setup-card-grid module-name-and-note" style={{
+                gridColumn: "span 2",
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                gap: 28,
+                alignSelf: "start",
+                alignItems: "end"
+              }}>
               <label style={{
                 display: "block",
                 marginTop: 14,
@@ -2740,7 +2865,10 @@ function LoadProjectWorkspace({
               </label>
               {continuingExistingModule && (
                 <div style={{
-                  marginTop: 8,
+                  alignSelf: "end",
+                  minHeight: 44,
+                  display: "flex",
+                  alignItems: "center",
                   color: "#8ddfff",
                   fontSize: 13,
                   fontWeight: 800
@@ -2748,6 +2876,7 @@ function LoadProjectWorkspace({
                   New files will be added to this module until you enter Study Mode.
                 </div>
               )}
+              </div>
               <div style={{ gridColumn: "1 / -1", marginTop: 16 }}>
                 <ModuleOrganizationSetup
                   mode={moduleOrganizationMode}
@@ -2864,6 +2993,8 @@ function LoadProjectWorkspace({
             </div>
           </section>
 
+          <StudyActivityCards translate={translate} hasProject={hasProject} onLaunch={onLaunch} />
+
           <section className="load-project-cta" style={{
             marginTop: 18,
             borderRadius: 20,
@@ -2945,6 +3076,7 @@ function ProjectSetupWorkspace({
   uploadModuleName,
   setUploadModuleName,
   currentEditableUploadModule,
+  uploadDestinationControl,
   moduleOrganizationMode,
   setModuleOrganizationMode,
   moduleManualCategories,
@@ -3036,8 +3168,8 @@ function ProjectSetupWorkspace({
       }}>
         {[
           { number: 1, label: "Create Project", active: !projectCreated, done: projectCreated },
-          { number: 2, label: "Upload Material", active: projectCreated, done: false },
-          { number: 3, label: "Build Workspace", active: false, done: false }
+          { number: 2, label: "Upload Material", active: projectCreated && !selectedFileCount, done: projectCreated && selectedFileCount > 0 },
+          { number: 3, label: "Set Up Module", active: projectCreated && selectedFileCount > 0, done: false }
         ].map((step, index) => (
           <div key={step.number} style={{
             display: "flex",
@@ -3295,6 +3427,70 @@ function ProjectSetupWorkspace({
           </div>
         </div>
 
+        <div style={{ color: "#cbd5e1", fontWeight: 850, fontSize: 16, marginBottom: 12 }}>
+          Supported file types
+        </div>
+        <div className="upload-material-grid" style={{
+          overflow: "hidden",
+          borderRadius: 16,
+          border: "1px solid rgba(148, 163, 184, 0.12)"
+        }}>
+          {materialCards.map((material, index) => (
+            <div
+              key={material.ext}
+              style={{
+                minHeight: 126,
+                padding: "18px 12px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                textAlign: "center",
+                color: material.active ? "#e5e7eb" : "rgba(229,231,235,0.58)",
+                background: index % 2 === 0 ? "rgba(15, 23, 42, 0.34)" : "rgba(30, 41, 59, 0.24)",
+                borderRight: index < materialCards.length - 1 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
+              }}
+            >
+              <div style={{ color: material.color, opacity: material.active ? 1 : 0.65 }}>{material.icon}</div>
+              <div style={{ color: "white", fontWeight: 900, fontSize: 16 }}>{material.ext}</div>
+              <div style={{ fontSize: 13 }}>{material.name}</div>
+              {!material.active && (
+                <div style={{
+                  padding: "3px 10px",
+                  borderRadius: 999,
+                  color: "#c4b5fd",
+                  background: "rgba(124, 58, 237, 0.14)",
+                  border: "1px solid rgba(168, 85, 247, 0.45)",
+                  fontSize: 11,
+                  fontWeight: 800
+                }}>
+                  Coming soon
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <section className="mobile-card-compact" aria-labelledby="module-setup-heading" style={{
+        borderRadius: 20,
+        border: "1px solid rgba(148, 163, 184, 0.18)",
+        background: "linear-gradient(145deg, rgba(15,23,42,0.88), rgba(15,23,42,0.56))",
+        padding: 28,
+        marginBottom: 20,
+        minWidth: 0
+      }}>
+        <div style={{ display: "inline-flex", borderRadius: 999, padding: "5px 10px", color: "#c4b5fd", background: "rgba(124, 58, 237, 0.16)", fontSize: 13, fontWeight: 900, marginBottom: 14 }}>
+          Step 3 of 3
+        </div>
+        <h2 id="module-setup-heading" style={{ color: "white", fontSize: 28, fontWeight: 900, margin: "0 0 10px" }}>
+          Name and organize your study module
+        </h2>
+        <p style={{ color: "#cbd5e1", lineHeight: 1.65, margin: "0 0 22px" }}>
+          Choose a module name and how to organize its topics, then upload your selected documents.
+        </p>
+        {uploadDestinationControl}
         <div className="setup-action-grid" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "end", marginBottom: 18 }}>
           <label style={{ display: "block", color: "#e5e7eb", fontWeight: 800 }}>
             {continuingExistingModule ? "Current Study Module" : "Study Module name"}
@@ -3371,51 +3567,7 @@ function ProjectSetupWorkspace({
           </div>
         )}
 
-        <div style={{ color: "#cbd5e1", fontWeight: 850, fontSize: 16, marginBottom: 12 }}>
-          Supported file types
-        </div>
-        <div className="upload-material-grid" style={{
-          overflow: "hidden",
-          borderRadius: 16,
-          border: "1px solid rgba(148, 163, 184, 0.12)"
-        }}>
-          {materialCards.map((material, index) => (
-            <div
-              key={material.ext}
-              style={{
-                minHeight: 126,
-                padding: "18px 12px",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 7,
-                textAlign: "center",
-                color: material.active ? "#e5e7eb" : "rgba(229,231,235,0.58)",
-                background: index % 2 === 0 ? "rgba(15, 23, 42, 0.34)" : "rgba(30, 41, 59, 0.24)",
-                borderRight: index < materialCards.length - 1 ? "1px solid rgba(148, 163, 184, 0.12)" : "none"
-              }}
-            >
-              <div style={{ color: material.color, opacity: material.active ? 1 : 0.65 }}>{material.icon}</div>
-              <div style={{ color: "white", fontWeight: 900, fontSize: 16 }}>{material.ext}</div>
-              <div style={{ fontSize: 13 }}>{material.name}</div>
-              {!material.active && (
-                <div style={{
-                  padding: "3px 10px",
-                  borderRadius: 999,
-                  color: "#c4b5fd",
-                  background: "rgba(124, 58, 237, 0.14)",
-                  border: "1px solid rgba(168, 85, 247, 0.45)",
-                  fontSize: 11,
-                  fontWeight: 800
-                }}>
-                  Coming soon
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      </section>
 
       <div className="upload-tips-grid" style={{
         borderRadius: 20,
@@ -3455,6 +3607,114 @@ function ProjectSetupWorkspace({
 
       <CoffeeBreakProcessingCard translate={translate} />
     </div>
+  )
+}
+
+function StudyActivityCards({ translate, hasProject, onLaunch }: any) {
+  const tools = [
+    {
+      title: translate("stats.Ask question"),
+      description: translate("stats.Chat with AI about your study material."),
+      icon: "/icons/ask-side.svg",
+      view: "ask_setup"
+    },
+    {
+      title: translate("stats.Memory Check"),
+      description: translate("stats.Answer open questions without hints."),
+      icon: "/icons/memory-check-side.svg",
+      view: "active_recall_setup"
+    },
+    {
+      title: translate("stats.Study Session"),
+      description: translate("stats.Combine multiple activities into one session."),
+      icon: "/icons/study-session-side.svg",
+      view: "study_session_setup"
+    },
+    {
+      title: translate("stats.Quiz"),
+      description: translate("stats.Test your knowledge with AI-generated questions."),
+      icon: "/icons/quiz-side.svg",
+      view: "quiz"
+    },
+    {
+      title: translate("stats.Flashcards"),
+      description: translate("stats.Review concepts using spaced repetition."),
+      icon: "/icons/flashcards-side.svg",
+      view: "generate_flashcards"
+    }
+  ]
+  return (
+    <>
+      <section className="dashboard-v2-tools-section">
+        <div className="dashboard-v2-section-header" style={dashboardSectionHeader}>
+          <h2 style={dashboardSectionTitle}>{translate("stats.Study Tools")}</h2>
+          {!hasProject && (
+            <span style={dashboardDisabledNote}>
+              {translate("stats.Available after loading a project")}
+            </span>
+          )}
+        </div>
+
+        <div className="dashboard-v2-tools-grid" style={dashboardToolsGrid}>
+          {tools.map((tool) => (
+            <button
+              key={tool.view}
+              type="button"
+              className="dashboard-v2-tool-card"
+              disabled={!hasProject}
+              onClick={() => hasProject && onLaunch(tool.view)}
+              style={{
+                ...dashboardToolCard,
+                ...(!hasProject ? dashboardToolCardDisabled : {})
+              }}
+            >
+              <img
+                src={tool.icon}
+                alt=""
+                width={44}
+                height={44}
+                style={{
+                  ...dashboardToolIcon,
+                  ...(!hasProject ? dashboardToolIconDisabled : {})
+                }}
+              />
+              <h3 style={{
+                ...dashboardToolTitle,
+                ...(!hasProject ? dashboardToolContentDisabled : {})
+              }}>
+                {tool.title}
+              </h3>
+              <p style={{
+                ...dashboardToolText,
+                ...(!hasProject ? dashboardToolContentDisabled : {})
+              }}>
+                {tool.description}
+              </p>
+              <span style={{
+                ...dashboardToolCta,
+                ...(!hasProject ? dashboardToolContentDisabled : {})
+              }}>
+                {hasProject ? translate("stats.Open") : translate("stats.Preview")} →
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
+      <style jsx global>{`
+        @media (max-width: 1200px) {
+          .dashboard-v2-tools-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+        }
+        @media (max-width: 900px) {
+          .dashboard-v2-tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
+          .dashboard-v2-tool-card { min-height: 152px !important; padding: 16px !important; }
+        }
+        @media (max-width: 520px) {
+          .dashboard-v2-tools-grid { grid-template-columns: 1fr !important; }
+          .dashboard-v2-tool-card { min-height: auto !important; }
+          .dashboard-v2-tools-section .dashboard-v2-section-header { align-items: flex-start !important; flex-direction: column !important; gap: 6px !important; }
+        }
+      `}</style>
+    </>
   )
 }
 
@@ -3503,38 +3763,7 @@ function DashboardHome({
     ? `${translate("stats.Welcome back")}, ${studentFirstName}!`
     : translate("stats.Dashboard hero eyebrow")
 
-  const tools = [
-    {
-      title: translate("stats.Ask question"),
-      description: translate("stats.Chat with AI about your study material."),
-      icon: "/icons/ask-side.svg",
-      view: "ask_setup"
-    },
-    {
-      title: translate("stats.Memory Check"),
-      description: translate("stats.Answer open questions without hints."),
-      icon: "/icons/memory-check-side.svg",
-      view: "active_recall_setup"
-    },
-    {
-      title: translate("stats.Study Session"),
-      description: translate("stats.Combine multiple activities into one session."),
-      icon: "/icons/study-session-side.svg",
-      view: "study_session_setup"
-    },
-    {
-      title: translate("stats.Quiz"),
-      description: translate("stats.Test your knowledge with AI-generated questions."),
-      icon: "/icons/quiz-side.svg",
-      view: "quiz"
-    },
-    {
-      title: translate("stats.Flashcards"),
-      description: translate("stats.Review concepts using spaced repetition."),
-      icon: "/icons/flashcards-side.svg",
-      view: "generate_flashcards"
-    }
-  ]
+
 
   return (
     <div className="dashboard-v2" style={dashboardContainer}>
@@ -3608,61 +3837,7 @@ function DashboardHome({
         </section>
       )}
 
-      <section className="dashboard-v2-tools-section">
-        <div className="dashboard-v2-section-header" style={dashboardSectionHeader}>
-          <h2 style={dashboardSectionTitle}>{translate("stats.Study Tools")}</h2>
-          {!hasProject && (
-            <span style={dashboardDisabledNote}>
-              {translate("stats.Available after loading a project")}
-            </span>
-          )}
-        </div>
-
-        <div className="dashboard-v2-tools-grid" style={dashboardToolsGrid}>
-          {tools.map((tool) => (
-            <button
-              key={tool.view}
-              type="button"
-              className="dashboard-v2-tool-card"
-              disabled={!hasProject}
-              onClick={() => hasProject && onLaunch(tool.view)}
-              style={{
-                ...dashboardToolCard,
-                ...(!hasProject ? dashboardToolCardDisabled : {})
-              }}
-            >
-              <img
-                src={tool.icon}
-                alt=""
-                width={44}
-                height={44}
-                style={{
-                  ...dashboardToolIcon,
-                  ...(!hasProject ? dashboardToolIconDisabled : {})
-                }}
-              />
-              <h3 style={{
-                ...dashboardToolTitle,
-                ...(!hasProject ? dashboardToolContentDisabled : {})
-              }}>
-                {tool.title}
-              </h3>
-              <p style={{
-                ...dashboardToolText,
-                ...(!hasProject ? dashboardToolContentDisabled : {})
-              }}>
-                {tool.description}
-              </p>
-              <span style={{
-                ...dashboardToolCta,
-                ...(!hasProject ? dashboardToolContentDisabled : {})
-              }}>
-                {hasProject ? translate("stats.Open") : translate("stats.Preview")} →
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+      <StudyActivityCards translate={translate} hasProject={hasProject} onLaunch={onLaunch} />
 
       {hasProject && (
         <>
@@ -3760,9 +3935,6 @@ function DashboardHome({
             max-width: 520px !important;
           }
 
-          .dashboard-v2-tools-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
 
           .dashboard-v2-recent-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -3833,15 +4005,7 @@ function DashboardHome({
             margin-bottom: 20px !important;
           }
 
-          .dashboard-v2-tools-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            gap: 12px !important;
-          }
 
-          .dashboard-v2-tool-card {
-            min-height: 152px !important;
-            padding: 16px !important;
-          }
 
           .dashboard-v2-progress-row {
             align-items: flex-start !important;
@@ -3913,13 +4077,7 @@ function DashboardHome({
             padding: 10px 14px !important;
           }
 
-          .dashboard-v2-tools-grid {
-            grid-template-columns: 1fr !important;
-          }
 
-          .dashboard-v2-tool-card {
-            min-height: auto !important;
-          }
 
           .dashboard-v2-section-header {
             align-items: flex-start !important;
@@ -4892,7 +5050,9 @@ function CoffeeBreakProcessingCard({
   compact?: boolean
 }) {
   return (
-    <div style={{
+    <div className="coffee-break-card" style={{
+      boxSizing: "border-box",
+      minWidth: 0,
       position: "relative",
       overflow: "hidden",
       borderRadius: 22,
@@ -4907,7 +5067,7 @@ function CoffeeBreakProcessingCard({
       alignItems: "center",
       gap: compact ? 18 : 24,
       maxWidth: compact ? 980 : "none",
-      width: "min(100%, 980px)",
+      width: "100%",
       textAlign: "left"
     }}>
       <div style={{
@@ -4925,7 +5085,7 @@ function CoffeeBreakProcessingCard({
         <Coffee size={compact ? 34 : 42} />
       </div>
 
-      <div style={{ position: "relative", zIndex: 1 }}>
+      <div style={{ position: "relative", zIndex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
         <div style={{
           color: "white",
           fontWeight: 900,

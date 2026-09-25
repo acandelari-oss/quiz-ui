@@ -5,6 +5,8 @@ import { supabase } from "../lib/supabase";
 import { shellHeaderCell } from "./layoutStyles";
 
 export default function Sidebar({ 
+  onUploadNewFiles,
+  uploadBusy,
   activeView,
   handleSidebarNavigation,
   loadResults,
@@ -70,7 +72,7 @@ export default function Sidebar({
 
   return (
     <aside>
-    <div style={{
+    <div className="desktop-sidebar-scroll" style={{
       ...sidebar,
       width: mobileHome ? "100%" : compactMode ? 56 : 260,
       padding: mobileHome ? "38px 28px 24px" : compactMode ? "12px 6px" : 20,
@@ -121,6 +123,9 @@ export default function Sidebar({
 	              {moduleStatusSummary.statusLabel}
 	            </span>
 	          </div>
+          <button type="button" onClick={onUploadNewFiles} disabled={uploadBusy} style={{ width: "100%", marginTop: 12, whiteSpace: "normal", background: "#243047", color: "#dffeff" }}>
+            Upload new files
+          </button>
 	          {moduleStatusSummary.totalModules > 1 && (
 	            <div style={currentProjectMeta}>
 	              {translate("stats.modules in study mode count", {
@@ -139,6 +144,11 @@ export default function Sidebar({
 	        </div>
 	      )}
 
+          {(compactMode || mobileHome) && projectId && (
+            <button type="button" onClick={onUploadNewFiles} disabled={uploadBusy} title="Upload new files" aria-label="Upload new files" style={{ background: "#243047", padding: "10px 6px", marginBottom: 12 }}>
+              {compactMode ? "↑＋" : "Upload new files"}
+            </button>
+          )}
 	      <div style={navItemStyle(activeView === "create_project", compactMode)} onClick={() => navigate("create_project")} title={translate('stats.Create project')}>
         <img
           src="/icons/new-project.svg"
