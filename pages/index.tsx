@@ -419,6 +419,7 @@ const [askQuestion,setAskQuestion]=useState("")
 const [askAnswer,setAskAnswer]=useState("")
 const [chatMessages,setChatMessages]=useState<any[]>([])
 const [asking,setAsking]=useState(false)
+const [oralAudioEnabled, setOralAudioEnabled] = useState(true)
 const [useGlobalKnowledge, setUseGlobalKnowledge] = useState(false)
 
 const [answers,setAnswers]=useState<any>({})
@@ -590,6 +591,7 @@ const flashcardsActivityStarted =
 
 const toolPanelUseful =
   configurationDrivenViews.has(activeView)
+  || activeView === "active_recall"
   || (activeView === "quiz" && !quizActivityStarted)
   || (activeView === "flashcards" && !flashcardsActivityStarted)
 
@@ -770,6 +772,9 @@ useUploadStateTransitionTrace("processing", processingTraceValue)
 useUploadStateTransitionTrace("planner.state", plannerTraceValue)
 
 useEffect(() => {
+  // Navigation sets the initial panel state; keep manual session toggles open.
+  if (activeView === "active_recall") return
+
   if (mobileConfiguration) {
     traceSetterCall(
       "setToolPanelCollapsed",
@@ -824,6 +829,7 @@ useEffect(() => {
     setToolPanelCollapsed(false)
   }
 }, [
+  activeView,
   isMobileLayout,
   mobileConfiguration,
   mobileNavigationSelected,
@@ -1509,8 +1515,10 @@ return list
 }
 
 async function loadResults(projectId: string) {
+  if (!projectId?.trim()) return
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
+  if (!token) return
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/results`,
@@ -2752,7 +2760,7 @@ async function loadQuizStats(id: string) {
         // 4. Prepariamo l'oggetto finale
         console.warn("⚠️ Legacy local analytics builder disabled. Use /results instead.");
 
-        await loadResults(projectId);
+        await loadResults(id);
 
     } catch (err) {
         console.error("❌ Errore:", err);
@@ -4260,6 +4268,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         }}>
           {!toolPanelCollapsed && (
             <ToolPanel
+              oralAudioEnabled={oralAudioEnabled}
+              setOralAudioEnabled={setOralAudioEnabled}
               activeView={activeView}
               setActiveView={navigateWorkspace}
               projectName={activeView === "create_project" ? createProjectName : projectName}
@@ -4449,6 +4459,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         loaderStep={loaderStep}          // Aggiungi questa
         loaderType={loaderType}          // Aggiungi questa
         loaderMessages={loaderMessages}  // Aggiungi questa
+        oralAudioEnabled={oralAudioEnabled}
+        setOralAudioEnabled={setOralAudioEnabled}
         useGlobalKnowledge={useGlobalKnowledge}
         setUseGlobalKnowledge={setUseGlobalKnowledge}
         toolMode={toolMode}

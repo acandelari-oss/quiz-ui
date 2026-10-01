@@ -136,6 +136,8 @@ isGenerating,
 loaderStep,
 loaderType,
 loaderMessages,
+oralAudioEnabled,
+setOralAudioEnabled,
 useGlobalKnowledge,
 setUseGlobalKnowledge,
 toolMode,
@@ -1552,7 +1554,10 @@ return (
     )} 
 
     {activeView === "active_recall" && (
-      <ActiveRecallView 
+      <ActiveRecallView
+        oralAudioEnabled={oralAudioEnabled}
+        setOralAudioEnabled={setOralAudioEnabled}
+        enableQuestionAudio
         projectId={projectId} 
         selectedTopics={selectedTopics}
         useGlobalKnowledge={useGlobalKnowledge}

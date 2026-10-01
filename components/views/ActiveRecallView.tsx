@@ -1,7 +1,9 @@
+import OralAudioToggle from "../ui/OralAudioToggle"
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
 import { exportConversationPDF } from "../../utils/pdfExport"
+import QuestionAudio from "@/components/ui/QuestionAudio"
 import MarkdownContent from "@/components/ui/MarkdownContent"
 import {
   extractTopicIds,
@@ -20,7 +22,10 @@ export default function ActiveRecallView({
   useGlobalKnowledge = false,
   setUseGlobalKnowledge = () => {},
   maxQuestions: maxQuestionsProp = 5,
-  onComplete
+  onComplete,
+  oralAudioEnabled = true,
+  setOralAudioEnabled = () => {},
+  enableQuestionAudio = false
 }: {
   projectId: string,
   selectedTopics: any[],
@@ -28,10 +33,14 @@ export default function ActiveRecallView({
   useGlobalKnowledge?: boolean,
   setUseGlobalKnowledge?: any,
   maxQuestions?: number,
+  oralAudioEnabled?: boolean,
+  setOralAudioEnabled?: (enabled: boolean) => void,
+  enableQuestionAudio?: boolean,
   onComplete?: () => void
 }) {
   const [messages, setMessages] = useState<any[]>([])
   const [sessionStarted, setSessionStarted] = useState(false)
+  const [generatingQuestion, setGeneratingQuestion] = useState(false)
   const [questionCount, setQuestionCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
@@ -121,6 +130,7 @@ export default function ActiveRecallView({
   async function generateQuestion() {
     if (loading || questionCount >= maxQuestions) return;
     setLoading(true);
+    setGeneratingQuestion(true);
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -189,6 +199,7 @@ export default function ActiveRecallView({
     } catch (e) {
       console.error("❌ Errore generateQuestion:", e);
     } finally {
+      setGeneratingQuestion(false);
       setLoading(false);
       setShowAnswer(false);
       setInput("");
@@ -439,6 +450,7 @@ export default function ActiveRecallView({
 
       </div>
       
+      {enableQuestionAudio && <div style={{ marginBottom: 15 }}><OralAudioToggle enabled={oralAudioEnabled} onChange={setOralAudioEnabled} /></div>}
       <div className="memory-check-mobile-question-area" style={{ flex: 1, overflowY: "auto", marginBottom: 20 }}>
         {messages.map((m, i) => (
           <div key={i} className="memory-check-mobile-message-card" style={{
@@ -460,6 +472,9 @@ export default function ActiveRecallView({
                 }
               />
             </div>
+            {enableQuestionAudio && !generatingQuestion && m.role === "assistant" && m.content === currentQuestion && m.topic && !messages.slice(i + 1).some(message => message.role === "assistant" && message.topic && message.content === currentQuestion) && (
+              <QuestionAudio key={`${projectId}:${questionCount}`} projectId={projectId} question={currentQuestion} enabled={oralAudioEnabled} />
+            )}
           </div>
         ))}
         {loading && <p>{translate('stats.Thinking...')}</p>}

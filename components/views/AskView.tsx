@@ -283,7 +283,7 @@ function downloadAskPDF() {
       : "Full Project"
 
   exportConversationPDF({
-    title: "ASK A QUESTION",
+    title: "ASK DO·U·NO",
     projectName,
     subjectLabel: "Focus",
     subject: selectedSubject,

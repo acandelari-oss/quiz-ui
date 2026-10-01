@@ -1,3 +1,4 @@
+import OralAudioToggle from "./ui/OralAudioToggle"
 import TopicsView from "./views/TopicsView"
 import React, { useState } from "react"
 import { useTranslation } from 'react-i18next';
@@ -13,6 +14,8 @@ import CategoryLabel from "@/components/ui/CategoryLabel"
 export default function ToolPanel({
 
 
+oralAudioEnabled,
+setOralAudioEnabled,
 activeView,
 setActiveView,
 projectName,
@@ -794,6 +797,15 @@ priorityCategories = [],
       {/* ACTIVE RECALL SETUP */}
       {/* ========================= */}
 
+      {activeView === "active_recall" && (
+        <>
+          <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>
+            {translate("stats.Options")}
+          </h3>
+          <OralAudioToggle enabled={oralAudioEnabled} onChange={setOralAudioEnabled} />
+        </>
+      )}
+
       {activeView === "active_recall_setup" && (
         <>
           <h3 style={{
@@ -805,6 +817,7 @@ priorityCategories = [],
           </h3>
 
           {renderCategorySelector("SELECT CATEGORIES TO PRACTICE")}
+          <OralAudioToggle enabled={oralAudioEnabled} onChange={setOralAudioEnabled} />
 
           <div style={{
             fontSize: 13,
@@ -923,7 +936,7 @@ priorityCategories = [],
               {sessionDuration === 20 && (
                 <>
                   <div>• 8 flashcards</div>
-                  <div>• 3 memory checks</div>
+                  <div>• 3 oral practices</div>
                   <div>• 5 quiz questions</div>
                 </>
               )}
@@ -931,7 +944,7 @@ priorityCategories = [],
               {sessionDuration === 40 && (
                 <>
                   <div>• 15 flashcards</div>
-                  <div>• 5 memory checks</div>
+                  <div>• 5 oral practices</div>
                   <div>• 10 quiz questions</div>
                 </>
               )}
@@ -939,7 +952,7 @@ priorityCategories = [],
               {sessionDuration === 60 && (
                 <>
                   <div>• 25 flashcards</div>
-                  <div>• 8 memory checks</div>
+                  <div>• 8 oral practices</div>
                   <div>• 15 quiz questions</div>
                 </>
               )}
