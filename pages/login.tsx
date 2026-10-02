@@ -45,14 +45,7 @@ export default function LoginPage() {
     }}>
 
       {/* LOGO */}
-      <div style={{ marginBottom: 30 }}>
-        <Image
-          src="/logodun.png"
-          width={220}
-          height={60}
-          alt="StutorX Logo"
-        />
-      </div>
+      
 
       {/* LOGIN BOX */}
       <div style={{
@@ -67,9 +60,19 @@ export default function LoginPage() {
   boxSizing: "border-box"
 }}>
 
-        <h2 style={{ color: "white", textAlign: "center" }}>
-          DO-U-NO Login
-        </h2>
+        <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+  }}
+>
+  <Image
+    src="/douno-log.png"
+    width={180}
+    height={180}
+    alt="DOUNO Logo"
+  />
+</div>
 
         <input
           placeholder="Email"

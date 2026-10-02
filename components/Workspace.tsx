@@ -1642,6 +1642,7 @@ return (
           /* 3. Visualizzazione Flashcards (Se i dati sono pronti) */
           <>
             <FlashcardsView
+              projectId={projectId}
               flashcards={flashcards}
               openCard={openCard}
               setOpenCard={setOpenCard}

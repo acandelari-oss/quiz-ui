@@ -477,7 +477,10 @@ export default function ActiveRecallView({
             )}
           </div>
         ))}
-        {loading && <p>{translate('stats.Thinking...')}</p>}
+        <div role="status" style={{ display: loading ? "flex" : "none", alignItems: "center", gap: 10, marginTop: 12 }}>
+          <img src="/douno_chat.gif" alt="" width={50} height={50} style={{ width: 50, height: 50, objectFit: "contain", flexShrink: 0 }} />
+          {loading && <span>{translate('stats.Thinking...')}</span>}
+        </div>
       </div>
 
       <div className="memory-check-mobile-answer-area" style={{ display: "flex", flexDirection: "column", gap: 10 }}>

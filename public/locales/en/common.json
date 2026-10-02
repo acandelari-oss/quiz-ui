@@ -900,5 +900,36 @@
     "on": "On",
     "off": "Off",
     "blocked": "Your browser needs a tap to play audio. Press Replay question."
+  },
+  "answerChat": {
+    "sourceMode": "Answer sources",
+    "materialOnly": "Study material only",
+    "materialAndKnowledge": "Study material + AI knowledge",
+    "materialHelp": "Answers stay within your uploaded study material.",
+    "expandedHelp": "Answers may include general AI knowledge. This does not search the live web.",
+    "title": "Explore with DO·U·NO",
+    "cardTitle": "Ask your question about it",
+    "quizTitle": "Ask about this question",
+    "why": "Why is my answer incorrect?",
+    "simpler": "Explain it more simply",
+    "example": "Give me another example",
+    "compare": "Why is the correct answer better?",
+    "remember": "Help me remember this",
+    "you": "You:",
+    "tutor": "Tutor:",
+    "placeholder": "Ask a follow-up question…",
+    "startMic": "Start voice input",
+    "stopMic": "Stop voice input",
+    "send": "Ask",
+    "loading": "Thinking…",
+    "error": "Could not get an answer. Your question is still here; press Ask to retry.",
+    "micUnavailable": "Voice input is unavailable. You can still type your question.",
+    "global": "Include general AI knowledge"
+  },
+  "flashcardsUi": {
+    "counter": "Card {{current}} / {{total}}",
+    "question": "Question",
+    "answer": "Answer",
+    "topic": "Topic"
   }
 }

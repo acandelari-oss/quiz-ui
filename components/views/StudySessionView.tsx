@@ -480,6 +480,7 @@ async function generateQuiz() {
         {step === 0 && (
           <>
             <FlashcardsView
+              projectId={projectId}
               flashcards={flashcards}
               openCard={openCard}
               setOpenCard={setOpenCard}

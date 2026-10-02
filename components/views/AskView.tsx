@@ -392,29 +392,13 @@ function downloadAskPDF() {
         ))}
       </div>
 
-      {asking && (
-        <div style={{ display: "flex", justifyContent: "flex-start", marginTop: 10 }}>
-          <div style={{
-            background: "#1f2937",
-            padding: "10px 12px",
-            borderRadius: 8,
-            color: "#9ca3af",
-            display: "flex",
-            alignItems: "center",
-            gap: 8
-          }}>
-            <div style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-	              background: "#36F2ED",
-              animation: "pulse 1s infinite"
-            }} />
-            {translate('stats.Thinking...')}
-          </div>
+      <div role="status" style={{ display: asking ? "flex" : "none", justifyContent: "flex-start", marginTop: 10 }}>
+        <div style={{ background: "#1f2937", padding: "10px 12px", borderRadius: 8, color: "#9ca3af", display: "flex", alignItems: "center", gap: 8 }}>
+          <img src="/douno_chat.gif" alt="" width={50} height={50} style={{ width: 50, height: 50, objectFit: "contain", flexShrink: 0 }} />
+          {asking && <span>{translate('stats.Thinking...')}</span>}
         </div>
-      )}
-                  
+      </div>
+
       <div className="ask-mobile-input-area" style={{ marginTop: 15 }}>
         <div style={{ position: "relative", width: "100%" }}>
           <div className="ask-mobile-search-card" style={{

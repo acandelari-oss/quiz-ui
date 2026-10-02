@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import StudyAnswerChat, { AnswerChatHistory } from "../ui/StudyAnswerChat"
+import { useEffect, useRef, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import { useTranslation } from 'react-i18next';
 import MarkdownContent from "@/components/ui/MarkdownContent"
@@ -18,6 +19,7 @@ onBackToDashboard
 }) {
 const { t: translate } = useTranslation();
 
+const chatHistories = useRef<AnswerChatHistory>(new Map())
 const [currentIndex, setCurrentIndex] = useState(0)
 const cardTurned = Boolean(openCard)
 
@@ -295,7 +297,7 @@ if(openCard === null){
     <div className="flashcards-execution-shell">
       <div className="flashcards-deck-progress">
         <div className="flashcards-card-counter">
-          Card {currentIndex + 1} / {flashcards.length}
+          {translate("flashcardsUi.counter", { current: currentIndex + 1, total: flashcards.length })}
         </div>
 
         <div className="flashcards-progress-bar" style={progressBar}>
@@ -325,14 +327,14 @@ if(openCard === null){
         >
           <div className={`flashcards-card-flipper ${cardTurned ? "is-turned" : ""}`}>
             <section className="flashcards-card-face flashcards-card-front">
-              <div className="flashcards-card-kind">Question</div>
+              <div className="flashcards-card-kind">{translate("flashcardsUi.question")}</div>
               <h2 className="flashcards-question">
                 <MarkdownContent text={card.question} inline />
               </h2>
 
               {card.topic && (
                 <div className="flashcards-topic">
-                  Topic: {card.topic}
+                  {translate("flashcardsUi.topic")}: {card.topic}
                 </div>
               )}
 
@@ -348,7 +350,7 @@ if(openCard === null){
             </section>
 
             <section className="flashcards-card-face flashcards-card-back">
-              <div className="flashcards-card-kind">Answer</div>
+              <div className="flashcards-card-kind">{translate("flashcardsUi.answer")}</div>
               <div className="flashcards-back-question">
                 <MarkdownContent text={card.question} inline />
               </div>
@@ -360,6 +362,8 @@ if(openCard === null){
           </div>
         </div>
       </div>
+
+
 
       {!cardTurned && (
         <div className="flashcards-recall-hint">
@@ -428,6 +432,20 @@ if(openCard === null){
           </div>
         </div>
       )}
+
+      {cardTurned && projectId && <div className="flashcards-chat-box"><StudyAnswerChat
+        key={JSON.stringify([projectId, card.id, currentIndex, card.question, card.answer])}
+        conversationId={JSON.stringify([projectId, card.id, currentIndex, card.question, card.answer])}
+        histories={chatHistories.current}
+        projectId={projectId}
+        kind="flashcard"
+        context={`Flashcard question:
+${card.question}
+Answer:
+${card.answer}
+Topic:
+${card.topic || ""}`}
+      /></div>}
 
       <div className="flashcards-shortcut-box">
         <div className="flashcards-shortcut-title">
@@ -557,6 +575,7 @@ if(openCard === null){
 
         .flashcards-card-flipper {
           position: relative;
+          display: grid;
           width: 100%;
           min-height: 360px;
           transform-style: preserve-3d;
@@ -568,8 +587,10 @@ if(openCard === null){
         }
 
         .flashcards-card-face {
-          position: absolute;
-          inset: 0;
+          position: relative;
+          grid-area: 1 / 1;
+          min-width: 0;
+          overflow-wrap: anywhere;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -605,11 +626,17 @@ if(openCard === null){
           margin-bottom: 22px;
         }
 
+        .flashcards-card-face > * {
+          min-width: 0;
+          max-width: 100%;
+          flex-shrink: 0;
+        }
+
         .flashcards-question {
           font-size: clamp(28px, 3.2vw, 42px);
           line-height: 1.23;
           font-weight: 760;
-          max-width: 680px;
+          max-width: min(680px, 100%);
           margin: 0;
         }
 
@@ -635,7 +662,7 @@ if(openCard === null){
           font-size: 17px;
           line-height: 1.35;
           font-weight: 560;
-          max-width: 650px;
+          max-width: min(650px, 100%);
         }
 
         .flashcards-answer-divider {
@@ -646,7 +673,7 @@ if(openCard === null){
         }
 
         .flashcards-answer {
-          max-width: 650px;
+          max-width: min(650px, 100%);
           color: #f8fafc;
           font-size: clamp(22px, 2.4vw, 30px);
           line-height: 1.42;
@@ -718,7 +745,17 @@ if(openCard === null){
           line-height: 1.25;
         }
 
+        .flashcards-chat-box {
+          width: 100%;
+          max-width: 760px;
+          min-width: 0;
+          margin: 24px auto 0;
+          box-sizing: border-box;
+        }
+
         .flashcards-shortcut-box {
+          width: 100%;
+          box-sizing: border-box;
           max-width: 760px;
           margin: 30px auto 0;
           padding: 16px 18px;

@@ -900,5 +900,36 @@
     "on": "Attivo",
     "off": "Disattivato",
     "blocked": "Il browser richiede un tocco per riprodurre l’audio. Premi Riascolta la domanda."
+  },
+  "answerChat": {
+    "sourceMode": "Fonti delle risposte",
+    "materialOnly": "Solo materiale di studio",
+    "materialAndKnowledge": "Materiale + conoscenze dell’IA",
+    "materialHelp": "Le risposte si basano solo sul materiale di studio caricato.",
+    "expandedHelp": "Le risposte possono includere conoscenze generali dell’IA. Non viene effettuata una ricerca sul web in tempo reale.",
+    "title": "Approfondisci con DO·U·NO",
+    "cardTitle": "Fai una domanda al riguardo",
+    "quizTitle": "Chiedi chiarimenti sulla domanda",
+    "why": "Perché la mia risposta è sbagliata?",
+    "simpler": "Spiegalo in modo più semplice",
+    "example": "Fammi un altro esempio",
+    "compare": "Perché la risposta corretta è migliore?",
+    "remember": "Aiutami a ricordarlo",
+    "you": "Tu:",
+    "tutor": "Tutor:",
+    "placeholder": "Chiedi un chiarimento…",
+    "startMic": "Avvia dettatura",
+    "stopMic": "Interrompi dettatura",
+    "send": "Chiedi",
+    "loading": "Elaborazione…",
+    "error": "Impossibile ottenere una risposta. La domanda è ancora qui; premi Chiedi per riprovare.",
+    "micUnavailable": "Dettatura non disponibile. Puoi comunque scrivere la domanda.",
+    "global": "Includi le conoscenze generali dell’IA"
+  },
+  "flashcardsUi": {
+    "counter": "Scheda {{current}} / {{total}}",
+    "question": "Domanda",
+    "answer": "Risposta",
+    "topic": "Argomento"
   }
 }
