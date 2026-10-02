@@ -1,3 +1,4 @@
+import { isUploadView, shouldPresentUploadResult, uploadStatusForWorkspace } from "../utils/backgroundUpload"
 import { useState, useEffect, useRef, type MutableRefObject } from "react";
 import Image from "next/image";
 import { supabase } from "../lib/supabase";
@@ -455,6 +456,25 @@ const [finished,setFinished]=useState(false)
 
 const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
 const [activeView,setActiveView]=useState("project")
+const activeUploadViewRef = useRef(activeView)
+activeUploadViewRef.current = activeView
+const [uploadCanContinue, setUploadCanContinue] = useState(false)
+const uploadCanContinueRef = useRef(false)
+const [uploadNotice, setUploadNotice] = useState("")
+
+function presentUploadFailure() {
+  setUploadNotice("failed")
+  if (shouldPresentUploadResult(uploadCanContinueRef.current, activeUploadViewRef.current)) {
+    setActiveView("upload_error")
+  }
+}
+
+function blockProjectChangeDuringUpload() {
+  if (!uploadWorkflowActiveRef.current) return false
+  setUploadNotice("locked")
+  return true
+}
+
 
 useEffect(() => {
   if (!projectId) {
@@ -607,7 +627,7 @@ const toolPanelAvailableForView =
   toolPanelUseful
   && !directWorkspaceViews.has(activeView)
 
-const uploadWorkspaceActive =
+const uploadWorkspaceActive = (!uploadCanContinue || isUploadView(activeView)) && (
   uploadWorkflowActive
   || uploading
   || status === "Processing topics..."
@@ -621,6 +641,7 @@ const uploadWorkspaceActive =
     )
   )
 
+)
 const mobileNavigationSelected = isMobileLayout
 const mobileHome = false
 const mobileConfiguration =
@@ -887,6 +908,7 @@ function requiresStudyMode(nextView: string) {
 }
 
 function navigateWorkspace(nextView: string) {
+  if (nextView === "create_project" && blockProjectChangeDuringUpload()) return
   if (!requiresStudyMode(nextView)) {
     if (studyActivityLabel(nextView)) keepApprovedTopicSelection()
     setActiveView(nextView)
@@ -907,6 +929,7 @@ function keepApprovedTopicSelection() {
 }
 
 function handleSidebarNavigation(nextView: string, studyApproved = false) {
+  if (nextView === "create_project" && blockProjectChangeDuringUpload()) return
   if (!studyApproved && requiresStudyMode(nextView)) return
   if (studyActivityLabel(nextView)) keepApprovedTopicSelection()
 
@@ -1039,6 +1062,10 @@ function openLearningFeature(view: string) {
 }
 
 function unloadActiveProject(reason = "unload active project") {
+  if (blockProjectChangeDuringUpload()) return
+  setUploadCanContinue(false)
+  uploadCanContinueRef.current = false
+  setUploadNotice("")
   uploadLifecycleTrace("unloadActiveProject called", {
     projectId,
     projectName,
@@ -1217,7 +1244,7 @@ function updateProjectPriorityCategories(projectId: string, nextPriorityCategori
   )
 }
 
-async function beginStudy(nextView = "learning_home") {
+async function beginStudy(nextView = "learning_home", moduleId = approvalModuleId) {
   if (!projectId) throw new Error("Select a project first.")
 
   const { data: sessionData } = await supabase.auth.getSession()
@@ -1225,7 +1252,7 @@ async function beginStudy(nextView = "learning_home") {
   if (!token) throw new Error("Please sign in again to enter Study Mode.")
 
   const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}${approvalModuleId ? `/modules/${encodeURIComponent(approvalModuleId)}` : ""}/begin_study`,
+    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}${moduleId ? `/modules/${encodeURIComponent(moduleId)}` : ""}/begin_study`,
     {
       method: "POST",
       headers: {
@@ -1322,7 +1349,7 @@ useEffect(() => {
 }, [uploading])
 
 useEffect(() => {
-  if(activeView !== "project"){
+  if(activeView !== "project" && !uploadWorkflowActiveRef.current){
     uploadFlightLog(uploadSessionRef.current, "Active view changed; clearing transient status", {
       activeView,
       previousStatus: status
@@ -1541,6 +1568,7 @@ async function loadResults(projectId: string) {
 }
 
 async function createProject(){
+  if (blockProjectChangeDuringUpload()) return
 
 if(creatingProjectRef.current) return
 
@@ -1649,6 +1677,7 @@ setCreatingProject(false)
 }
 
 async function deleteProject(id:string){
+  if (blockProjectChangeDuringUpload()) return
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
@@ -1872,6 +1901,10 @@ async function uploadFiles(){
     uploadProjectId
   })
 
+  const canContinue = documents.length > 0 || topics.length > 0
+  uploadCanContinueRef.current = canContinue
+  setUploadCanContinue(canContinue)
+  setUploadNotice("uploading")
   uploadWorkflowActiveRef.current = true
   uploadFlightLog(uploadSessionId, "Upload workflow lock acquired")
   traceSetterCall(
@@ -1941,11 +1974,11 @@ uploadFlightLog(uploadSessionId, "Auth token available", Boolean(token))
 if(!token) {
   uploadFlightLog(uploadSessionId, "Stopped because missing token")
   setUploadStatus("Please log in again before uploading documents")
+  setUploadNotice("failed")
   uploadFlightLog(uploadSessionId, "setUploadStatus(Please log in again before uploading documents)")
   setUploading(false)
   uploadFlightLog(uploadSessionId, "setUploading(false)")
-  uploadWorkflowActiveRef.current = false
-  setUploadWorkflowActive(false)
+
   uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
   uploadSessionRef.current = null
   return
@@ -2034,7 +2067,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       setUploadStatus(nextMessage);
       setUploadLog("")
       setProjectReadyVisible(false)
-      setActiveView("upload_error")
+      presentUploadFailure()
       uploadFlightLog(uploadSessionId, "setUploadStatus(upload failed)", {
         message: nextMessage
       })
@@ -2042,8 +2075,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       uploadFlightLog(uploadSessionId, "setUploading(false)")
       setStatus("Upload failed")
       uploadFlightLog(uploadSessionId, "setStatus(Upload failed)")
-      uploadWorkflowActiveRef.current = false;
-      setUploadWorkflowActive(false);
+
       uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
       uploadSessionRef.current = null
       await loadDocuments(uploadProjectId)
@@ -2059,7 +2091,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
         projectId: uploadProjectId
       })
       setUploadStatus(nextMessage)
-      setActiveView("upload_error")
+      presentUploadFailure()
       uploadFlightLog(uploadSessionId, "setUploadStatus(upload stream failed)", {
         message: nextMessage
       })
@@ -2070,8 +2102,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       setUploading(false)
       uploadFlightLog(uploadSessionId, "setUploading(false)")
       setProjectReadyVisible(false)
-      uploadWorkflowActiveRef.current = false
-      setUploadWorkflowActive(false)
+
       uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
       uploadSessionRef.current = null
       await loadDocuments(uploadProjectId)
@@ -2089,6 +2120,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       "upload response ok"
     )
     setStatus("Processing topics...");
+    setUploadNotice("processing")
     uploadFlightLog(uploadSessionId, "setStatus(Processing topics...)")
     traceSetterCall(
       "setUploadStatus",
@@ -2118,8 +2150,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     uploadFlightLog(uploadSessionId, "Post-poll loadStudyModules() completed", {
       projectId: uploadProjectId
     })
-    uploadWorkflowActiveRef.current = false;
-    setUploadWorkflowActive(false);
+
     uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
     uploadFlightLog(uploadSessionId, "Upload workflow completed")
     uploadSessionRef.current = null
@@ -2131,7 +2162,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
 
     // Pulizia estetica del log dopo un po'
     setTimeout(() => {
-      setUploadLog("");
+      if (!uploadWorkflowActiveRef.current) setUploadLog("");
     }, 2000);
 
   } catch (e) {
@@ -2141,7 +2172,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     const nextMessage = `The latest upload failed: ${failureMessage}. Please try again.`
     setUploadStatus(nextMessage);
     setUploadLog("")
-    setActiveView("upload_error")
+    presentUploadFailure()
     uploadFlightLog(uploadSessionId, "setUploadStatus(upload exception)", {
       message: nextMessage
     })
@@ -2150,10 +2181,13 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     setProjectReadyVisible(false)
     setUploading(false);
     uploadFlightLog(uploadSessionId, "setUploading(false)")
-    uploadWorkflowActiveRef.current = false;
-    setUploadWorkflowActive(false);
+
     uploadFlightLog(uploadSessionId, "setUploadWorkflowActive(false)")
     uploadSessionRef.current = null
+  } finally {
+    // Keep the project lock until all upload callbacks and metadata reloads finish.
+    uploadWorkflowActiveRef.current = false
+    setUploadWorkflowActive(false)
   }
 } // Chiusura finale della funzione uploadFiles
 
@@ -2248,6 +2282,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
 
   if(!token) {
     uploadFlightLog(flightSessionId, "Polling stopped because missing token")
+    setUploadNotice("failed")
     return
   }
 
@@ -2311,10 +2346,9 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
     uploadFlightLog(flightSessionId, "setUploadLog(empty)")
     setProjectReadyVisible(false)
     uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
-    setActiveView("upload_error")
+    presentUploadFailure()
     uploadFlightLog(flightSessionId, "setActiveView(upload_error)")
-    uploadWorkflowActiveRef.current = false
-    setUploadWorkflowActive(false)
+
     uploadFlightLog(flightSessionId, "setUploadWorkflowActive(false)")
     uploadSessionRef.current = null
 
@@ -2463,23 +2497,13 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         console.log("🧪 loadTopics FINISHED")
         console.log("✅ TOPICS LOADED")
 
-        traceSetterCall(
-          "setActiveView",
-          activeView,
-          "project",
-          "polling completed block shows post-upload completion screen"
-        )
-        setActiveView("project")
-        traceSetterCall(
-          "setToolPanelCollapsed",
-          toolPanelCollapsed,
-          !isMobileLayout,
-          "polling completed block"
-        )
-        setToolPanelCollapsed(true)
-        uploadFlightLog(flightSessionId, "setProjectReadyVisible(true)")
-        setProjectReadyVisible(true)
-        setProjectReadyDismissed(false)
+        setUploadNotice("ready")
+        if (shouldPresentUploadResult(uploadCanContinueRef.current, activeUploadViewRef.current)) {
+          setActiveView("project")
+          setToolPanelCollapsed(true)
+          setProjectReadyVisible(true)
+          setProjectReadyDismissed(false)
+        }
         uploadFlightLog(flightSessionId, "setStatus(Project upload completed)")
         traceSetterCall(
           "setStatus",
@@ -2508,6 +2532,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
           "completed-block error state"
         )
         setUploadStatus("Topics ready, but loading topics failed")
+        setUploadNotice("failed")
         uploadFlightLog(flightSessionId, "setProjectReadyVisible(false)")
         setProjectReadyVisible(false)
         uploadFlightLog(flightSessionId, "setStatus(empty)")
@@ -2558,7 +2583,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         "upload_error",
         "topic-status error block"
       )
-      setActiveView("upload_error")
+      presentUploadFailure()
       resolvePolling("error")
 
       return
@@ -2574,6 +2599,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         maxPollingMs
       })
       setUploadStatus("Topic generation timeout")
+      setUploadNotice("failed")
       uploadFlightLog(flightSessionId, "setUploadStatus(Topic generation timeout)")
       traceSetterCall(
         "setStatus",
@@ -2915,6 +2941,10 @@ async function selectProject(
   availableProjects = projects,
   options: { previewOnly?: boolean } = {}
 ) {
+  if (blockProjectChangeDuringUpload()) return false
+  setUploadCanContinue(false)
+  uploadCanContinueRef.current = false
+  setUploadNotice("")
   uploadLifecycleTrace("selectProject invoked", {
     previousProjectId: projectId,
     nextProjectId: id,
@@ -4225,6 +4255,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       )}
       <div style={mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
       <Sidebar
+        uploadNotice={uploadNotice}
+        uploadInProgress={uploadWorkflowActive}
+        onDismissUploadNotice={() => setUploadNotice("")}
+        onReviewUpload={() => handleSidebarNavigation("topics")}
         onUploadNewFiles={() => openProjectFiles(projectId)}
         uploadBusy={uploadWorkflowActive}
         activeView={plannerGuidedSessionActive ? "planner_view" : activeView}
@@ -4421,7 +4455,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         resultsData={resultsData}
         calculateScore={calculateScore}
         uploadLog={uploadLog}
-        uploading={uploading}
+        uploading={uploading && (!uploadCanContinue || isUploadView(activeView))}
         files={files}
         setFiles={setFiles}
         uploadFiles={uploadFiles}
@@ -4444,7 +4478,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         loadQuizStats={loadQuizStats}
         loadHistoryStats={loadQuizStatsByQuiz} // Opzionale: passa quella per i grafici con un altro nome
         loadPreviousQuizzes={loadPreviousQuizzes}
-        status={status}
+        status={uploadStatusForWorkspace(status, uploadCanContinue, activeView)}
         loadingFlashcards={loadingFlashcards}
         generatingFlashcards={generatingFlashcards}
         selectedTopic={selectedTopic}
@@ -4478,6 +4512,8 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 	        plannerActivityDebriefs={plannerRuntime.activityDebriefs}
         onUploadNewFiles={openProjectFiles}
         onUploadAnotherFile={openProjectUploadWorkspace}
+        studyModules={studyModules}
+        onBeginModuleStudy={(moduleId: string) => beginStudy("topics", moduleId)}
         onBeginStudy={() => {
           setStudyGateError("")
           setApprovalModuleId(currentEditableUploadModule?.id || "")

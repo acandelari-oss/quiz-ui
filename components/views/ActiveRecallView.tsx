@@ -461,7 +461,10 @@ export default function ActiveRecallView({
             maxWidth: "85%",
             marginLeft: m.role === "user" ? "auto" : "0"
           }}>
-            <strong>{m.role === "assistant" ? "AI:" : "Tu:"}</strong>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              {m.role === "assistant" && <img src="/icons/ico_logo.png" alt="" width={28} height={28} style={{ width: 28, height: 28, objectFit: "contain", flexShrink: 0 }} />}
+              <strong>{m.role === "assistant" ? "AI:" : "Tu:"}</strong>
+            </div>
             {m.topic && <div style={{ fontSize: "11px", color: "#2FA4A9" }}>Focus: {m.topic}</div>}
             <div style={{ marginTop: 5 }}>
               <MarkdownContent

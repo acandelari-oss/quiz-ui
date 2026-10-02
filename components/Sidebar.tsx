@@ -5,6 +5,10 @@ import { supabase } from "../lib/supabase";
 import { shellHeaderCell } from "./layoutStyles";
 
 export default function Sidebar({ 
+  uploadNotice,
+  uploadInProgress,
+  onDismissUploadNotice,
+  onReviewUpload,
   onUploadNewFiles,
   uploadBusy,
   activeView,
@@ -75,7 +79,7 @@ export default function Sidebar({
     <div className="desktop-sidebar-scroll" style={{
       ...sidebar,
       width: mobileHome ? "100%" : compactMode ? 56 : 260,
-      padding: mobileHome ? "38px 28px 24px" : compactMode ? "12px 6px" : 20,
+      padding: mobileHome ? "22px 28px 24px" : compactMode ? "12px 6px" : "8px 20px 20px",
       alignItems: compactMode ? "center" : "stretch"
     }}>
 
@@ -87,13 +91,24 @@ export default function Sidebar({
       ) : !compactMode && (
         <div style={logoBox}>
           <Image
-            src="/logodun.png"
-            width={220}
-            height={60}
-            alt="Do U no logo"
+            src="/douno-logo4.png"
+            width={180}
+            height={180}
+            alt="DOUNO Logo"
+            style={{ display: "block", maxWidth: "100%", height: "auto" }}
           />
         </div>
       )}
+
+      {uploadNotice && <div role="status" aria-label={translate(`backgroundUpload.${uploadNotice}`)} title={translate(`backgroundUpload.${uploadNotice}`)} style={{ flexShrink: 0, margin: "10px 0", padding: compactMode ? "8px 3px" : 10, border: "1px solid #2FA4A9", borderRadius: 8, color: "#cbd5e1", fontSize: 12, overflowWrap: "anywhere", maxWidth: "100%" }}>
+        <span>{compactMode ? (uploadInProgress ? "↑…" : uploadNotice === "ready" ? "✓" : "!") : translate(`backgroundUpload.${uploadNotice}`)}</span>
+        {compactMode && <span style={{ display: "block", fontSize: 9 }}>{translate(uploadInProgress ? "backgroundUpload.busyShort" : uploadNotice === "ready" ? "backgroundUpload.readyShort" : "backgroundUpload.errorShort")}</span>}
+        {!compactMode && uploadInProgress && <p style={{ margin: "6px 0 0" }}>{translate("backgroundUpload.keepStudying")}</p>}
+        {!uploadInProgress && <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+          {uploadNotice === "ready" && <button type="button" onClick={onReviewUpload} title={translate("backgroundUpload.review")} aria-label={translate("backgroundUpload.review")} style={{ padding: 4, fontSize: 11 }}>{compactMode ? "→" : translate("backgroundUpload.review")}</button>}
+          <button type="button" onClick={onDismissUploadNotice} aria-label={translate("backgroundUpload.dismiss")} style={{ padding: 4 }}>×</button>
+        </div>}
+      </div>}
 
       {/* PROJECT */}
 	      {!compactMode && (
@@ -594,6 +609,9 @@ const sidebar = {
 
 const logoBox = {
   ...shellHeaderCell,
+  minHeight: 200,
+  flexShrink: 0,
+  padding: "4px 0 16px",
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
@@ -601,6 +619,7 @@ const logoBox = {
 };
 
 const mobileHomeLogoBox: React.CSSProperties = {
+  flexShrink: 0,
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
@@ -631,6 +650,7 @@ const sectionTitle = {
 };
 
 const currentProjectCard: React.CSSProperties = {
+  flexShrink: 0,
   border: "1px solid rgba(54, 242, 237, 0.18)",
   borderRadius: 14,
   background:

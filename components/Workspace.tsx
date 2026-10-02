@@ -10,7 +10,7 @@ import PlannerView from "./views/PlannerView"
 import RelationshipLabView from "./views/RelationshipLabView"
 import { Heading2 } from "lucide-react"
 import { supabase } from "../lib/supabase"
-import TopicsView from "./views/TopicsView"
+import ModuleTopicsView from "./views/ModuleTopicsView"
 import { useTranslation } from 'react-i18next';
 import HintBox from "@/components/ui/HintBox";
 import MarkdownContent from "@/components/ui/MarkdownContent";
@@ -157,6 +157,8 @@ plannerActivityDebriefs,
 onUploadAnotherFile,
 onUploadNewFiles,
 onBeginStudy,
+onBeginModuleStudy,
+studyModules,
 onLearningHomeLaunch,
 onStartFocusStudySession,
 onUseProject,
@@ -384,11 +386,6 @@ const showProjectReadyScreen =
     projectReadyVisible
     || Boolean(projectId && ((documents?.length || 0) > 0 || (topics?.length || 0) > 0))
   )
-const showTaxonomyReviewCompletionBar =
-  activeView === "topics"
-  && (projectStudyMode === "building" || topics?.some((topic: any) => topic.module_id && !topic.accepted_for_study))
-  && Boolean(projectId)
-  && Boolean((documents?.length || 0) > 0 || (topics?.length || 0) > 0)
 const plannerGuidedSessionActive =
   plannerRuntime?.dailyPlan
   && (
@@ -1351,7 +1348,12 @@ return (
 	          {translate('stats.Tap the star icon next to a category to mark it as a Study Priority. You can select up to three categories. DOUNO will give these categories more attention when building your personalized Study Plan.')}
 	        </p>
 
-        <TopicsView
+        <ModuleTopicsView
+          key={projectId}
+          studyModules={studyModules}
+          projectName={projectName}
+          onBeginModuleStudy={onBeginModuleStudy}
+          uploadWorkflowActive={uploadWorkflowActive}
           topics={topics}
           loadTopics={loadTopics}
           projectId={projectId}
@@ -1372,38 +1374,9 @@ return (
 	          setPriorityCategories={setPriorityCategories}
 	          onPriorityCategoriesSaved={onPriorityCategoriesSaved}
 	        />
-        {showTaxonomyReviewCompletionBar && (
-          <div className="taxonomy-review-completion" style={taxonomyReviewCompletionBar}>
-            <div>
-              <div style={taxonomyReviewCompletionTitle}>
-                {translate("stats.Finished reviewing your taxonomy?")}
-              </div>
-              <div style={taxonomyReviewCompletionText}>
-                {translate("stats.You can still upload more material, or approve this organization and enter Study Mode.")}
-              </div>
-            </div>
-            <div className="taxonomy-review-completion-actions" style={taxonomyReviewCompletionActions}>
-              <button
-                type="button"
-                style={projectReadySecondaryButton}
-                onClick={() => {
-                  onUploadAnotherFile?.()
-                }}
-              >
-                {translate("stats.UPLOAD ANOTHER FILE")}
-              </button>
-              <button
-                type="button"
-                style={projectReadyButton}
-                onClick={() => {
-                  onBeginStudy?.()
-                }}
-              >
-                {translate("stats.APPROVE & START STUDYING")}
-              </button>
-            </div>
-          </div>
-        )}
+        <button type="button" style={{ ...projectReadySecondaryButton, marginTop: 20 }} disabled={uploadWorkflowActive} onClick={() => onUploadAnotherFile?.()}>
+          {translate("stats.UPLOAD ANOTHER FILE")}
+        </button>
         <style jsx global>{`
           @media (max-width: 900px) {
             .taxonomy-review-completion {

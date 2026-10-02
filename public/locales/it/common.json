@@ -931,5 +931,30 @@
     "question": "Domanda",
     "answer": "Risposta",
     "topic": "Argomento"
+  },
+  "backgroundUpload": {
+    "uploading": "Caricamento dei nuovi file…",
+    "processing": "Organizzazione del nuovo materiale…",
+    "ready": "Il nuovo materiale è pronto per la revisione.",
+    "failed": "Il caricamento non è stato completato. Il materiale esistente resta disponibile.",
+    "locked": "Attendi la fine del caricamento prima di cambiare progetto.",
+    "keepStudying": "Puoi continuare a usare i moduli in modalità Studio. Lascia aperta questa scheda.",
+    "review": "Rivedi il nuovo materiale",
+    "dismiss": "Chiudi avviso caricamento",
+    "busyShort": "Upload",
+    "readyShort": "Pronto",
+    "errorShort": "Verifica"
+  },
+  "moduleTopics": {
+    "approveFirst": "Entra in modalità Studio per questo modulo prima di avviare un’attività di studio.",
+    "module": "Modulo di studio",
+    "study": "Modalità Studio",
+    "review": "Modalità Revisione",
+    "processing": "Elaborazione",
+    "failed": "Elaborazione non riuscita",
+    "enter": "Entra in modalità Studio",
+    "approving": "Approvazione…",
+    "approvalHelp": "Entra in modalità Studio per bloccare la tassonomia di questo modulo. Gli altri moduli restano invariati.",
+    "error": "Impossibile approvare questo modulo. Riprova."
   }
 }

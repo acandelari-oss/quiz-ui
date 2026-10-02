@@ -127,7 +127,10 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
     </div>
     {open && <div style={{ marginTop: 12 }}>
       {messages.map((message, index) => <div key={index} style={{ marginBottom: 12, color: message.role === "user" ? "#93c5fd" : "#d1d5db", overflowWrap: "anywhere" }}>
-        <strong>{t(message.role === "user" ? "answerChat.you" : "answerChat.tutor")}</strong>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          {message.role === "assistant" && <img src="/icons/ico_logo.png" alt="" width={28} height={28} style={{ width: 28, height: 28, objectFit: "contain", flexShrink: 0 }} />}
+          <strong>{t(message.role === "user" ? "answerChat.you" : "answerChat.tutor")}</strong>
+        </div>
         <MarkdownContent text={message.content} />
       </div>)}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>

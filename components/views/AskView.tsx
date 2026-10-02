@@ -379,6 +379,10 @@ function downloadAskPDF() {
                 lineHeight: m.role === "user" ? 1.6 : 1.42
               }}
             >
+              {m.role === "assistant" && <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <img src="/icons/ico_logo.png" alt="" width={28} height={28} style={{ width: 28, height: 28, objectFit: "contain", flexShrink: 0 }} />
+                <strong>DO·U·NO</strong>
+              </div>}
               <MarkdownContent
                 text={m.content}
                 className={m.role === "assistant"

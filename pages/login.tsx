@@ -67,7 +67,7 @@ export default function LoginPage() {
   }}
 >
   <Image
-    src="/douno-log.png"
+    src="/douno-logo.png"
     width={180}
     height={180}
     alt="DOUNO Logo"

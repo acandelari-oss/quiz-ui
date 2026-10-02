@@ -931,5 +931,30 @@
     "question": "Question",
     "answer": "Answer",
     "topic": "Topic"
+  },
+  "backgroundUpload": {
+    "uploading": "Uploading new files…",
+    "processing": "Organizing new material…",
+    "ready": "New material is ready for review.",
+    "failed": "The upload could not finish. Existing material is still available.",
+    "locked": "Please wait for the upload to finish before changing projects.",
+    "keepStudying": "You can continue using existing Study Mode modules. Keep this tab open.",
+    "review": "Review new material",
+    "dismiss": "Dismiss upload notice",
+    "busyShort": "Upload",
+    "readyShort": "Ready",
+    "errorShort": "Check"
+  },
+  "moduleTopics": {
+    "approveFirst": "Enter Study Mode for this module before starting a study activity.",
+    "module": "Study module",
+    "study": "Study Mode",
+    "review": "Review Mode",
+    "processing": "Processing",
+    "failed": "Processing failed",
+    "enter": "Enter Study Mode",
+    "approving": "Approving…",
+    "approvalHelp": "Enter Study Mode to freeze this module’s taxonomy. Other modules remain unchanged.",
+    "error": "Could not approve this module. Please try again."
   }
 }
