@@ -1,3 +1,6 @@
+import { acquisitionReports, uploadPublished, type AcquisitionReport } from "../utils/uploadAcquisition"
+import { generationResponseError } from "../utils/generationError"
+import { readChatStream } from "../utils/chatStream"
 import { isUploadView, shouldPresentUploadResult, uploadStatusForWorkspace } from "../utils/backgroundUpload"
 import { useState, useEffect, useRef, type MutableRefObject } from "react";
 import Image from "next/image";
@@ -404,9 +407,12 @@ const studyTopics = topics.filter((topic: any) => !topic.module_id || topic.acce
 
 const [quiz,setQuiz]=useState<any[]>([])
 const [previousQuizzes,setPreviousQuizzes]=useState<any[]>([])
+const libraryProjectRef = useRef(projectId)
+libraryProjectRef.current = projectId
 const [quizId,setQuizId]=useState("")
 
 const [generatingQuiz,setGeneratingQuiz]=useState(false)
+const [generationError, setGenerationError] = useState("")
 
 const [flashcards,setFlashcards]=useState<any[]>([])
 const [studyFlashcards,setStudyFlashcards] = useState<any[]>([])
@@ -420,6 +426,8 @@ const [askQuestion,setAskQuestion]=useState("")
 const [askAnswer,setAskAnswer]=useState("")
 const [chatMessages,setChatMessages]=useState<any[]>([])
 const [asking,setAsking]=useState(false)
+const askRequestRef = useRef<AbortController | null>(null)
+
 const [oralAudioEnabled, setOralAudioEnabled] = useState(true)
 const [useGlobalKnowledge, setUseGlobalKnowledge] = useState(false)
 
@@ -456,13 +464,16 @@ const [finished,setFinished]=useState(false)
 
 const [expanded,setExpanded]=useState<{[key:number]:boolean}>({})
 const [activeView,setActiveView]=useState("project")
+useEffect(() => { setAsking(false); return () => { askRequestRef.current?.abort(); askRequestRef.current = null } }, [projectId, activeView])
 const activeUploadViewRef = useRef(activeView)
 activeUploadViewRef.current = activeView
 const [uploadCanContinue, setUploadCanContinue] = useState(false)
 const uploadCanContinueRef = useRef(false)
 const [uploadNotice, setUploadNotice] = useState("")
+const [acquisition, setAcquisition] = useState<{ projectId: string; phase: string; reports: AcquisitionReport[] }>({ projectId: "", phase: "processing", reports: [] })
 
 function presentUploadFailure() {
+  setAcquisition(previous => ({ ...previous, phase: "failed" }))
   setUploadNotice("failed")
   if (shouldPresentUploadResult(uploadCanContinueRef.current, activeUploadViewRef.current)) {
     setActiveView("upload_error")
@@ -929,6 +940,7 @@ function keepApprovedTopicSelection() {
 }
 
 function handleSidebarNavigation(nextView: string, studyApproved = false) {
+  setGenerationError("")
   if (nextView === "create_project" && blockProjectChangeDuringUpload()) return
   if (!studyApproved && requiresStudyMode(nextView)) return
   if (studyActivityLabel(nextView)) keepApprovedTopicSelection()
@@ -991,10 +1003,15 @@ function handleSidebarNavigation(nextView: string, studyApproved = false) {
     setTimeLeft(0)
   }
 
-  if (nextView === "generate_flashcards" || nextView === "flashcards") {
+  if (nextView === "generate_flashcards") {
     setFlashcards([])
     setOpenCard(null)
     setStudyMode(null)
+    setLastFlashcardGeneration(null)
+  }
+
+  if (nextView === "flashcards") {
+    setOpenCard(0)
     setLastFlashcardGeneration(null)
   }
 
@@ -1901,6 +1918,7 @@ async function uploadFiles(){
     uploadProjectId
   })
 
+  setAcquisition({ projectId: uploadProjectId, phase: "processing", reports: [] })
   const canContinue = documents.length > 0 || topics.length > 0
   uploadCanContinueRef.current = canContinue
   setUploadCanContinue(canContinue)
@@ -2004,7 +2022,10 @@ const res = await fetch(
         module_id: continuationModuleId,
         module_name: effectiveModuleName,
         organization_mode: continuationModuleId ? null : moduleOrganizationMode,
-        organization_blueprint: continuationModuleId ? null : organizationBlueprint,
+        organization_blueprint: continuationModuleId ? null : {
+          ...organizationBlueprint,
+          output_language: i18n.language.startsWith("it") ? "Italian" : "English",
+        },
         organization_source_title: !continuationModuleId && moduleOrganizationMode === "syllabus"
           ? "Student-provided index/syllabus"
           : null,
@@ -2033,6 +2054,8 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       const { value, done } = await reader.read();
       
       if (done) {
+        fullText += decoder.decode();
+        setAcquisition({ projectId: uploadProjectId, phase: "processing", reports: acquisitionReports(fullText) });
         console.log("STREAM FINITO");
         uploadFlightLog(uploadSessionId, "Stream completed", {
           chunks: streamChunkCount,
@@ -2052,6 +2075,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
         chunkCharacters: chunk.length
       })
       fullText += chunk;
+      setAcquisition({ projectId: uploadProjectId, phase: "processing", reports: acquisitionReports(fullText) });
       setUploadLog(fullText); 
     }
 
@@ -2110,7 +2134,9 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       return
     }
 
-    // 3. Successo! Aggiorniamo la UI e facciamo partire i processi post-upload
+    if (!uploadPublished(fullText)) throw new Error("Upload interrupted before publication was confirmed")
+
+    // Content publication is complete; taxonomy processing is still pending.
     setUploading(false);
     uploadFlightLog(uploadSessionId, "setUploading(false)")
     traceSetterCall(
@@ -2135,7 +2161,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
     uploadFlightLog(uploadSessionId, "pollTopicStatus() starting", {
       projectId: uploadProjectId
     })
-    await pollTopicStatus(uploadProjectId, uploadSessionId);
+    await pollTopicStatus(uploadProjectId, uploadSessionId, fullText.match(/^UPLOAD_MODULE\|([^\n]+)$/m)?.[1]);
     uploadFlightLog(uploadSessionId, "Post-poll loadDocuments() started", {
       projectId: uploadProjectId
     })
@@ -2255,7 +2281,7 @@ async function loadTopics(projectId:string){
   return []
 }
 
-async function pollTopicStatus(projectId:string, uploadSessionId?: string): Promise<void>{
+async function pollTopicStatus(projectId:string, uploadSessionId?: string, moduleId?: string): Promise<void>{
   console.log("🧨 pollTopicStatus CALLED")
   const flightSessionId = uploadSessionId || uploadSessionRef.current
 
@@ -2388,7 +2414,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
     console.log("🔢 POLLING ATTEMPT:", attempts)
     try {
     console.log("🧠 POLLING PROJECT ID:", projectId)
-    const requestUrl = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status?t=${Date.now()}`
+    const requestUrl = `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/topic_status?t=${Date.now()}${moduleId ? `&module_id=${encodeURIComponent(moduleId)}` : ""}`
     uploadFlightLog(flightSessionId, "Poll iteration", {
       pollRunId,
       pollNumber: attempts,
@@ -2460,6 +2486,7 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
         .toLowerCase() === "completed"
     ){
 
+      setAcquisition(previous => ({ ...previous, phase: "completed" }))
       stopPolling("completed")
       pollingRunRef.current = pollRunId + 1
 
@@ -2649,6 +2676,10 @@ async function pollTopicStatus(projectId:string, uploadSessionId?: string): Prom
   })
 }
 
+async function refreshStudyLibrary() {
+  await Promise.allSettled([loadPreviousQuizzes(projectId), loadFlashcards(projectId, true)])
+}
+
 async function loadPreviousQuizzes(projectId: string) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
@@ -2678,11 +2709,12 @@ async function loadPreviousQuizzes(projectId: string) {
     return
   }
 
+  if (libraryProjectRef.current !== projectId) return
   setPreviousQuizzes(quizzes)
   console.log("✅ previousQuizzes caricati:", quizzes.length)
 }
 
-async function loadFlashcards(projectId:string){
+async function loadFlashcards(projectId:string, metadataOnly = false){
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
@@ -2706,16 +2738,17 @@ return
 
 const data = await res.json()
 const loadedCards = data.flashcards || [];
+if (libraryProjectRef.current !== projectId) return
 
 // --- LE RIGHE CHE RISOLVONO TUTTO ---
-setFlashcards(loadedCards); // <--- AGGIUNGI QUESTA: Popola la vista Workspace
+if (!metadataOnly) setFlashcards(loadedCards);
 setPreviousFlashcards(loadedCards); 
 // ------------------------------------
 
 
 
 setAvailableFlashcards((data.flashcards || []).length)
-setStudyMode("loaded")
+if (!metadataOnly) setStudyMode("loaded")
 }catch(e){
 
 console.error("FLASHCARDS LOAD ERROR:",e)
@@ -3084,6 +3117,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     console.log("GENERATE QUIZ FUNCTION RUNNING")
     if (!projectId) return
 
+    setGenerationError("")
     setIsGenerating(true)
     setLoaderType("quiz")
     setGeneratingQuiz(true)
@@ -3101,6 +3135,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     const user = sessionData.session?.user
 
     if (!token || !user) {
+      setGenerationError(i18n.t("generationErrors.session"))
       setIsGenerating(false)
       setGeneratingQuiz(false)
       return
@@ -3187,7 +3222,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         }
       )
 
-      if (!res.ok) throw new Error("Fetch failed")
+      if (!res.ok) throw await generationResponseError(res, i18n.t("generationErrors.quiz"))
 
       const data = await res.json()
       console.log("🔥 QUIZ RESPONSE:", data)
@@ -3217,10 +3252,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         console.warn("⚠️ Nessuna domanda ricevuta dal backend", data)
         setIsGenerating(false)
         setGeneratingQuiz(false)
-        return
+        throw new Error(i18n.t("generationErrors.emptyQuiz"))
       }
       setActiveView("quiz") // Spostato qui per sicurezza
       setQuiz(normalizedQuizData)
+      void refreshStudyLibrary()
       setTimeLeft(0)
       setQuizTargetDurationSeconds(
         normalizedQuizData.length * Math.max(0, Number(effectiveSecondsPerAnswer || 0))
@@ -3237,6 +3273,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
     } catch (err) {
       console.error("QUIZ ERROR:", err)
+      setGenerationError(err instanceof Error ? err.message : i18n.t("generationErrors.quiz"))
     } finally {
       setIsGenerating(false)
       setGeneratingQuiz(false)
@@ -3250,6 +3287,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     if (!projectId) return;
 
     // Inizializzazione stati di caricamento
+    setGenerationError("")
     setIsGenerating(true);       
     setLoaderType("flashcards");
     setGeneratingFlashcards(true);
@@ -3263,6 +3301,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
     const token = sessionData.session?.access_token;
 
     if (!token) {
+      setGenerationError(i18n.t("generationErrors.session"))
       console.error("❌ TOKEN MISSING");
       setGeneratingFlashcards(false);
       setLoadingFlashcards(false);
@@ -3327,14 +3366,14 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       );
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Flashcards generation failed");
+        throw await generationResponseError(res, i18n.t("generationErrors.flashcards"));
       }
 
       const data = await res.json();
       
       if (data.flashcards && data.flashcards.length > 0) {
         setFlashcards(data.flashcards);
+        void refreshStudyLibrary();
         setStudyMode("generated");   
         setLastFlashcardGeneration(
           flashcardGenerationSource === "standalone"
@@ -3357,11 +3396,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         await loadResults(projectId);
 
       } else {
-        alert("L'IA non ha generato flashcards. Prova a selezionare altri argomenti o verifica che ci sia testo a sufficienza.");
+        throw new Error(i18n.t("generationErrors.emptyFlashcards"));
       }
     } catch (e) {
       console.error("FLASHCARDS ERROR:", e);
-      alert(`Errore: ${e.message}`);
+      setGenerationError(e instanceof Error ? e.message : i18n.t("generationErrors.flashcards"));
     } finally {
       // Chiudiamo tutti i loader
       setLoadingFlashcards(false);
@@ -3784,9 +3823,11 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 
   async function askDocuments(imageFile?: File | null) {
     if (requiresStudyMode("ask_setup")) return
-    if (!projectId) return
+    if (!projectId || askRequestRef.current) return
+    const controller = new AbortController()
+    askRequestRef.current = controller
     const questionText = askQuestion.trim()
-    if (!questionText) return
+    if (!questionText) { askRequestRef.current = null; return }
     const previousMessages = chatMessages
     setAsking(true)
     const isFirstAskMessage = previousMessages.length === 0
@@ -3812,6 +3853,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       console.log("PAYLOAD TOPIC_IDS COUNT:", payloadTopicIds.length)
       console.log("PAYLOAD TOPICS COUNT:", payloadTopicNames.length)
 
+      if (controller.signal.aborted) return
       let res: Response
 
       if (imageFile) {
@@ -3822,8 +3864,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         formData.append("history", JSON.stringify(previousMessages.slice(-6)))
         formData.append("expand_search", String(useGlobalKnowledge))
         formData.append("image", imageFile)
+        formData.append("stream", "true")
 
         res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask_with_image`, {
+          signal: controller.signal,
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`
@@ -3832,12 +3876,14 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         })
       } else {
         res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
+          signal: controller.signal,
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`
           },
           body: JSON.stringify({
+            stream: true,
             project_id: projectId,
             question: questionText,
             topics: payloadTopicNames,
@@ -3861,9 +3907,12 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         }
         return
       }
-      const data = await res.json()
-      setChatMessages(currentMessages => [
-        ...currentMessages,
+      const data = await readChatStream(res, content => {
+        setChatMessages([...previousMessages, { role: "user", content: questionText }, { role: "assistant", content }])
+      }, controller.signal)
+      if (controller.signal.aborted) return
+      setChatMessages([
+        ...previousMessages, { role: "user", content: questionText },
         {
           role: "assistant",
           content: data.answer,
@@ -3877,6 +3926,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         askLearningSessionIdRef.current = null
       }
     } catch (e) {
+      if (controller.signal.aborted) return
       console.error("ASK ERROR:", e)
       setChatMessages(currentMessages => [
         ...currentMessages,
@@ -3890,7 +3940,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         askLearningSessionIdRef.current = null
       }
     } finally {
-      setAsking(false)
+      if (askRequestRef.current === controller) { askRequestRef.current = null; setAsking(false) }
     }
   }
 
@@ -4205,6 +4255,10 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
       height: isMobileLayout ? "100dvh" : "100vh",
       flexDirection: mobileNavigationSelected ? "column" : "row"
     }}>
+      {generationError && <div role="alert" style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 10000, width: "min(640px, calc(100vw - 32px))", boxSizing: "border-box", padding: 16, borderRadius: 12, background: "#451a1a", border: "1px solid #f87171", color: "#fee2e2", overflowWrap: "anywhere" }}>
+        <div>{generationError}</div>
+        <button type="button" onClick={() => setGenerationError("")} style={{ marginTop: 10, cursor: "pointer", color: "inherit", background: "transparent", border: "1px solid currentColor", borderRadius: 6, padding: "6px 12px" }}>{i18n.t("generationErrors.dismiss")}</button>
+      </div>}
       <StudyModeGate
         open={Boolean(pendingStudyView)}
         activity={studyActivityLabel(pendingStudyView || "") || "studying"}
@@ -4438,6 +4492,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         projects={projects}
         selectProject={(id: string) => selectProject(id, projects, { previewOnly: true })}
         deleteProject={deleteProject}
+        onStudyLibraryChanged={refreshStudyLibrary}
         quizId={quizId}
         previousQuizzes={previousQuizzes}
         loadQuiz={loadQuiz}
@@ -4454,6 +4509,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
         onFlashcardsComplete={completeStandaloneFlashcardsSession}
         resultsData={resultsData}
         calculateScore={calculateScore}
+        acquisition={acquisition.projectId === projectId ? acquisition : undefined}
         uploadLog={uploadLog}
         uploading={uploading && (!uploadCanContinue || isUploadView(activeView))}
         files={files}

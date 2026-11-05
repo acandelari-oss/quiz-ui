@@ -1,3 +1,4 @@
+import { costOperation, costFetch, costUsage, costOutcome } from "../../server/aiCostTest"
 import type { NextApiRequest, NextApiResponse } from "next"
 import {
   buildDeterministicEducationalUnits,
@@ -10,7 +11,7 @@ type EducationalUnitsResponse = {
   source: "gpt" | "fallback"
 }
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse<EducationalUnitsResponse | { error: string }>
 ) {
@@ -27,6 +28,7 @@ export default async function handler(
   const fallback = buildDeterministicEducationalUnits(categories, language)
 
   if (categories.length === 0) {
+    costOutcome("fallback")
     return res.status(200).json({
       educational_units: [],
       source: "fallback"
@@ -34,6 +36,7 @@ export default async function handler(
   }
 
   if (categories.length < 7) {
+    costOutcome("fallback")
     return res.status(200).json({
       educational_units: fallback,
       source: "fallback"
@@ -44,13 +47,14 @@ export default async function handler(
     const apiKey = process.env.OPENAI_API_KEY
 
     if (!apiKey) {
+      costOutcome("fallback")
       return res.status(200).json({
         educational_units: fallback,
         source: "fallback"
       })
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await costFetch("grouping", "https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -77,6 +81,7 @@ export default async function handler(
     })
 
     if (!response.ok) {
+      costOutcome("fallback")
       return res.status(200).json({
         educational_units: fallback,
         source: "fallback"
@@ -84,6 +89,7 @@ export default async function handler(
     }
 
     const data = await response.json()
+    costUsage(response, data)
     const content = String(data?.choices?.[0]?.message?.content || "")
       .replace("```json", "")
       .replace("```", "")
@@ -96,6 +102,7 @@ export default async function handler(
 
     if (!validation.valid) {
       console.warn("Educational Unit builder fallback:", validation.error)
+      costOutcome("fallback")
       return res.status(200).json({
         educational_units: fallback,
         source: "fallback"
@@ -108,6 +115,7 @@ export default async function handler(
     })
   } catch (error) {
     console.warn("Educational Unit builder fallback:", error)
+    costOutcome("fallback")
     return res.status(200).json({
       educational_units: fallback,
       source: "fallback"
@@ -196,3 +204,5 @@ Return exactly this JSON shape:
 }
 `
 }
+
+export default costOperation("educational_units", handler)

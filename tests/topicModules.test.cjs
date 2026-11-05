@@ -51,6 +51,10 @@ test('module sections approve their own ID and keep review activities gated', as
     if (name.includes('topicModules')) return context.exports
     if (name.includes('studyModeGate')) return { studyActivityLabel: view => view === 'quiz' ? 'Quiz' : null }
     if (name === './TopicsView') return { default: 'TopicsView' }
+    if (name === '../CategoryOrganizationReview') return { default: 'CategoryOrganizationReview' }
+    if (name === '../DocumentTaxonomyControls') return { default: 'DocumentControls' }
+    if (name === '../useTaxonomyDocuments') return { useTaxonomyDocuments: () => ({ documents: [], error: false, refresh: async () => {} }) }
+    if (name === '../../utils/categoryIdentity') return { resolveCategoryPriorities: values => values }
     throw Error(name)
   } }
   const result = ts.transpileModule(fs.readFileSync('components/views/ModuleTopicsView.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX }, reportDiagnostics: true })

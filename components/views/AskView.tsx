@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import QuestionAudio from "../ui/QuestionAudio"
+import OralAudioToggle from "../ui/OralAudioToggle"
 import { Headphones } from "lucide-react"
 import { useTranslation } from 'react-i18next';
 import { exportConversationPDF } from "../../utils/pdfExport"
@@ -47,6 +49,7 @@ export default function AskView({
   setUseGlobalKnowledge
 }) {
   const messages = chatMessages || []
+  const [oralAudioEnabled, setOralAudioEnabled] = useState(false)
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([])
@@ -370,7 +373,7 @@ function downloadAskPDF() {
             <div
               className={m.role === "assistant" ? "ask-answer-bubble" : "ask-user-bubble"}
               style={{
-                background: m.role === "user" ? "#2563eb" : "#1f2937",
+                background: m.role === "user" ? "#2563eb" : "transparent",
                 padding: "10px 12px",
                 borderRadius: 8,
                 maxWidth: "70%",
@@ -391,13 +394,17 @@ function downloadAskPDF() {
                 }
               />
               {renderSourceNote(m)}
+              {!asking && m.role === "assistant" && i === messages.length - 1 && (
+                <QuestionAudio key={`${projectId}:${i}:${m.content}`} projectId={projectId} question={m.content} enabled={oralAudioEnabled} />
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      <div role="status" style={{ display: asking ? "flex" : "none", justifyContent: "flex-start", marginTop: 10 }}>
-        <div style={{ background: "#1f2937", padding: "10px 12px", borderRadius: 8, color: "#9ca3af", display: "flex", alignItems: "center", gap: 8 }}>
+      <OralAudioToggle enabled={oralAudioEnabled} onChange={setOralAudioEnabled} />
+      <div role="status" style={{ display: asking && messages[messages.length - 1]?.role !== "assistant" ? "flex" : "none", justifyContent: "flex-start", marginTop: 10 }}>
+        <div style={{ background: "transparent", padding: "10px 12px", borderRadius: 8, color: "#9ca3af", display: "flex", alignItems: "center", gap: 8 }}>
           <img src="/douno_chat.gif" alt="" width={50} height={50} style={{ width: 50, height: 50, objectFit: "contain", flexShrink: 0 }} />
           {asking && <span>{translate('stats.Thinking...')}</span>}
         </div>

@@ -1,3 +1,4 @@
+import { costOperation, costFetch, costUsage, costOutcome } from "../../server/aiCostTest"
 import type { NextApiRequest, NextApiResponse } from "next"
 import {
   buildFallbackEducationalUnitTitle,
@@ -9,7 +10,7 @@ type EducationalUnitTitleResponse = {
   source: "gpt" | "fallback"
 }
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse<EducationalUnitTitleResponse | { error: string }>
 ) {
@@ -33,6 +34,7 @@ export default async function handler(
   )
 
   if (categories.length === 0) {
+    costOutcome("fallback")
     return res.status(200).json({ title: fallback, source: "fallback" })
   }
 
@@ -40,13 +42,14 @@ export default async function handler(
     const apiKey = process.env.OPENAI_API_KEY
 
     if (!apiKey) {
+      costOutcome("fallback")
       return res.status(200).json({ title: fallback, source: "fallback" })
     }
 
     const rejectedTitles = [...existingTitles]
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      const response = await costFetch("title", "https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,13 +70,14 @@ export default async function handler(
             }
           ]
         })
-      })
+      }, attempt + 1)
 
       if (!response.ok) {
         break
       }
 
       const data = await response.json()
+      costUsage(response, data)
       const rawTitle = data?.choices?.[0]?.message?.content || ""
       const validation = validateEducationalUnitTitle(
         rawTitle,
@@ -90,9 +94,11 @@ export default async function handler(
       }
     }
 
+    costOutcome("fallback")
     return res.status(200).json({ title: fallback, source: "fallback" })
   } catch (error) {
     console.warn("Educational Unit title fallback:", error)
+    costOutcome("fallback")
     return res.status(200).json({ title: fallback, source: "fallback" })
   }
 }
@@ -130,3 +136,5 @@ Rejected titles:
 ${rejectedTitles.length ? rejectedTitles.map(title => `- ${title}`).join("\n") : "- none"}
 `
 }
+
+export default costOperation("educational_unit_title", handler)

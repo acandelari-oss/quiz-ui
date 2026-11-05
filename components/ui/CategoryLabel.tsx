@@ -1,5 +1,7 @@
 import React, { createContext, useContext } from "react"
 
+import { categoryDisplayName } from "../../utils/categoryIdentity"
+
 type CategoryPriorityContextValue = {
   priorityCategories: string[]
 }
@@ -34,6 +36,7 @@ export function useCategoryPriority(category: string, override?: boolean) {
 
 export default function CategoryLabel({
   category,
+  sourceDocument,
   isPriority,
   priorityCategories,
   onTogglePriority,
@@ -44,6 +47,7 @@ export default function CategoryLabel({
   nameStyle
 }: {
   category: string
+  sourceDocument?: string | null
   isPriority?: boolean
   priorityCategories?: string[]
   onTogglePriority?: () => void
@@ -118,7 +122,8 @@ export default function CategoryLabel({
           ...nameStyle
         }}
       >
-        {category}
+        {categoryDisplayName(category)}
+        {sourceDocument && <span style={{ display: "block", color: "#94a3b8", fontSize: 12, fontWeight: 400, lineHeight: 1.4, textTransform: "none", letterSpacing: "normal", marginTop: 3, overflowWrap: "anywhere" }}>{sourceDocument}</span>}
       </span>
     </span>
   )

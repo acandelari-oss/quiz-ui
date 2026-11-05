@@ -1,3 +1,6 @@
+import DocumentTaxonomyControls from "./DocumentTaxonomyControls"
+import type { AcquisitionReport } from "../utils/uploadAcquisition";
+import UploadAcquisitionResults from "./ui/UploadAcquisitionResults";
 import AskView from "./views/AskView"
 import FlashcardsView from "./views/FlashcardsView"
 import QuizView from "./views/QuizView"
@@ -89,6 +92,7 @@ setSelectedTopic,
 selectedTopics,
 setSelectedTopics,
 
+acquisition = undefined as { reports: AcquisitionReport[]; phase: string } | undefined,
 uploadLog,
 uploading,
 uploadFlightSessionId,
@@ -126,6 +130,7 @@ loadQuizStats,
 loadHistoryStats,
 status,
 loadPreviousQuizzes,
+onStudyLibraryChanged = () => {},
 loadingFlashcards,
 generatingFlashcards,
 documents,
@@ -259,7 +264,8 @@ console.log("Sta caricando le flashcard?", generatingFlashcards);
 
 
 useEffect(()=>{
-
+  let cancelled = false
+  let documentTimer: ReturnType<typeof setTimeout>
   async function loadAllDocs(){
 
     if(activeView !== "manage_projects") return
@@ -312,13 +318,15 @@ useEffect(()=>{
 
     }
 
+    if (cancelled) return
     setDocsByProject(result)
     setModulesByProject(moduleResult)
     setModuleLoadErrors(moduleErrors)
+    documentTimer = setTimeout(loadAllDocs, 4000)
   }
 
   loadAllDocs()
-
+  return () => { cancelled = true; clearTimeout(documentTimer) }
 }, [activeView, projects])
 
 // 1. Reset delle stats quando cambi vista o progetto
@@ -644,6 +652,7 @@ return (
         background: rgba(167, 139, 250, 0.88);
       }
     `}</style>
+    {acquisition && ["project", "load_project", "create_project", "upload_error"].includes(activeView) && <UploadAcquisitionResults reports={acquisition.reports} phase={acquisition.phase} />}
     {/* --- INIZIO BLOCCO LOADER AGGIORNATO --- */}
     {workspaceLoaderVisible ? (
       <div className="workspace-loader-mobile" style={loaderContainer}>
@@ -1264,7 +1273,7 @@ return (
 
               {docs.map((d:any)=>(
                 <div
-                  key={d.title}
+                  key={d.id}
                   style={{
                     display:"flex",
                     justifyContent:"space-between",
@@ -1279,38 +1288,18 @@ return (
                     📄 {d.title}
                   </span>
 
-                  <button
-                    onClick={async ()=>{
-                      const { data: sessionData } = await supabase.auth.getSession()
-                      const token = sessionData.session?.access_token
-
-                      await fetch(
-                        `${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/documents/${encodeURIComponent(d.title)}`,
-                        {
-                          method: "DELETE",
-                          headers: {
-                            Authorization: `Bearer ${token}`
-                          }
-                        }
-                      )
-
-                      setDocsByProject(prev => ({
-                        ...prev,
-                        [p.id]: prev[p.id].filter((doc:any)=>doc.title !== d.title)
-                      }))
-                    }}
-                    style={{
-                      background:"#7f1d1d",
-                      border:"1px solid #ef4444",
-                      color:"white",
-                      borderRadius:4,
-                      padding:"2px 6px",
-                      flexShrink:0,
-                      cursor:"pointer"
-                    }}
-                  >
-                    ✕
-                  </button>
+                  <DocumentTaxonomyControls
+                    document={{ id: d.id, status: d.taxonomy_status }} projectId={p.id}
+                    locked={d.accepted_for_study || (!d.module_id && p.study_mode === "learning")}
+                    onChanged={async () => {
+                      const { data } = await supabase.auth.getSession()
+                      const headers = { Authorization: `Bearer ${data.session?.access_token}` }
+                      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${p.id}/documents`, { headers })
+                      if (!response.ok) throw Error("Documents unavailable")
+                      const body = await response.json()
+                      setDocsByProject(previous => ({ ...previous, [p.id]: body.documents || [] }))
+                      if (p.id === projectId) await loadTopics(projectId)
+                    }} />
 
                 </div>
               ))}
@@ -1349,6 +1338,7 @@ return (
 	        </p>
 
         <ModuleTopicsView
+          acquisition={acquisition}
           key={projectId}
           studyModules={studyModules}
           projectName={projectName}
@@ -1730,6 +1720,7 @@ return (
           />
 
           <StudySessionView 
+            onLibraryChanged={onStudyLibraryChanged}
             projectId={projectId} 
             selectedTopics={selectedTopics}
             studyConfig={studyConfig}

@@ -1,3 +1,4 @@
+import { resolveCategoryPriorities } from "../../utils/categoryIdentity"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import MarkdownContent from "@/components/ui/MarkdownContent"
@@ -35,6 +36,7 @@ export default function PlannerView({
 	}: {
   projectId: string
   topics: Array<{
+    category_key?: string | null
     category?: string | null
   }>
   plannerRuntime: {
@@ -171,7 +173,7 @@ export default function PlannerView({
   const projectCategories = Array.from(
     new Set(
       (topics || [])
-        .map(topic => topic?.category)
+        .map(topic => topic?.category_key || topic?.category)
         .filter((category): category is string => Boolean(category))
     )
   )
@@ -277,7 +279,7 @@ export default function PlannerView({
 	        <PlannerConfiguration
 	          showLearningSurvey
 	          categories={projectCategories}
-	          priorityCategories={priorityCategories}
+	          priorityCategories={resolveCategoryPriorities(priorityCategories, topics)}
 	          onGenerate={handleGenerateWeeklyPlan}
 	          onGenerateAssessment={handleGenerateProfessorAssessment}
 	          generating={generatingStudyPlan}
@@ -293,7 +295,7 @@ export default function PlannerView({
 	        <PlannerConfiguration
 	          showLearningSurvey={false}
 	          categories={projectCategories}
-	          priorityCategories={priorityCategories}
+	          priorityCategories={resolveCategoryPriorities(priorityCategories, topics)}
 	          onGenerate={handleGenerateWeeklyPlan}
 	          generating={generatingStudyPlan}
 	        />

@@ -1,7 +1,7 @@
+import { resolveCategoryPriorities } from "../../utils/categoryIdentity"
 import React, { useState, useEffect } from 'react';
 import { supabase } from "../../lib/supabase"; // Il percorso potrebbe variare in base alla tua cartella
 import { useTranslation } from 'react-i18next';
-import { normalizeTopic } from "../../utils/topic";
 import {
   logCategoryScope,
   resolveCategoryTopicObjects
@@ -86,7 +86,7 @@ function normalizePriorityCategoryResponse(
       : fallback
 
   return Array.from(
-    new Set(
+    new Set<string>(
       raw
         .map((category: any) => String(category || "").trim())
         .filter(Boolean)
@@ -109,11 +109,14 @@ export default function TopicsView({
 	  projectId,
 	  projectStudyMode,
 	  loadTopics,
-	  priorityCategories = [],
+	  priorityCategories: storedPriorityCategories = [],
+    categoryIdentityTopics = topics,
+    documentName,
 	  setPriorityCategories = () => {},
 	  onPriorityCategoriesSaved = (_projectId: string, _priorityCategories: string[]) => {}
 	}: any) {
-	  const { t: translate, i18n } = useTranslation();
+	  const priorityCategories = resolveCategoryPriorities(storedPriorityCategories, categoryIdentityTopics)
+  const { t: translate, i18n } = useTranslation();
 	  const [priorityMessage, setPriorityMessage] = React.useState("")
 	  const [movingTopicId, setMovingTopicId] = React.useState<string | null>(null)
 	  const [editingTopicId, setEditingTopicId] = React.useState<string | null>(null)
@@ -127,7 +130,7 @@ export default function TopicsView({
 	  const taxonomyReviewEditable = String(projectStudyMode || "").toLowerCase() !== "learning"
       || topics.some((topic: any) => topic.module_id && !topic.accepted_for_study && !topic.taxonomy_locked)
 	  const topicCounts: { [key: string]: number } = {};
-  function normalizeTopic(t) {
+  function normalizeTopic(t: string) {
   return (t || "")
     .toLowerCase()
     .replace(/\s+/g, "") // Rimuove tutti gli spazi
@@ -270,7 +273,8 @@ export default function TopicsView({
           body: JSON.stringify({
             current_category: category,
             new_category: nextName,
-            module_id: firstTopic?.module_id || null
+            module_id: firstTopic?.module_id || null,
+            document_id: firstTopic?.document_id || null
           })
         }
       )
@@ -375,7 +379,7 @@ export default function TopicsView({
         console.log("🔍 DATI GREZZI DAL SERVER:", data);
         console.log(
           "📋 TOPIC DA MAPPARE:",
-          topics.map(t => t.title || t.topic)
+          topics.map((t: any) => t.title || t.topic)
         );
 
         // Prova a forzare un match manuale per il primo topic per vedere se funziona
@@ -423,7 +427,7 @@ export default function TopicsView({
   const togglePriorityCategory = (category: string) => {
     setPriorityMessage("")
     setPriorityCategories((current: string[]) => {
-      const normalizedCurrent = Array.from(new Set(current || []))
+      const normalizedCurrent = resolveCategoryPriorities(current, categoryIdentityTopics)
       const selected = normalizedCurrent.includes(category)
 
       if (selected) {
@@ -549,6 +553,15 @@ export default function TopicsView({
           isStudentProvidedOrganizationMode(topic?.organization_mode)
         )
       )
+
+      // Saved taxonomy parents are authoritative navigation, not a new AI plan.
+      if (!hasStudentProvidedOrganization) {
+        const savedGroups = groupPersistedMacroCategories(categorizedTopicEntries as [string, any][])
+        if (savedGroups) {
+          if (!cancelled) setTopicNavigationGroups(savedGroups)
+          return
+        }
+      }
 
       if (categories.length < EDUCATIONAL_UNIT_THRESHOLD || hasStudentProvidedOrganization) {
         if (!cancelled) {
@@ -697,7 +710,8 @@ export default function TopicsView({
 
                   <div className="topics-mobile-category-stack" style={group.showTitle ? educationalUnitCategoryStack : plainCategoryStack}>
 	                  {group.items.map(([category, categoryTopics]: [string, any]) => {
-	                const isPriorityCategory = priorityCategories.includes(category)
+	                const categoryIdentity = categoryTopics?.[0]?.category_key || category
+	                const isPriorityCategory = priorityCategories.includes(categoryIdentity)
 	                const categoryEditable = Array.isArray(categoryTopics)
 	                  && categoryTopics.some((topic: any) => canMoveTopic(topic, taxonomyReviewEditable))
 	                const categoryEditKey = `${category}:${categoryTopics?.[0]?.module_id || "project"}`
@@ -855,8 +869,9 @@ export default function TopicsView({
 	                    >
 	                      <CategoryLabel
 	                        category={category}
+                            sourceDocument={documentName || categoryTopics?.[0]?.document_name}
 	                        isPriority={isPriorityCategory}
-	                        onTogglePriority={() => togglePriorityCategory(category)}
+	                        onTogglePriority={() => togglePriorityCategory(categoryIdentity)}
 	                        toggleLabel={translate(
 	                          isPriorityCategory
 	                            ? "stats.Remove Study Priority"
@@ -1942,4 +1957,19 @@ function mapEducationalUnitsToTopicGroups(
         items: categoryEntries
       }
     ]
+}
+
+export function groupPersistedMacroCategories(entries: [string, any][]): TopicNavigationGroup[] | null {
+  const groups = new Map<string, TopicNavigationGroup>()
+  let hasDistinctParent = false
+  for (const entry of entries) {
+    const rows = entry[1] as any[]
+    const parents = new Set(rows.map(row => String(row.macrocategory || row.source_section || "").trim()))
+    if (parents.size !== 1 || parents.has("")) return null
+    const parent = [...parents][0]
+    if (parent.toLocaleLowerCase() !== String(rows[0]?.category || "").trim().toLocaleLowerCase()) hasDistinctParent = true
+    if (!groups.has(parent)) groups.set(parent, { key: `saved:${parent}`, title: parent, showTitle: true, items: [] })
+    groups.get(parent)!.items.push(entry)
+  }
+  return hasDistinctParent ? [...groups.values()] : null
 }

@@ -3,7 +3,7 @@ import { Volume2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { supabase } from "../../lib/supabase"
 
-// Mounted only for the current question; its object URL lives for this mount.
+// Mounted only for the latest completed professor reply; its object URL lives for this mount.
 export default function QuestionAudio({ projectId, question, enabled }: { projectId: string; question: string; enabled: boolean }) {
   const { t } = useTranslation()
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -36,7 +36,7 @@ export default function QuestionAudio({ projectId, question, enabled }: { projec
   }, [enabled])
 
   async function play() {
-    if (!enabled) return
+    if (!enabled || !question.trim() || question.length > 4096) return
     if (request.current) return
     const audio = audioRef.current
     if (!audio) return
@@ -80,6 +80,8 @@ export default function QuestionAudio({ projectId, question, enabled }: { projec
       }
     }
   }
+
+  if (question.length > 4096) return enabled ? <p role="status">{t("oralAudio.tooLong")}</p> : null
 
   return <div style={{ marginTop: 10 }}>
     <audio ref={audioRef} onError={() => setError(true)} />

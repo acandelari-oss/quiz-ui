@@ -1,3 +1,4 @@
+import { categoryDisplayName } from "../../../utils/categoryIdentity"
 import type {
   PlannerStateResponse,
   PlannerWeekResponse
@@ -441,7 +442,7 @@ function buildSessionData(
     quiz: persistedSessionData.quiz ?? quiz,
     accuracy: persistedSessionData.accuracy || "—",
     time: persistedSessionData.time || `${time} min`,
-    focus: unique(plan.planned_allocations.map(allocation => allocation.category)).join(", ") || localizedPlannerLabel("Study Plan focus", italian)
+    focus: unique(plan.planned_allocations.map(allocation => categoryDisplayName(allocation.category))).join(", ") || localizedPlannerLabel("Study Plan focus", italian)
   }
 }
 

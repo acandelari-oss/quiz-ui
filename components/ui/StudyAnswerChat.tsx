@@ -1,3 +1,4 @@
+import { readChatStream } from "../../utils/chatStream"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { supabase } from "../../lib/supabase"
@@ -26,6 +27,7 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [recording, setRecording] = useState(false)
+  const [draft, setDraft] = useState("")
   const request = useRef<AbortController | null>(null)
   const recognition = useRef<any>(null)
 
@@ -73,6 +75,7 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
     setInput(question)
     setLoading(true)
     setError("")
+    setDraft("")
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (controller.signal.aborted) return
@@ -82,6 +85,7 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         signal: controller.signal,
         body: JSON.stringify({
+          stream: true,
           project_id: projectId,
           question: `${global ? "Use the study material and general knowledge." : "Use ONLY the study material."}\nReply in the student's language (${i18n.language}).\n\n${context}\n\nStudent follow-up question:\n${question}`,
           history: messages,
@@ -89,7 +93,7 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
         })
       })
       if (!response.ok) throw new Error("Request failed")
-      const data = await response.json()
+      const data = await readChatStream(response, setDraft, controller.signal)
       if (controller.signal.aborted) return
       if (typeof data.answer !== "string" || !data.answer.trim()) throw new Error("Missing answer")
       const next: ChatMessage[] = [...messages, { role: "user", content: question }, { role: "assistant", content: data.answer }]
@@ -99,7 +103,7 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
     } catch {
       if (!controller.signal.aborted) setError(t("answerChat.error"))
     } finally {
-      if (!controller.signal.aborted) { request.current = null; setLoading(false) }
+      if (!controller.signal.aborted) { request.current = null; setLoading(false); setDraft("") }
     }
   }
 
@@ -133,12 +137,13 @@ export default function StudyAnswerChat({ projectId, context, conversationId, hi
         </div>
         <MarkdownContent text={message.content} />
       </div>)}
+      {draft && <div style={{ marginBottom: 12, overflowWrap: "anywhere" }}><img src="/icons/ico_logo.png" alt="" width={28} height={28} /><MarkdownContent text={draft} /></div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <input aria-label={t("answerChat.placeholder")} placeholder={t("answerChat.placeholder")} value={input} disabled={loading} onChange={event => setInput(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); void send() } }} style={{ ...button, cursor: "text", flex: "1 1 160px", minWidth: 0 }} />
         <button type="button" disabled={loading} onClick={toggleRecording} aria-label={t(recording ? "answerChat.stopMic" : "answerChat.startMic")} aria-pressed={recording} style={{ ...button, background: recording ? "#b91c1c" : button.background }}>{recording ? "■" : "🎙"}</button>
         <button type="button" disabled={loading || !input.trim()} onClick={() => void send()} style={button}>{t(loading ? "answerChat.loading" : "answerChat.send")}</button>
       </div>
-      <div role="status" style={{ display: loading ? "flex" : "none", alignItems: "center", gap: 10, marginTop: 12 }}>
+      <div role="status" style={{ display: loading && !draft ? "flex" : "none", alignItems: "center", gap: 10, marginTop: 12 }}>
         <img src="/douno_chat.gif" alt="" width={50} height={50} style={{ width: 50, height: 50, objectFit: "contain", flexShrink: 0 }} />
         {loading && <span>{t("answerChat.loading")}</span>}
       </div>

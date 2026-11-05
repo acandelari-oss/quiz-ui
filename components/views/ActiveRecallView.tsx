@@ -1,3 +1,4 @@
+import { readChatStream } from "../../utils/chatStream"
 import OralAudioToggle from "../ui/OralAudioToggle"
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
@@ -207,9 +208,16 @@ export default function ActiveRecallView({
   }
 
   // --- FUNZIONE: SUBMIT ANSWER (Ripristinata) ---
+  const [streamDraft, setStreamDraft] = useState("")
+  const streamRequest = useRef<AbortController | null>(null)
+  useEffect(() => () => { streamRequest.current?.abort() }, [projectId])
+
   async function submitAnswer() {
-    if (!input.trim() || loading) return;
+    if (!input.trim() || loading || streamRequest.current) return;
     
+    const controller = new AbortController();
+    streamRequest.current = controller;
+    setStreamDraft("");
     setLoading(true);
     const userMessage = input;
     
@@ -227,12 +235,14 @@ export default function ActiveRecallView({
 
       // URL mapped to your backend: @app.post("/active_recall_evaluate")
       const res = await fetch(`${apiUrl}/active_recall_evaluate`, {
+        signal: controller.signal,
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
+          stream: true,
           question: currentQuestion,
           student_answer: userMessage, // Matches 'req.student_answer' in Python
           history: messages.map(m => `${m.role}: ${m.content}`).slice(-5)
@@ -241,7 +251,8 @@ export default function ActiveRecallView({
 
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-      const data = await res.json();
+      const data = await readChatStream(res, setStreamDraft, controller.signal);
+      if (controller.signal.aborted) return;
       
       // Formatting the evaluation response in English
       const evaluationHeader = `Evaluation: ${data.evaluation.toUpperCase()}`;
@@ -264,6 +275,7 @@ export default function ActiveRecallView({
       }
       
     } catch (e) {
+      if (controller.signal.aborted) return;
       console.error("❌ Error in submitAnswer:", e);
       if (learningSessionIdRef.current && !learningSessionCompletedRef.current) {
         await completeLearningSession(learningSessionIdRef.current, "abandoned")
@@ -275,6 +287,8 @@ export default function ActiveRecallView({
 
       }]);
     } finally {
+      streamRequest.current = null;
+      setStreamDraft("");
       setLoading(false);
       setInput("");
     }
@@ -282,18 +296,23 @@ export default function ActiveRecallView({
 
   // --- FUNZIONE: FETCH ANSWER (Corretta) ---
   async function fetchAnswer() {
-    if (!currentQuestion) return;
+    if (!currentQuestion || loading || streamRequest.current) return;
+    const controller = new AbortController();
+    streamRequest.current = controller;
+    setStreamDraft("");
     setLoading(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ask`, {
+        signal: controller.signal,
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           Authorization: `Bearer ${session?.access_token}`
         },
         body: JSON.stringify({
+          stream: true,
           project_id: projectId,
           question: `Explain me the right answer: ${currentQuestion}`,
           topics: isAllMode ? [] : normalizedTopics,
@@ -301,15 +320,20 @@ export default function ActiveRecallView({
         })
       });
 
-      const data = await res.json();
+      const data = await readChatStream(res, setStreamDraft, controller.signal);
+      if (controller.signal.aborted) return;
       setMessages(prev => [...prev, { 
         role: "assistant", 
         content: `${translate('stats.suggested_answer')}: ${data.answer}`,
         topic: translate('stats.suggestion_label') 
       }]);
     } catch (e) {
+      if (controller.signal.aborted) return;
       console.error("❌ Errore fetchAnswer:", e);
+      setMessages(prev => [...prev, { role: "assistant", content: translate("stats.An error occurred while evaluating your answer. Please try again.") }]);
     } finally {
+      streamRequest.current = null;
+      setStreamDraft("");
       setLoading(false);
     }
   }
@@ -454,7 +478,7 @@ export default function ActiveRecallView({
       <div className="memory-check-mobile-question-area" style={{ flex: 1, overflowY: "auto", marginBottom: 20 }}>
         {messages.map((m, i) => (
           <div key={i} className="memory-check-mobile-message-card" style={{
-            background: m.role === "user" ? "#2FA4A9" : "#1f2937",
+            background: m.role === "user" ? "#2FA4A9" : "transparent",
             padding: 15,
             borderRadius: 10,
             marginBottom: 15,
@@ -475,12 +499,13 @@ export default function ActiveRecallView({
                 }
               />
             </div>
-            {enableQuestionAudio && !generatingQuestion && m.role === "assistant" && m.content === currentQuestion && m.topic && !messages.slice(i + 1).some(message => message.role === "assistant" && message.topic && message.content === currentQuestion) && (
-              <QuestionAudio key={`${projectId}:${questionCount}`} projectId={projectId} question={currentQuestion} enabled={oralAudioEnabled} />
+            {enableQuestionAudio && !loading && !generatingQuestion && m.role === "assistant" && i === messages.length - 1 && (
+              <QuestionAudio key={`${projectId}:${i}:${m.content}`} projectId={projectId} question={m.content} enabled={oralAudioEnabled} />
             )}
           </div>
         ))}
-        <div role="status" style={{ display: loading ? "flex" : "none", alignItems: "center", gap: 10, marginTop: 12 }}>
+        {streamDraft && <div style={{ padding: 15, overflowWrap: "anywhere" }}><img src="/icons/ico_logo.png" alt="" width={28} height={28} /><MarkdownContent text={streamDraft} /></div>}
+        <div role="status" style={{ display: loading && !streamDraft ? "flex" : "none", alignItems: "center", gap: 10, marginTop: 12 }}>
           <img src="/douno_chat.gif" alt="" width={50} height={50} style={{ width: 50, height: 50, objectFit: "contain", flexShrink: 0 }} />
           {loading && <span>{translate('stats.Thinking...')}</span>}
         </div>

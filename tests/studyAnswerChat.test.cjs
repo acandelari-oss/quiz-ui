@@ -7,6 +7,8 @@ const settle = () => new Promise(done => setImmediate(done))
 const compiled = ts.transpileModule(fs.readFileSync('components/ui/StudyAnswerChat.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 }, reportDiagnostics: true })
 assert.equal(compiled.diagnostics.length, 0, "Chat component must parse without errors")
 const code = compiled.outputText
+const streamContext = { exports: {}, TextDecoder }
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('utils/chatStream.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, streamContext)
 
 function mount({ fetchImpl, token = 'token', histories = new Map(), id = 'card-a', Recognition } = {}) {
   const states = [], refs = [], effects = [], calls = []
@@ -23,6 +25,7 @@ function mount({ fetchImpl, token = 'token', histories = new Map(), id = 'card-a
       if (name === 'react/jsx-runtime') return { jsx, jsxs: jsx }
       if (name === 'react-i18next') return { useTranslation: () => ({ t: key => key, i18n: { language: 'it' } }) }
       if (name.includes('supabase')) return { supabase: { auth: { getSession: async () => ({ data: { session: token ? { access_token: token } : null } }) } } }
+      if (name.includes('chatStream')) return streamContext.exports
       if (name.includes('MarkdownContent')) return { default: 'markdown' }
       throw Error(name)
     }
@@ -115,4 +118,18 @@ test('general knowledge toggle is passed through', async () => {
   await settle()
   assert.equal(JSON.parse(view.calls[0][1].body).expand_search, true)
   view.unmount()
+})
+
+test('renders streamed text before saving completed history', async () => {
+ let controller
+ const view = mount({ fetchImpl: async () => new Response(new ReadableStream({ start(c) { controller = c } }), { headers: { 'content-type': 'application/x-ndjson' } }) })
+ view.open(); view.type('Why?'); view.button('answerChat.send').props.onClick()
+ await settle()
+ controller.enqueue(new TextEncoder().encode(JSON.stringify({type:'text',text:'First words'})+'\n'))
+ await settle(); view.render()
+ assert.ok(view.nodes().some(n => n.type === 'markdown' && n.props.text === 'First words'))
+ assert.equal(view.histories.size, 0)
+ controller.enqueue(new TextEncoder().encode(JSON.stringify({type:'done',data:{answer:'First words completed'}})+'\n'))
+ controller.close(); await settle(); view.render()
+ assert.equal(view.histories.get('card-a')[1].content, 'First words completed')
 })

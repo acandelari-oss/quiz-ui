@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local AI cost diagnostic data (never commit real benchmark metadata)
+benchmark-output/
+*.cost-test.jsonl

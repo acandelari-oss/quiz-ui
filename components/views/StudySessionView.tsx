@@ -1,3 +1,4 @@
+import { generationResponseError } from "../../utils/generationError"
 import { useState, useEffect, useRef } from "react"
 import { supabase } from "../../lib/supabase"
 import FlashcardsView from "./FlashcardsView"
@@ -135,9 +136,11 @@ const summaryCardDetail = {
 export default function StudySessionView({
   projectId,
   selectedTopics,
-  studyConfig
+  studyConfig,
+  onLibraryChanged
 }: {
   projectId: string,
+  onLibraryChanged?: () => void,
   selectedTopics?: Array<string | TopicScopeItem> | null,
   studyConfig?: {
     flashcards: number,
@@ -323,11 +326,15 @@ const topicsToReview = Array.from(new Set([...weakTopics, ...quizWeakTopics])).s
 
 
 
+const [quizGenerationError, setQuizGenerationError] = useState("")
+
 async function generateQuiz() {
+  setQuizGenerationError("");
   setLoading(true);
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
+    if (!token) throw new Error(translate("generationErrors.session"));
     console.log("PAYLOAD TOPIC_IDS COUNT:", selectedTopicIds.length)
     console.log("PAYLOAD TOPICS COUNT:", selectedTopicNames.length)
 
@@ -349,9 +356,7 @@ async function generateQuiz() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        console.error("Server Error:", errorData);
-        return;
+        throw await generationResponseError(res, translate("generationErrors.quiz"));
       }
 
       const data = await res.json();
@@ -360,10 +365,13 @@ async function generateQuiz() {
 
       const questions = data.questions || data.quiz || [];
 
+      if (!questions.length) throw new Error(translate("generationErrors.emptyQuiz"));
       setQuizData(questions);
       setQuizStarted(questions.length > 0);
+      onLibraryChanged?.();
   } catch (e) {
     console.error("Quiz Generation Error:", e);
+    setQuizGenerationError(e instanceof Error ? e.message : translate("generationErrors.quiz"));
   } finally {
     setLoading(false);
   }
@@ -413,6 +421,7 @@ async function generateQuiz() {
     )
     setRecallTopics(session.recall_topics || [])
     setLoading(false)
+    onLibraryChanged?.();
     setSessionLoaded(true) // 🔥 blocca loop
   }
 
@@ -448,6 +457,10 @@ async function generateQuiz() {
 
   return (
     <div>
+      {quizGenerationError && <div role="alert" style={{ padding: 16, marginBottom: 16, background: "#451a1a", color: "#fee2e2", borderRadius: 10, overflowWrap: "anywhere" }}>
+        <p>{quizGenerationError}</p>
+        <button type="button" onClick={() => void generateQuiz()} disabled={loading}>{translate("generationErrors.retry")}</button>
+      </div>}
       <div style={progressContainer}>
         {steps.map((label, i) => (
           <div key={i} style={{ flex: 1, textAlign: "center", color: step >= i ? "white" : "#6b7280", fontWeight: step === i ? 600 : 400 }}>

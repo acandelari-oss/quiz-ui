@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 const ts = require('typescript')
 
-function mount(fetchImpl, enabled = true) {
+function mount(fetchImpl, enabled = true, question = 'Perché?\nExplain.') {
   let cursor = 0, stateCursor = 0, effectCursor = 0
   const effects = [], pending = []
   const refs = [], states = [], cleanups = [], calls = [], revoked = []
@@ -31,8 +31,8 @@ function mount(fetchImpl, enabled = true) {
   const view = { audio, calls, revoked, states, unmount: () => cleanups.forEach(fn => fn?.()) }
   view.render = (enabled) => {
     cursor = stateCursor = effectCursor = 0
-    const tree = context.exports.default({ projectId: 'project', question: 'Perché?\nExplain.', enabled })
-    view.click = tree.props.children.find(child => child?.type === 'button').props.onClick
+    const tree = context.exports.default({ projectId: 'project', question, enabled })
+    view.click = Array.isArray(tree?.props.children) ? tree.props.children.find(child => child?.type === 'button')?.props.onClick : undefined
     while (pending.length) pending.shift()()
   }
   view.render(enabled)
@@ -107,5 +107,20 @@ test('autoplay rejection offers manual replay using cached audio', async () => {
   await view.click()
   assert.equal(view.calls.length, 1)
   assert.equal(view.audio.playCount, 1)
+  view.unmount()
+})
+
+for (const text of ['', 'x'.repeat(4097)]) test('empty or oversized replies do not incur an audio request: ' + text.length, async () => {
+  const view = mount(undefined, true, text)
+  await settle()
+  assert.equal(view.calls.length, 0)
+  view.unmount()
+})
+
+test('feedback is read verbatim using the same authenticated audio endpoint', async () => {
+  const text = 'Evaluation: correct. Your explanation identifies both mechanisms.'
+  const view = mount(undefined, true, text)
+  await settle()
+  assert.equal(JSON.parse(view.calls[0][1].body).question, text)
   view.unmount()
 })
