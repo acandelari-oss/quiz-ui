@@ -4,7 +4,7 @@ const fs = require('node:fs')
 const vm = require('node:vm')
 const ts = require('typescript')
 
-function mount(fetchImpl, enabled = true, question = 'Perché?\nExplain.') {
+function mount(fetchImpl, enabled = true, question = 'Perché?\nExplain.', mediaSource) {
   let cursor = 0, stateCursor = 0, effectCursor = 0
   const effects = [], pending = []
   const refs = [], states = [], cleanups = [], calls = [], revoked = []
@@ -25,7 +25,7 @@ function mount(fetchImpl, enabled = true, question = 'Perché?\nExplain.') {
     if (name === 'react-i18next') return { useTranslation: () => ({ t: key => key }) }
     if (name.includes('supabase')) return { supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'session-token' } } }) } } }
     throw Error(name)
-  }, Error, AbortController, process: { env: { NEXT_PUBLIC_API_URL: 'https://api.example' } }, URL: { createObjectURL: () => 'blob:question', revokeObjectURL: value => revoked.push(value) },
+  }, Error, AbortController, MediaSource: mediaSource, process: { env: { NEXT_PUBLIC_API_URL: 'https://api.example' } }, URL: { createObjectURL: object => { if (object?.open) setImmediate(() => object.open()); return 'blob:question' }, revokeObjectURL: value => revoked.push(value) },
     fetch: async (...args) => { calls.push(args); return fetchImpl ? fetchImpl(...args) : { ok: true, blob: async () => ({}) } } }
   vm.runInNewContext(source, context)
   const view = { audio, calls, revoked, states, unmount: () => cleanups.forEach(fn => fn?.()) }
@@ -122,5 +122,51 @@ test('feedback is read verbatim using the same authenticated audio endpoint', as
   const view = mount(undefined, true, text)
   await settle()
   assert.equal(JSON.parse(view.calls[0][1].body).question, text)
+  view.unmount()
+})
+
+class FakeMediaSource extends EventTarget {
+  static isTypeSupported(type) { return type === 'audio/mpeg' }
+  open() { this.dispatchEvent(new Event('sourceopen')) }
+  addSourceBuffer() {
+    const buffer = new EventTarget()
+    buffer.appendBuffer = () => setImmediate(() => buffer.dispatchEvent(new Event('updateend')))
+    return buffer
+  }
+  endOfStream() { this.ended = true }
+}
+
+test('streaming starts playback before the final network chunk and replay makes no new request', async () => {
+  let finish, reads = 0
+  const reader = {
+    read: async () => ++reads === 1 ? { done: false, value: new Uint8Array([1, 2]) } : new Promise(resolve => { finish = resolve }),
+    cancel: async () => {}, releaseLock() {}
+  }
+  const view = mount(async () => ({ ok: true, body: { getReader: () => reader }, blob: () => { throw Error('Must not buffer the whole response') } }), true, 'Feedback', FakeMediaSource)
+  for (let i = 0; i < 5; i++) await settle()
+  assert.equal(view.audio.playCount, 1)
+  assert.equal(reads, 2)
+  finish({ done: true })
+  await settle()
+  await view.click()
+  assert.equal(view.audio.playCount, 2)
+  assert.equal(view.calls.length, 1)
+  view.unmount()
+})
+
+test('aborting a stream discards partial audio and stops playback', async () => {
+  let finish, reads = 0, cancelled = 0
+  const reader = {
+    read: async () => ++reads === 1 ? { done: false, value: new Uint8Array([1]) } : new Promise(resolve => { finish = resolve }),
+    cancel: async () => { cancelled++ }, releaseLock() {}
+  }
+  const view = mount(async () => ({ ok: true, body: { getReader: () => reader } }), true, 'Feedback', FakeMediaSource)
+  for (let i = 0; i < 5; i++) await settle()
+  view.render(false)
+  finish({ done: true })
+  await settle()
+  assert.equal(cancelled, 1)
+  assert.equal(view.audio.paused, true)
+  assert.equal(view.calls[0][1].signal.aborted, true)
   view.unmount()
 })

@@ -37,9 +37,19 @@ export default function QuestionAudio({ projectId, question, enabled }: { projec
 
   async function play() {
     if (!enabled || !question.trim() || question.length > 4096) return
-    if (request.current) return
     const audio = audioRef.current
     if (!audio) return
+    if (request.current) {
+      // A user gesture can unblock playback while the remaining audio downloads.
+      if (url.current) {
+        try { await audio.play(); setBlocked(false) }
+        catch (error) {
+          if (error instanceof Error && error.name === "NotAllowedError") setBlocked(true)
+          else setError(true)
+        }
+      }
+      return
+    }
     if (!audio.paused) {
       audio.pause()
       audio.currentTime = 0
@@ -61,6 +71,73 @@ export default function QuestionAudio({ projectId, question, enabled }: { projec
           signal: controller.signal
         })
         if (!response.ok) throw new Error("Audio unavailable")
+        if (typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg") && response.body) {
+          const media = new MediaSource()
+          const mediaUrl = URL.createObjectURL(media)
+          url.current = mediaUrl
+          const waitFor = (target: EventTarget, event: string) => new Promise<void>((resolve, reject) => {
+            const cleanup = () => {
+              target.removeEventListener(event, done)
+              target.removeEventListener("error", failed)
+              controller.signal.removeEventListener("abort", failed)
+            }
+            const done = () => { cleanup(); resolve() }
+            const failed = () => { cleanup(); reject(new Error("Audio stream interrupted")) }
+            if (controller.signal.aborted) { failed(); return }
+            target.addEventListener(event, done, { once: true })
+            target.addEventListener("error", failed, { once: true })
+            controller.signal.addEventListener("abort", failed, { once: true })
+          })
+          const opened = waitFor(media, "sourceopen")
+          audio.src = mediaUrl
+          const reader = response.body.getReader()
+          let completed = false
+          try {
+            await opened
+            const buffer = media.addSourceBuffer("audio/mpeg")
+            let started = false
+            while (true) {
+              const { done, value } = await reader.read()
+              if (controller.signal.aborted) throw new Error("Audio stream interrupted")
+              if (done) break
+              if (!value.byteLength) continue
+              const appended = waitFor(buffer, "updateend")
+              try {
+                buffer.appendBuffer(value)
+              } catch (appendError) {
+                // Settle the listener promise before propagating synchronous decode errors.
+                buffer.dispatchEvent(new Event("error"))
+                await appended.catch(() => {})
+                throw appendError
+              }
+              await appended
+              if (!started) {
+                started = true
+                setLoading(false)
+                // Do not wait for playback before reading the rest of the stream.
+                void audio.play().catch(error => {
+                  if (!controller.signal.aborted) {
+                    if (error?.name === "NotAllowedError") setBlocked(true)
+                    else setError(true)
+                  }
+                })
+              }
+            }
+            if (!started) throw new Error("Empty audio stream")
+            media.endOfStream()
+            completed = true
+          } finally {
+            if (!completed) {
+              await reader.cancel().catch(() => {})
+              audio.pause()
+              audio.removeAttribute("src")
+              URL.revokeObjectURL(mediaUrl)
+              if (url.current === mediaUrl) url.current = null
+            }
+            reader.releaseLock()
+          }
+          return
+        }
         const blob = await response.blob()
         if (controller.signal.aborted) return
         url.current = URL.createObjectURL(blob)

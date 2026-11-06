@@ -1,4 +1,5 @@
 {
+  "oralRecording": {"record": "Record answer", "stop": "Stop recording", "clear": "Clear text"},
   "generationErrors": {
     "quiz": "Quiz generation failed",
     "flashcards": "Flashcard generation failed",

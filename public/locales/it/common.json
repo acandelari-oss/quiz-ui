@@ -1,4 +1,5 @@
 {
+  "oralRecording": {"record": "Registra risposta", "stop": "Interrompi registrazione", "clear": "Cancella testo"},
   "generationErrors": {
     "quiz": "Generazione del quiz non riuscita",
     "flashcards": "Generazione delle flashcard non riuscita",

@@ -52,6 +52,8 @@ export default function ActiveRecallView({
   const maxQuestions = Math.max(1, Number(maxQuestionsProp || 5))
   const [recording, setRecording] = useState(false)
   const [recognition, setRecognition] = useState<any>(null)
+  const recordingRef = useRef<any>(null)
+  useEffect(() => () => { recordingRef.current?.abort(); recordingRef.current = null }, [projectId])
   const [topicIndex, setTopicIndex] = useState(0)
   const [questionLoaded, setQuestionLoaded] = useState(false)
   const { t: translate, i18n } = useTranslation();
@@ -213,7 +215,7 @@ export default function ActiveRecallView({
   useEffect(() => () => { streamRequest.current?.abort() }, [projectId])
 
   async function submitAnswer() {
-    if (!input.trim() || loading || streamRequest.current) return;
+    if (!input.trim() || recording || loading || streamRequest.current) return;
     
     const controller = new AbortController();
     streamRequest.current = controller;
@@ -348,15 +350,26 @@ export default function ActiveRecallView({
       i18n.language === "it"
         ? "it-IT"
         : "en-US";
-    recog.onresult = (event: any) => setInput(prev => prev + " " + event.results[0][0].transcript);
+    recog.continuous = true;
+    recog.interimResults = false;
+    recog.onresult = (event: any) => {
+      if (recordingRef.current !== recog) return;
+      const parts: string[] = [];
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) parts.push(event.results[i][0].transcript);
+      }
+      if (parts.length) setInput(prev => [prev.trim(), ...parts].filter(Boolean).join(" "));
+    };
+    recog.onerror = () => setRecording(false);
     recog.onend = () => setRecording(false);
+    recordingRef.current = recog;
     setRecognition(recog);
     setRecording(true);
     recog.start();
   }
 
   function toggleRecording() {
-    if (recording) { recognition?.stop(); setRecording(false); }
+    if (recording) { recognition?.stop(); }
     else { startRecording(); }
   }
 
@@ -520,20 +533,17 @@ export default function ActiveRecallView({
           placeholder={translate('stats.Write your answer...')}
         />
         <div className="memory-check-mobile-actions" style={{ display: "flex", gap: 10 }}>
-          <button className="memory-check-mobile-action-button" onClick={toggleRecording} style={{ background: recording ? "#ef4444" : "#111827", border: "1px solid #374151", color: "white", padding: 10, borderRadius: 5 }}>
-            {recording ? "⏹️" : (
-              <img
-                src="/icons/microphone.svg"
-                alt="Microphone"
-                style={{
-                  width: 16,
-                  height: 16,
-                  display: "block"
-                }}
-              />
-            )}
+          <button className="memory-check-mobile-action-button" onClick={toggleRecording} disabled={loading} aria-label={translate(recording ? "oralRecording.stop" : "oralRecording.record")} style={{ background: recording ? "#ef4444" : "#111827", border: "1px solid #374151", color: "white", padding: 10, borderRadius: 5 }}>
+            {translate(recording ? "oralRecording.stop" : "oralRecording.record")}
           </button>
-          <button className="memory-check-mobile-action-button memory-check-mobile-primary-action" onClick={submitAnswer} style={{ background: "#2FA4A9", color: "white", padding: 10, borderRadius: 5, flex: 1 }}>
+          <button type="button" disabled={loading || !input.trim()} onClick={() => {
+            const current = recordingRef.current;
+            recordingRef.current = null;
+            current?.abort();
+            setRecording(false);
+            setInput("");
+          }}>{translate("oralRecording.clear")}</button>
+          <button className="memory-check-mobile-action-button memory-check-mobile-primary-action" onClick={submitAnswer} disabled={recording || loading || !input.trim()} style={{ background: "#2FA4A9", color: "white", padding: 10, borderRadius: 5, flex: 1 }}>
             {translate('stats.Submit Answer')}
           </button>
           <button className="memory-check-mobile-action-button" onClick={fetchAnswer} style={{ background: "#ef4444", color: "white", padding: 10, borderRadius: 5 }}>
