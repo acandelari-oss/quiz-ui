@@ -65,3 +65,34 @@ test('Clear text aborts recognition and discards late transcripts', () => {
   assert.equal(ctx.recording, false)
   assert.equal(ctx.submissions, 0)
 })
+
+test('completion notice waits for evaluation only in standalone Oral Exam', () => {
+  let condition, label
+  function visit(n) {
+    if (ts.isJsxExpression(n) && n.expression) {
+      const text = n.expression.getText(tree)
+      if (text.startsWith('questionCount >= maxQuestions')) condition = n.expression.left.getText(tree)
+      if (text.startsWith('onComplete') && text.includes('oralRecording.completed')) label = text
+    }
+    ts.forEachChild(n, visit)
+  }
+  visit(tree)
+  assert.ok(condition); assert.ok(label)
+  const ctx = { questionCount: 5, maxQuestions: 5, onComplete: undefined, answerEvaluated: false, loading: false,
+    translate: key => JSON.parse(fs.readFileSync('public/locales/en/common.json')).oralRecording.completed }
+  assert.equal(Boolean(vm.runInNewContext(condition, ctx)), false)
+  ctx.answerEvaluated = true; ctx.loading = true
+  assert.equal(Boolean(vm.runInNewContext(condition, ctx)), false)
+  ctx.loading = false
+  assert.equal(Boolean(vm.runInNewContext(condition, ctx)), true)
+  assert.equal(vm.runInNewContext(label, ctx), 'Oral Exam session completed.')
+  ctx.questionCount = 4
+  assert.equal(Boolean(vm.runInNewContext(condition, ctx)), false)
+  ctx.questionCount = 5; ctx.answerEvaluated = false; ctx.onComplete = () => {}
+  assert.equal(Boolean(vm.runInNewContext(condition, ctx)), true)
+  assert.match(vm.runInNewContext(label, ctx), /Press Next to continue to Quiz/)
+  const study = fs.readFileSync('components/views/StudySessionView.tsx', 'utf8')
+  assert.match(study, /onComplete=\{handleRecallComplete\}/)
+  assert.match(study, /setStep\(step \+ 1\)/)
+  assert.ok(JSON.parse(fs.readFileSync('public/locales/it/common.json')).oralRecording.completed)
+})

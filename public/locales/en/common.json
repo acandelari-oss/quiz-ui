@@ -1,5 +1,5 @@
 {
-  "oralRecording": {"record": "Record answer", "stop": "Stop recording", "clear": "Clear text"},
+  "oralRecording": {"record": "Record answer", "stop": "Stop recording", "clear": "Clear text", "completed": "Oral Exam session completed."},
   "generationErrors": {
     "quiz": "Quiz generation failed",
     "flashcards": "Flashcard generation failed",
@@ -1071,5 +1071,14 @@
       "no_validated_topic_link": "A passage on this page has no validated association with a study topic. This alone does not mean that the whole page or its learning subjects are missing.",
       "unknown": "This saved result does not include a specific processing explanation. A source association remains unverified; no page-wide failure has been established."
     }
-  }
+  },
+  "projectLoading": {
+  "opening": "Opening your last project…",
+  "documents": "Loading your documents and topics…",
+  "materials": "Loading your saved quizzes and flashcards…",
+  "stats": "Loading your study statistics…",
+  "error": "We couldn’t finish opening your project. Please try again.",
+  "retry": "Retry",
+  "progress": "Loading project"
+}
 }

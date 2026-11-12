@@ -1,5 +1,5 @@
 {
-  "oralRecording": {"record": "Registra risposta", "stop": "Interrompi registrazione", "clear": "Cancella testo"},
+  "oralRecording": {"record": "Registra risposta", "stop": "Interrompi registrazione", "clear": "Cancella testo", "completed": "Sessione di esame orale completata."},
   "generationErrors": {
     "quiz": "Generazione del quiz non riuscita",
     "flashcards": "Generazione delle flashcard non riuscita",
@@ -1071,5 +1071,14 @@
       "no_validated_topic_link": "Un passaggio di questa pagina non ha un collegamento validato a un argomento di studio. Questo, da solo, non significa che manchino l’intera pagina o i suoi contenuti didattici.",
       "unknown": "Questo risultato salvato non contiene una spiegazione specifica. Un collegamento alla fonte resta da verificare; non è stato accertato un problema dell’intera pagina."
     }
-  }
+  },
+  "projectLoading": {
+  "opening": "Apertura del tuo ultimo progetto…",
+  "documents": "Caricamento dei documenti e degli argomenti…",
+  "materials": "Caricamento dei quiz e delle flashcard salvati…",
+  "stats": "Caricamento delle statistiche di studio…",
+  "error": "Non è stato possibile completare il caricamento del progetto. Riprova.",
+  "retry": "Riprova",
+  "progress": "Caricamento del progetto"
+}
 }

@@ -43,6 +43,7 @@ export default function ActiveRecallView({
   const [sessionStarted, setSessionStarted] = useState(false)
   const [generatingQuestion, setGeneratingQuestion] = useState(false)
   const [questionCount, setQuestionCount] = useState(0)
+  const [answerEvaluated, setAnswerEvaluated] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [aiAnswer, setAiAnswer] = useState("")
@@ -195,6 +196,7 @@ export default function ActiveRecallView({
             topic: focusLabel
           }]);
           setCurrentQuestion(questionText);
+          setAnswerEvaluated(false);
           setQuestionCount(prev => prev + 1);
         }
       }
@@ -263,6 +265,7 @@ export default function ActiveRecallView({
       const hintPart = data.hint ? `\n\n💡 Hint: ${data.hint}` : "";
 
       const finalContent = `${evaluationHeader}\n\n${feedbackBody}${explanationPart}${hintPart}`;
+      setAnswerEvaluated(true);
 
       setMessages(prev => [...prev, { 
         role: "assistant", 
@@ -572,7 +575,7 @@ export default function ActiveRecallView({
             Download PDF
           </button>
         </div>
-        {questionCount >= maxQuestions && (
+        {questionCount >= maxQuestions && (onComplete || (answerEvaluated && !loading)) && (
           <div style={{
             padding: "14px 18px",
             background: "linear-gradient(135deg, rgba(12, 21, 38, 0.96), rgba(8, 14, 28, 0.94))",
@@ -583,7 +586,9 @@ export default function ActiveRecallView({
             textAlign: "center",
             fontWeight: 600
           }}>
-            🎉 Active Recall completed! Press Next to continue to Quiz.
+            {onComplete
+              ? "🎉 Active Recall completed! Press Next to continue to Quiz."
+              : translate('oralRecording.completed')}
           </div>
         )}
       </div>

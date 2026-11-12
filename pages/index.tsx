@@ -319,6 +319,9 @@ const [pendingStudyView, setPendingStudyView] = useState<string | null>(null)
 const [enteringStudyMode, setEnteringStudyMode] = useState(false)
 const [studyGateError, setStudyGateError] = useState("")
 const projectRestoreAttemptedRef = useRef(false)
+const [projectLoadPhase, setProjectLoadPhase] = useState<string | null>("opening")
+const [projectLoadError, setProjectLoadError] = useState(false)
+const projectLoadTargetRef = useRef("")
 const [loadProjectSelectionExpanded,setLoadProjectSelectionExpanded]=useState(true)
 const relationshipLabQueryClearedAfterUploadRef = useRef(false)
 
@@ -1375,14 +1378,6 @@ useEffect(() => {
   }
 }, [activeView])
 
-useEffect(()=>{
-async function init(){
-const { data } = await supabase.auth.getSession()
-if(!data.session) return
-await loadProjects()
-}
-init()
-},[])
 
 useEffect(() => {
 
@@ -1401,38 +1396,33 @@ useEffect(() => {
 
 }, [activeView, projectId, studyMode])
 
-useEffect(() => {
-  async function init() {
-    const { data } = await supabase.auth.getSession()
-    if (!data.session) return
-
-    await loadProjects()
+async function restoreLastProject() {
+  setProjectLoadError(false)
+  setProjectLoadPhase("opening")
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (!data.session) { setProjectLoadPhase(null); return }
+    const list = await loadProjects()
+    if (!list) throw new Error("Could not load projects")
+    let lastId = ""
+    try { lastId = window.localStorage.getItem(LAST_ACTIVE_PROJECT_STORAGE_KEY) || "" } catch {}
+    if (lastId && list.some((project: any) => project.id === lastId)) {
+      await selectProject(lastId, list)
+    } else {
+      setProjectLoadPhase(null)
+    }
+  } catch (error) {
+    console.error("PROJECT RESTORE ERROR:", error)
+    setProjectLoadError(true)
   }
-
-  init()
-}, [])
+}
 
 useEffect(() => {
   if (projectRestoreAttemptedRef.current) return
-  if (projectId) return
-  if (!Array.isArray(projects) || projects.length === 0) return
-
   projectRestoreAttemptedRef.current = true
-
-  let lastActiveProjectId = ""
-  try {
-    lastActiveProjectId = window.localStorage.getItem(LAST_ACTIVE_PROJECT_STORAGE_KEY) || ""
-  } catch {
-    lastActiveProjectId = ""
-  }
-
-  if (!lastActiveProjectId) return
-
-  const projectExists = projects.some((project: any) => project.id === lastActiveProjectId)
-  if (!projectExists) return
-
-  void selectProject(lastActiveProjectId, projects)
-}, [projects, projectId])
+  void restoreLastProject()
+}, [])
 
 // Se l'utente seleziona un topic tramite checkbox, 
 // impostiamo automaticamente l'ultimo selezionato come 'selectedTopic'
@@ -1558,11 +1548,11 @@ return list
 
 }
 
-async function loadResults(projectId: string) {
+async function loadResults(projectId: string, strict = false) {
   if (!projectId?.trim()) return
   const { data } = await supabase.auth.getSession()
   const token = data.session?.access_token
-  if (!token) return
+  if (!token) { if (strict) throw new Error("Session unavailable"); return }
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/results`,
@@ -1571,7 +1561,7 @@ async function loadResults(projectId: string) {
     }
   )
 
-  if (!res.ok) return
+  if (!res.ok) { if (strict) throw new Error("Project request failed: " + res.status); return }
 
   const dataRes = await res.json()
   console.log("🔥 FULL RESULTS RESPONSE:", dataRes)
@@ -1741,18 +1731,18 @@ setResultsData(null)
 setStatus("Project deleted")
 }
 
-async function loadDocuments(projectId:string){
+async function loadDocuments(projectId:string, strict = false){
 
 const { data:sessionData }=await supabase.auth.getSession()
 const token=sessionData.session?.access_token
-if(!token) return
+if (!token) { if (strict) throw new Error("Session unavailable"); return }
 
 const res=await fetch(
 `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/documents`,
 {headers:{Authorization:`Bearer ${token}`}}
 )
 
-if(!res.ok) return
+if (!res.ok) { if (strict) throw new Error("Project request failed: " + res.status); return }
 
 const data=await res.json()
 
@@ -1778,17 +1768,17 @@ if (documentModules.length > 0) {
 
 }
 
-async function loadStudyModules(projectId:string){
+async function loadStudyModules(projectId:string, strict = false){
   const { data:sessionData }=await supabase.auth.getSession()
   const token=sessionData.session?.access_token
-  if(!token) return []
+  if (!token) { if (strict) throw new Error("Session unavailable"); return [] }
 
   const res=await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/modules`,
     {headers:{Authorization:`Bearer ${token}`}}
   )
 
-  if(!res.ok) return []
+  if (!res.ok) { if (strict) throw new Error("Project request failed: " + res.status); return [] }
 
   const data=await res.json()
   const modules = data.modules || []
@@ -2217,7 +2207,7 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
   }
 } // Chiusura finale della funzione uploadFiles
 
-async function loadTopics(projectId:string){
+async function loadTopics(projectId:string, strict = false){
 
   try {
     console.log("🧪 loadTopics RUNNING")
@@ -2229,6 +2219,7 @@ async function loadTopics(projectId:string){
     const token = sessionData.session?.access_token
 
     if(!token){
+      if (strict) throw new Error("Session unavailable")
 
       setLoadingTopics(false)
 
@@ -2248,6 +2239,7 @@ async function loadTopics(projectId:string){
     console.log("🟡 TOPICS RESPONSE STATUS:", res.status)
 
     if(!res.ok){
+if (strict) throw new Error("Project request failed: " + res.status)
       console.error("❌ TOPICS FETCH FAILED")
       return
     }
@@ -2270,6 +2262,7 @@ async function loadTopics(projectId:string){
   } catch(err){
 
     console.error("❌ LOAD TOPICS ERROR:", err)
+    if (strict) throw err
 
   } finally {
 
@@ -2680,10 +2673,10 @@ async function refreshStudyLibrary() {
   await Promise.allSettled([loadPreviousQuizzes(projectId), loadFlashcards(projectId, true)])
 }
 
-async function loadPreviousQuizzes(projectId: string) {
+async function loadPreviousQuizzes(projectId: string, strict = false) {
   const { data: sessionData } = await supabase.auth.getSession()
   const token = sessionData.session?.access_token
-  if (!token) return
+  if (!token) { if (strict) throw new Error("Session unavailable"); return }
 
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/quizzes`,
@@ -2693,6 +2686,7 @@ async function loadPreviousQuizzes(projectId: string) {
   )
 
   if (!res.ok) {
+if (strict) throw new Error("Project request failed: " + res.status)
     console.error("❌ Errore loadPreviousQuizzes:", res.status)
     setPreviousQuizzes([])
     return
@@ -2714,11 +2708,11 @@ async function loadPreviousQuizzes(projectId: string) {
   console.log("✅ previousQuizzes caricati:", quizzes.length)
 }
 
-async function loadFlashcards(projectId:string, metadataOnly = false){
+async function loadFlashcards(projectId:string, metadataOnly = false, strict = false){
 
 const { data:sessionData } = await supabase.auth.getSession()
 const token = sessionData.session?.access_token
-if(!token) return
+if (!token) { if (strict) throw new Error("Session unavailable"); return }
 
 try{
 
@@ -2732,6 +2726,7 @@ Authorization:`Bearer ${token}`
 )
 
 if(!res.ok){
+if (strict) throw new Error("Project request failed: " + res.status)
 console.error("Failed loading flashcards")
 return
 }
@@ -2752,12 +2747,13 @@ if (!metadataOnly) setStudyMode("loaded")
 }catch(e){
 
 console.error("FLASHCARDS LOAD ERROR:",e)
+if (strict) throw e
 
 }
 
 }
 
-async function loadQuizStats(id: string) {
+async function loadQuizStats(id: string, strict = false) {
     if (!id) return;
     try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -2767,12 +2763,14 @@ async function loadQuizStats(id: string) {
         const resStats = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}/stats`, {
             headers: { Authorization: `Bearer ${token}` }
         });
+        if (strict && !resStats.ok) throw new Error("Statistics request failed")
         const statsData = await resStats.json();
 
         // 2. Chiamata per la lista reale dei quiz
         const resHistory = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/projects/${id}/quizzes`, {
             headers: { Authorization: `Bearer ${token}` }
         });
+        if (strict && !resHistory.ok) throw new Error("History request failed")
         const historyData = await resHistory.json();
         
         // --- TRASFORMAZIONE E TRADUZIONE ---
@@ -2819,10 +2817,11 @@ async function loadQuizStats(id: string) {
         // 4. Prepariamo l'oggetto finale
         console.warn("⚠️ Legacy local analytics builder disabled. Use /results instead.");
 
-        await loadResults(id);
+        await loadResults(id, strict);
 
     } catch (err) {
         console.error("❌ Errore:", err);
+        if (strict) throw err
     }
 }
 
@@ -2975,6 +2974,9 @@ async function selectProject(
   options: { previewOnly?: boolean } = {}
 ) {
   if (blockProjectChangeDuringUpload()) return false
+  projectLoadTargetRef.current = id
+  setProjectLoadError(false)
+  setProjectLoadPhase("documents")
   setUploadCanContinue(false)
   uploadCanContinueRef.current = false
   setUploadNotice("")
@@ -3040,9 +3042,9 @@ async function selectProject(
   setPriorityCategories(persistedPriorityCategories)
 
   try {
-    await loadStudyModules(id);
-    await loadDocuments(id);
-    const loadedTopics = await loadTopics(id);
+    await loadStudyModules(id, true);
+    await loadDocuments(id, true);
+    const loadedTopics = await loadTopics(id, true);
     const loadedCategorySet = new Set(
       (loadedTopics || [])
         .map((topic: any) => String(topic.category || "General"))
@@ -3060,9 +3062,10 @@ async function selectProject(
     })
     setPriorityCategories(restoredPriorityCategories)
 
+    setProjectLoadPhase("materials")
     setStatus("Loading previous material...");
 
-    await loadPreviousQuizzes(id);
+    await loadPreviousQuizzes(id, true);
 
     console.log("✅ Progetto selezionato:", id)
     console.log("✅ Topics caricati")
@@ -3072,11 +3075,13 @@ async function selectProject(
     // await loadSummary(id); 
     
     // 2. ASSICURATI CHE CI SIA QUESTA:
-    await loadQuizStats(id); 
+    await loadFlashcards(id, false, true);
+    setProjectLoadPhase("stats")
+    await loadQuizStats(id, true);
 
     console.log("✅ Quiz stats richieste per project:", id)
 
-    await loadFlashcards(id);
+    setProjectLoadPhase(null)
 
     if (options.previewOnly) {
       uploadLifecycleTrace("selectProject preview-only transition", {
@@ -3104,6 +3109,7 @@ async function selectProject(
     )
 
   } catch(e) {
+    setProjectLoadError(true)
     console.error("PROJECT LOAD ERROR:", e);
     setStatus("Error loading project");
     return false
@@ -4307,7 +4313,16 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
           )}
         </div>
       )}
-      <div style={mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell}>
+      <div style={{ ...(mobileHome ? mobileHomeShell : mobileNavigationSelected ? mobileContentShell : desktopContentShell), position: "relative" }}>
+      {projectLoadPhase && <div style={{ position: "absolute", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(8, 10, 16, 0.96)", padding: 24 }}>
+        <div role={projectLoadError ? "alert" : "status"} aria-live="polite" aria-busy={!projectLoadError} style={{ maxWidth: 480, width: "100%", padding: 28, border: "1px solid #374151", borderRadius: 16, background: "#111827", color: "#e5e7eb" }}>
+          <strong>{i18n.t(`projectLoading.${projectLoadError ? "error" : projectLoadPhase}`)}</strong>
+          {projectName && <p style={{ color: "#9ca3af", overflowWrap: "anywhere" }}>{projectName}</p>}
+          {!projectLoadError && <progress aria-label={i18n.t("projectLoading.progress")} style={{ width: "100%", marginTop: 20, accentColor: "#36f2ed" }} />}
+          {projectLoadError && <button type="button" onClick={() => { void (projectLoadTargetRef.current ? selectProject(projectLoadTargetRef.current) : restoreLastProject()) }} style={{ display: "block", marginTop: 20, padding: "8px 16px", borderRadius: 8, cursor: "pointer" }}>{i18n.t("projectLoading.retry")}</button>}
+        </div>
+      </div>}
+      <div inert={Boolean(projectLoadPhase)} style={{ display: "contents" }}>
       <Sidebar
         uploadNotice={uploadNotice}
         uploadInProgress={uploadWorkflowActive}
@@ -4586,6 +4601,7 @@ async function generateQuiz(overrides: LearningGenerationOverrides = {}) {
 	        
 	      />
       )}
+      </div>
       </div>
     </div>
   )
