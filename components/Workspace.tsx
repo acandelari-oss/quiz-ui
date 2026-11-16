@@ -1343,6 +1343,7 @@ return (
           studyModules={studyModules}
           projectName={projectName}
           onBeginModuleStudy={onBeginModuleStudy}
+          onUploadAnotherFile={onUploadAnotherFile}
           uploadWorkflowActive={uploadWorkflowActive}
           topics={topics}
           loadTopics={loadTopics}
@@ -1364,9 +1365,9 @@ return (
 	          setPriorityCategories={setPriorityCategories}
 	          onPriorityCategoriesSaved={onPriorityCategoriesSaved}
 	        />
-        <button type="button" style={{ ...projectReadySecondaryButton, marginTop: 20 }} disabled={uploadWorkflowActive} onClick={() => onUploadAnotherFile?.()}>
+        {!topics.length && <button type="button" style={{ ...projectReadySecondaryButton, marginTop: 20 }} disabled={uploadWorkflowActive} onClick={() => onUploadAnotherFile?.()}>
           {translate("stats.UPLOAD ANOTHER FILE")}
-        </button>
+        </button>}
         <style jsx global>{`
           @media (max-width: 900px) {
             .taxonomy-review-completion {

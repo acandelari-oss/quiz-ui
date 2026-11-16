@@ -16,6 +16,7 @@ function render(topics,documents,accepted=false){
  'react':{useMemo:f=>f(),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},
  'react-i18next':{useTranslation:()=>({t:k=>k})},'../../utils/studyModeGate':{studyActivityLabel:()=>null},
  '../../utils/categoryIdentity':load('utils/categoryIdentity.ts'), '../../utils/topicModules':grouping,'./TopicsView':{default:'TopicsView'},'../CategoryOrganizationReview':{default:'Review'},
+ '../SourceMaterialReview':{default:'SourceReview'}, '../ui/UploadAcquisitionResults':{default:'AcquisitionResults'},
  '../DocumentTaxonomyControls':{default:'Controls'},'../useTaxonomyDocuments':{useTaxonomyDocuments:()=>({documents,refresh:async()=>{},error:false})}
  }).default
  return nodes(View({projectId:'p',topics,studyModules:[{id:'m',name:'Module',taxonomy_status:'ready',accepted_for_study:accepted}],projectName:'Project'}))

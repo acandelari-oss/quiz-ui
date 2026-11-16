@@ -11,7 +11,7 @@ import UploadAcquisitionResults from "../ui/UploadAcquisitionResults"
 import DocumentTaxonomyControls from "../DocumentTaxonomyControls"
 import { useTaxonomyDocuments } from "../useTaxonomyDocuments"
 
-export default function ModuleTopicsView({ studyModules = [], projectName, onBeginModuleStudy, uploadWorkflowActive, acquisition, ...topicProps }: any) {
+export default function ModuleTopicsView({ studyModules = [], projectName, onBeginModuleStudy, onUploadAnotherFile, uploadWorkflowActive, acquisition, ...topicProps }: any) {
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [busy, setBusy] = useState<string | null>(null)
@@ -41,6 +41,10 @@ export default function ModuleTopicsView({ studyModules = [], projectName, onBeg
       const key = group.id || "legacy"
       const open = !collapsed[key]
       const status = group.accepted ? "study" : failed ? "failed" : ready ? "review" : "processing"
+      const actions = <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+        {!group.accepted && <button type="button" disabled={busy !== null || uploadWorkflowActive || !ready || !group.topics.length} onClick={() => void approve(group.id)} style={{ padding: "9px 12px", border: "1px solid #2fa4a9", background: "#15313a", color: "#dffeff", borderRadius: 8, whiteSpace: "normal", maxWidth: "100%", cursor: "pointer" }}>{t(busy === group.id ? "moduleTopics.approving" : "moduleTopics.enter")}</button>}
+        {onUploadAnotherFile && <button type="button" disabled={uploadWorkflowActive || busy !== null} onClick={() => onUploadAnotherFile()} style={{ padding: "9px 12px", border: "1px solid #475569", background: "transparent", color: "#e2e8f0", borderRadius: 8, cursor: "pointer" }}>{t("stats.UPLOAD ANOTHER FILE")}</button>}
+      </div>
       return <section key={key} style={{ border: "1px solid #334155", borderRadius: 14, background: "#0b1220", minWidth: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12, padding: 16 }}>
           <button type="button" aria-expanded={open} aria-controls={`module-topics-${key}`} onClick={() => setCollapsed(previous => ({ ...previous, [key]: open }))} style={{ display: "flex", alignItems: "center", gap: 10, flex: "1 1 220px", minWidth: 0, padding: 0, border: 0, background: "transparent", color: "#f8fafc", textAlign: "left", cursor: "pointer", fontSize: 21, fontWeight: 750, textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -48,7 +52,7 @@ export default function ModuleTopicsView({ studyModules = [], projectName, onBeg
             <span style={{ overflowWrap: "anywhere" }}>{group.name || t("moduleTopics.module")}</span>
           </button>
           <span style={{ color: group.accepted ? "#4ade80" : "#fbbf24", fontSize: 12 }}>{t(`moduleTopics.${status}`)}</span>
-          {!group.accepted && <button type="button" disabled={busy !== null || uploadWorkflowActive || !ready || !group.topics.length} onClick={() => void approve(group.id)} style={{ padding: "9px 12px", border: "1px solid #2fa4a9", background: "#15313a", color: "#dffeff", borderRadius: 8, whiteSpace: "normal", maxWidth: "100%", cursor: "pointer" }}>{t(busy === group.id ? "moduleTopics.approving" : "moduleTopics.enter")}</button>}
+          {actions}
         </div>
         {error?.id === group.id && <p role="alert" style={{ padding: "0 16px", color: "#fca5a5" }}>{error.text}</p>}
         {open && <div id={`module-topics-${key}`} style={{ padding: "0 12px 12px", minWidth: 0 }}>
@@ -77,6 +81,7 @@ export default function ModuleTopicsView({ studyModules = [], projectName, onBeg
           }} topics={file.topics.filter((topic: any) => topic.system_category !== "to_organize")} projectStudyMode={group.accepted ? "learning" : "building"} topicsOpen={true} setTopicsOpen={() => setCollapsed(previous => ({ ...previous, [key]: true }))} />
           </div>
           </section>)}
+          <div style={{ padding: "12px 4px 4px" }}>{actions}</div>
         </div>}
       </section>
     })}

@@ -42,7 +42,7 @@ test('legacy project topics remain separate from named modules', () => {
 })
 
 test('module sections approve their own ID and keep review activities gated', async () => {
-  const approvals = [], navigations = [], states = []
+  const approvals = [], navigations = [], states = [], uploads = []
   const jsx = (type, props) => ({ type, props })
   const module = { exports: {}, require(name) {
     if (name === 'react') return { useMemo: fn => fn(), useState: initial => { const i = states.length; states.push(initial); return [initial, value => { states[i] = typeof value === 'function' ? value(states[i]) : value }] } }
@@ -50,6 +50,7 @@ test('module sections approve their own ID and keep review activities gated', as
     if (name === 'react-i18next') return { useTranslation: () => ({ t: key => key }) }
     if (name.includes('topicModules')) return context.exports
     if (name.includes('studyModeGate')) return { studyActivityLabel: view => view === 'quiz' ? 'Quiz' : null }
+    if (name === '../SourceMaterialReview' || name === '../ui/UploadAcquisitionResults') return { default: name }
     if (name === './TopicsView') return { default: 'TopicsView' }
     if (name === '../CategoryOrganizationReview') return { default: 'CategoryOrganizationReview' }
     if (name === '../DocumentTaxonomyControls') return { default: 'DocumentControls' }
@@ -64,15 +65,23 @@ test('module sections approve their own ID and keep review activities gated', as
     projectId: 'project', projectName: 'Project', projectStudyMode: 'learning',
     topics: [{ module_id: 'one', category: 'General' }, { module_id: 'two', category: 'General' }],
     studyModules: [{ id: 'one', name: 'One', accepted_for_study: true, taxonomy_status: 'ready' }, { id: 'two', name: 'Two', accepted_for_study: false, taxonomy_status: 'ready' }],
-    onBeginModuleStudy: async id => approvals.push(id), setActiveView: view => navigations.push(view)
+    onUploadAnotherFile: () => uploads.push('upload'), onBeginModuleStudy: async id => approvals.push(id), setActiveView: view => navigations.push(view)
   })
   function nodes(node) { return !node || typeof node !== 'object' ? [] : Array.isArray(node) ? node.flatMap(nodes) : [node, ...nodes(node.props?.children)] }
   const all = nodes(tree)
   const approveButtons = all.filter(n => n.type === 'button' && n.props.children === 'moduleTopics.enter')
-  assert.equal(approveButtons.length, 1)
+  assert.equal(approveButtons.length, 2)
+  const uploadButtons = all.filter(n => n.type === 'button' && n.props.children === 'stats.UPLOAD ANOTHER FILE')
+  assert.equal(uploadButtons.length, 4)
+  uploadButtons[0].props.onClick()
+  uploadButtons[3].props.onClick()
+  assert.deepEqual(uploads, ['upload', 'upload'])
   approveButtons[0].props.onClick()
   await new Promise(done => setImmediate(done))
   assert.deepEqual(approvals, ['two'])
+  approveButtons[1].props.onClick()
+  await new Promise(done => setImmediate(done))
+  assert.deepEqual(approvals, ['two', 'two'])
   const taxonomies = all.filter(n => n.type === 'TopicsView')
   assert.equal(taxonomies[0].props.topics.length, 1)
   assert.equal(taxonomies[1].props.topics.length, 1)

@@ -28,6 +28,18 @@ export function uploadPublished(stream: string) {
   return /^Upload complete ✅\r?$/m.test(stream) && !/^UPLOAD_FAILED\|/m.test(stream);
 }
 
+export function incompleteUploadDiagnostic(stream: string) {
+  const limit = 4000;
+  const truncated = stream.length > limit;
+  return {
+    receivedCharacters: stream.length,
+    truncated,
+    responseExcerpt: truncated
+      ? stream.slice(0, limit / 2) + '\n[...truncated...]\n' + stream.slice(-limit / 2)
+      : stream,
+  };
+}
+
 // Count source units with reading problems, never visual uncertainty alone.
 export function acquisitionReadingErrors(report: AcquisitionReport) {
   const readingReasons = new Set(['parser_error', 'ocr_error', 'inspection_error', 'no_recoverable_text']);

@@ -163,3 +163,24 @@ test('42 graphics flags are grouped as information; mixed failures and short-tex
  assert.equal(JSON.stringify(graphics),unchanged,'presentation must not mutate the backend report');
  await i18n.changeLanguage('en');
 });
+
+test('incomplete upload diagnostic retains the complete short response as copyable JSON', () => {
+ const body = 'Starting upload\nProcessing document: sample.pdf\n';
+ const result = sandbox.exports.incompleteUploadDiagnostic(body);
+ assert.equal(result.responseExcerpt, body);
+ assert.equal(result.receivedCharacters, body.length);
+ assert.equal(result.truncated, false);
+ assert.equal(JSON.parse(JSON.stringify(result)).responseExcerpt, body);
+ assert.equal(sandbox.exports.uploadPublished(body), false);
+});
+
+test('incomplete upload diagnostic bounds long responses while retaining both ends', () => {
+ const body = 'START' + 'x'.repeat(10000) + 'END';
+ const result = sandbox.exports.incompleteUploadDiagnostic(body);
+ assert.equal(result.truncated, true);
+ assert.equal(result.receivedCharacters, body.length);
+ assert.ok(result.responseExcerpt.startsWith('START'));
+ assert.ok(result.responseExcerpt.endsWith('END'));
+ assert.ok(result.responseExcerpt.length < 4050);
+ assert.equal(sandbox.exports.incompleteUploadDiagnostic('').responseExcerpt, '');
+});

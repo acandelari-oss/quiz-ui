@@ -1,4 +1,4 @@
-import { acquisitionReports, uploadPublished, type AcquisitionReport } from "../utils/uploadAcquisition"
+import { acquisitionReports, uploadPublished, incompleteUploadDiagnostic, type AcquisitionReport } from "../utils/uploadAcquisition"
 import { generationResponseError } from "../utils/generationError"
 import { readChatStream } from "../utils/chatStream"
 import { isUploadView, shouldPresentUploadResult, uploadStatusForWorkspace } from "../utils/backgroundUpload"
@@ -2124,7 +2124,16 @@ uploadFlightLog(uploadSessionId, "Upload request finished", {
       return
     }
 
-    if (!uploadPublished(fullText)) throw new Error("Upload interrupted before publication was confirmed")
+    if (!uploadPublished(fullText)) {
+      // Response body only: never include the request, token or uploaded file bytes.
+      console.error(`[${uploadSessionId}] UPLOAD_INCOMPLETE_RESPONSE`, JSON.stringify({
+        httpStatus: res.status,
+        contentType: res.headers.get("content-type"),
+        streamChunks: streamChunkCount,
+        ...incompleteUploadDiagnostic(fullText),
+      }))
+      throw new Error("Upload interrupted before publication was confirmed")
+    }
 
     // Content publication is complete; taxonomy processing is still pending.
     setUploading(false);
